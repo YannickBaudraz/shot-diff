@@ -1,0 +1,39 @@
+{
+  "name": "shot-diff",
+  "version": "0.1.0",
+  "description": "Before and after screenshots of a web page, with what was removed marked red and what was added marked green",
+  "license": "MIT",
+  "author": "Yannick Baudraz",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/YannickBaudraz/shot-diff.git"
+  },
+  "type": "module",
+  "bin": {
+    "shot-diff": "dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "build": "vite build",
+    "prepare": "vite build",
+    "check": "tsc",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "commander": "^15.0.0",
+    "diff": "^9.0.0",
+    "playwright-core": "^1.64.1",
+    "sharp": "^0.35.5"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.5",
+    "vitest": "^5.1.0"
+  }
+}
