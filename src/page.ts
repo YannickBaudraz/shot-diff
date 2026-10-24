@@ -148,3 +148,73 @@ export function snap(region: { top: number; bottom: number }): { top: number; bo
   }
   return { top: Math.max(0, top), bottom };
 }
+
+/** Every visible element of the page, in document order, as visual.ts compares them: what pairs it
+ * across the pages, where it sits in the tree, its size and the computed `properties`. The page keeps
+ * the elements, for outline() and the pixel comparison to find them again. */
+export function elements(properties: string[]): import('./visual.ts').El[] {
+  const els: Element[] = [];
+  const out: import('./visual.ts').El[] = [];
+  const index = new Map<Element, number>();
+  const painters = new Set(['IMG', 'CANVAS', 'svg', 'VIDEO']);
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT, {
+    // An SVG is one picture: its shapes are not elements of their own here.
+    acceptNode: node => (node.parentElement?.closest('svg') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT),
+  });
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    const el = node as Element;
+    if (!el.checkVisibility({ checkOpacity: false, checkVisibilityCSS: true })) continue;
+    const rect = el.getBoundingClientRect();
+    if (!rect.width || !rect.height) continue;
+    const style = getComputedStyle(el);
+    const own = [...el.childNodes].filter(n => n.nodeType === Node.TEXT_NODE).map(n => n.textContent).join(' ')
+      .replace(/\s+/g, ' ').trim().slice(0, 80);
+    const file = (el.getAttribute('src') || el.getAttribute('href') || '').split(/[?#]/)[0].split('/').pop() || '';
+    const sig = [el.tagName, el.id && `#${el.id}`, el.getAttribute('role') || '', el.getAttribute('aria-label') || '', own, file]
+      .filter(Boolean).join(' ');
+    let parent = -1;
+    for (let up = el.parentElement; up; up = up.parentElement) {
+      const at = index.get(up);
+      if (at !== undefined) { parent = at; out[at].leaf = false; break; }
+    }
+    index.set(el, out.length);
+    els.push(el);
+    out.push({
+      sig,
+      parent,
+      leaf: true,
+      paint: painters.has(el.tagName) || style.backgroundImage !== 'none',
+      width: rect.width,
+      height: rect.height,
+      style: Object.fromEntries(properties.map(p => [p, style.getPropertyValue(p)])),
+    });
+  }
+  (window as unknown as { __shotDiffEls: Element[] }).__shotDiffEls = els;
+  return out;
+}
+
+/** A box around each element whose look changed, with what changed written on it; and where each
+ * one is, in page pixels. */
+export function outline(o: { items: { index: number; label: string }[]; color: string }): Span[] {
+  const els = (window as unknown as { __shotDiffEls: Element[] }).__shotDiffEls;
+  const sx = window.scrollX;
+  const sy = window.scrollY;
+  const layer = document.createElement('div');
+  layer.style.cssText = 'position:absolute;left:0;top:0;width:0;height:0;z-index:2147483647;pointer-events:none';
+  document.documentElement.appendChild(layer);
+  return o.items.map(({ index, label }) => {
+    const r = els[index].getBoundingClientRect();
+    const box = document.createElement('div');
+    box.style.cssText = `position:absolute;box-sizing:border-box;border:2px solid ${o.color};border-radius:4px;` +
+      `left:${r.left + sx - 4}px;top:${r.top + sy - 4}px;width:${r.width + 8}px;height:${r.height + 8}px`;
+    const tag = document.createElement('div');
+    tag.textContent = label;
+    tag.style.cssText = `position:absolute;left:-2px;bottom:100%;margin-bottom:2px;padding:1px 6px;border-radius:4px;white-space:nowrap;` +
+      `background:${o.color};color:#ffffff;font:600 12px/1.4 system-ui,sans-serif`;
+    box.appendChild(tag);
+    layer.appendChild(box);
+    const top = r.top + sy - 4 - 22; // the label sits above the box
+    const bottom = r.bottom + sy + 4;
+    return { top, bottom, changedTop: top, changedBottom: bottom };
+  });
+}
