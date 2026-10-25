@@ -1,8 +1,10 @@
 import type { Browser, BrowserContext, Page } from 'playwright-core';
+import pixelmatch from 'pixelmatch';
 import sharp from 'sharp';
 import { diff, hunks, type Hunk } from './diff.ts';
 import { group, outside, type Region } from './group.ts';
-import { collect, element, mark, snap, type Box, type MarkOptions, type Marked } from './page.ts';
+import { collect, element, elements, mark, outline, snap, type Box, type MarkOptions, type Marked, type Span } from './page.ts';
+import { PROPERTIES, painted, pairs, restyled, type El, type Restyled } from './visual.ts';
 
 export type Options = {
   before: string;
@@ -23,7 +25,10 @@ export type Options = {
 export type Side = { png: Buffer; changed: string[]; box: Box };
 export type Shot = { before: Side; after: Side };
 /** `left out`: changes found but not in any image (above or below a cut, or outside --selector). */
-export type Result = { hunks: number; shots: Shot[]; leftOut: { removed: string[]; added: string[] } };
+export type Result = { hunks: number; restyled: number; shots: Shot[]; leftOut: { removed: string[]; added: string[] } };
+
+/** The most pictures compared pixel by pixel, so a page of thumbnails stays quick. */
+const MAX_PICTURES = 300;
 
 const RED = { color: '#cf222e', tint: 'rgba(255, 129, 130, 0.45)' };
 const GREEN = { color: '#1a7f37', tint: 'rgba(74, 194, 107, 0.4)' };
@@ -107,30 +112,74 @@ async function titled(png: Buffer, side: 'before' | 'after', n: number, of: numb
     .toBuffer();
 }
 
+/** Whether element `i` of page `a` and element `j` of page `b` draw different pixels. */
+async function repainted(a: Page, i: number, b: Page, j: number): Promise<boolean> {
+  const pixels = async (page: Page, k: number) => {
+    const handle = await page.evaluateHandle(k => (window as unknown as { __shotDiffEls: Element[] }).__shotDiffEls[k], k);
+    try {
+      const png = await handle.asElement()?.screenshot({ animations: 'disabled' });
+      return png ? await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true }) : null;
+    } catch {
+      return null; // gone, or not shootable: nothing to compare
+    } finally {
+      await handle.dispose();
+    }
+  };
+  const pa = await pixels(a, i);
+  const pb = await pixels(b, j);
+  if (!pa || !pb) return false;
+  if (pa.info.width !== pb.info.width || pa.info.height !== pb.info.height) return true;
+  return pixelmatch(pa.data, pb.data, null, pa.info.width, pa.info.height, { threshold: 0.1 }) > 0;
+}
+
+/** What a restyled element is, in a word, for the lists of changes. */
+const named = (el: El, what: string[]) => `[${el.sig.split(' ')[0].toLowerCase()}: ${what.join(', ')}]`;
+
 export async function run(browser: Browser, o: Options): Promise<Result> {
   const before = await open(browser, o.before, o);
   const after = await open(browser, o.after, o);
   try {
     const found: Hunk[] = hunks(diff(before.words, after.words));
+
+    // Looks: compared before anything is drawn over the pages.
+    const properties = Object.keys(PROPERTIES);
+    const elsA = await before.page.evaluate(elements, properties);
+    const elsB = await after.page.evaluate(elements, properties);
+    const paired = pairs(elsA, elsB);
+    const looks: Restyled[] = restyled(elsA, elsB, paired);
+    for (const [i, j] of painted(elsA, elsB, paired, looks).slice(0, MAX_PICTURES)) {
+      if (await repainted(before.page, i, after.page, j)) looks.push({ a: i, b: j, what: ['picture'] });
+    }
+
     const markA: Marked = await before.page.evaluate(mark, {
       ...RED, strike: true, hunks: found.map(h => ({ changed: h.removed, anchors: h.anchorsA })),
     } satisfies MarkOptions);
     const markB: Marked = await after.page.evaluate(mark, {
       ...GREEN, strike: false, hunks: found.map(h => ({ changed: h.added, anchors: h.anchorsB })),
     } satisfies MarkOptions);
+    const lookA: Span[] = await before.page.evaluate(outline, { color: RED.color, items: looks.map(l => ({ index: l.a, label: l.what.join(', ') })) });
+    const lookB: Span[] = await after.page.evaluate(outline, { color: GREEN.color, items: looks.map(l => ({ index: l.b, label: l.what.join(', ') })) });
 
-    let groups = group(markA.spans, markB.spans, o.padding, o.maxHeight);
+    // Every change, words and looks, in the order they sit on the page, for grouping into shots.
+    const changes = [
+      ...found.map((h, i) => ({
+        a: markA.spans[i], b: markB.spans[i],
+        removed: h.removed.map(t => before.words[t]).join(' '),
+        added: h.added.map(t => after.words[t]).join(' '),
+      })),
+      ...looks.map((l, i) => ({ a: lookA[i], b: lookB[i], removed: named(elsA[l.a], l.what), added: named(elsB[l.b], l.what) })),
+    ].sort((x, y) => (x.a?.top ?? x.b?.top ?? 0) - (y.a?.top ?? y.b?.top ?? 0));
+
+    let groups = group(changes.map(c => c.a), changes.map(c => c.b), o.padding, o.maxHeight);
     if (o.selector) {
       const a = await before.page.evaluate(element, o.selector);
       const b = await after.page.evaluate(element, o.selector);
       if (!a || !b) throw new Error(`--selector ${o.selector} matches nothing on the ${!a ? 'before' : 'after'} page`);
-      groups = [{ hunks: found.map((_, i) => i), before: a, after: b }];
+      groups = [{ hunks: changes.map((_, i) => i), before: a, after: b }];
     } else if (!groups.length) {
       groups = [{ hunks: [], before: null, after: null }];
     }
 
-    const removed = (i: number) => found[i].removed.map(t => before.words[t]).join(' ');
-    const added = (i: number) => found[i].added.map(t => after.words[t]).join(' ');
     const shots: Shot[] = [];
     const leftOut = { removed: [] as string[], added: [] as string[] };
     for (const [n, g] of groups.entries()) {
@@ -139,23 +188,23 @@ export async function run(browser: Browser, o: Options): Promise<Result> {
       const regionA = { top: clipA.y, bottom: clipA.y + clipA.height };
       const regionB = { top: clipB.y, bottom: clipB.y + clipB.height };
       for (const i of g.hunks) {
-        if (outside(markA.spans[i], regionA)) leftOut.removed.push(removed(i));
-        if (outside(markB.spans[i], regionB)) leftOut.added.push(added(i));
+        if (outside(changes[i].a, regionA)) leftOut.removed.push(changes[i].removed);
+        if (outside(changes[i].b, regionB)) leftOut.added.push(changes[i].added);
       }
       shots.push({
         before: {
           png: await titled(await shot(before.page, clipA), 'before', n + 1, groups.length, o),
           box: clipA,
-          changed: g.hunks.map(removed).filter(Boolean),
+          changed: g.hunks.map(i => changes[i].removed).filter(Boolean),
         },
         after: {
           png: await titled(await shot(after.page, clipB), 'after', n + 1, groups.length, o),
           box: clipB,
-          changed: g.hunks.map(added).filter(Boolean),
+          changed: g.hunks.map(i => changes[i].added).filter(Boolean),
         },
       });
     }
-    return { hunks: found.length, shots, leftOut };
+    return { hunks: found.length, restyled: looks.length, shots, leftOut };
   } finally {
     await before.context.close();
     await after.context.close();

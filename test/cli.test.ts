@@ -75,3 +75,14 @@ test('a title is required', () => {
   expect(done.status).not.toBe(0);
   expect(done.stderr).toMatch(/--title/);
 });
+
+test('changes with no words in them are marked: a restyled button, a picture redrawn under the same name', () => {
+  const { done, result } = shotDiff(page('visual/before/index.html'), page('visual/after/index.html'), '--title', 't');
+  expect(done.status, done.stderr).toBe(0);
+  expect(result.restyled).toBe(2);
+  const removed = result.shots.flatMap((s: { before: { removed: string[] } }) => s.before.removed);
+  const added = result.shots.flatMap((s: { after: { added: string[] } }) => s.after.added);
+  expect(removed).toEqual(expect.arrayContaining(['[image mountains.svg]', '[img: picture]', '[button: background]']));
+  expect(added).toEqual(expect.arrayContaining(['[image night.svg]', '[img: picture]', '[button: background]']));
+  expect(result.leftOut).toEqual({ removed: [], added: [] });
+});

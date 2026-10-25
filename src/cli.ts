@@ -70,14 +70,14 @@ A local file is a file:// URL.`)
         };
       });
       if (values.json) {
-        console.log(JSON.stringify({ hunks: result.hunks, shots, leftOut: result.leftOut }, null, 2));
+        console.log(JSON.stringify({ hunks: result.hunks, restyled: result.restyled, shots, leftOut: result.leftOut }, null, 2));
       } else {
         for (const shot of shots) {
           console.log(`${shot.before.file}: ${shot.before.removed.length} part(s) removed`);
           console.log(`${shot.after.file}: ${shot.after.added.length} part(s) added`);
         }
       }
-      if (!result.hunks) console.error("shot-diff: no difference in the pages' words or images; the shots show the top of each page");
+      if (!result.hunks && !result.restyled) console.error("shot-diff: no difference in the pages' words, images or looks; the shots show the top of each page");
       const missed = [...result.leftOut.removed.map(s => `removed: ${s}`), ...result.leftOut.added.map(s => `added: ${s}`)];
       if (missed.length) {
         console.error(`shot-diff: ${missed.length} change(s) are not in any image (cut by --max-height, or outside --selector):`);
