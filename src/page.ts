@@ -167,6 +167,7 @@ export function elements(properties: string[]): import('./visual.ts').El[] {
     const rect = el.getBoundingClientRect();
     if (!rect.width || !rect.height) continue;
     const style = getComputedStyle(el);
+    const computed = el.computedStyleMap();
     const own = [...el.childNodes].filter(n => n.nodeType === Node.TEXT_NODE).map(n => n.textContent).join(' ')
       .replace(/\s+/g, ' ').trim().slice(0, 80);
     const file = (el.getAttribute('src') || el.getAttribute('href') || '').split(/[?#]/)[0].split('/').pop() || '';
@@ -186,7 +187,9 @@ export function elements(properties: string[]): import('./visual.ts').El[] {
       paint: painters.has(el.tagName) || style.backgroundImage !== 'none',
       width: rect.width,
       height: rect.height,
-      style: Object.fromEntries(properties.map(p => [p, style.getPropertyValue(p)])),
+      // The computed value, as the CSS gave it: `auto` stays `auto`, where getComputedStyle would give
+      // the pixels layout made of it, which change with whatever else changed on the page.
+      style: Object.fromEntries(properties.map(p => [p, (computed.get(p) ?? style.getPropertyValue(p)).toString()])),
     });
   }
   (window as unknown as { __shotDiffEls: Element[] }).__shotDiffEls = els;
@@ -209,12 +212,15 @@ export function outline(o: { items: { index: number; label: string }[]; color: s
       `left:${r.left + sx - 4}px;top:${r.top + sy - 4}px;width:${r.width + 8}px;height:${r.height + 8}px`;
     const tag = document.createElement('div');
     tag.textContent = label;
-    tag.style.cssText = `position:absolute;left:-2px;bottom:100%;margin-bottom:2px;padding:1px 6px;border-radius:4px;white-space:nowrap;` +
-      `background:${o.color};color:#ffffff;font:600 12px/1.4 system-ui,sans-serif`;
+    // The label sits above the box, or below it when the page has no room above.
+    const LABEL = 22;
+    const above = r.top + sy - 4 - LABEL >= 0;
+    tag.style.cssText = `position:absolute;left:-2px;${above ? 'bottom:100%;margin-bottom:2px' : 'top:100%;margin-top:2px'};` +
+      `padding:1px 6px;border-radius:4px;white-space:nowrap;background:${o.color};color:#ffffff;font:600 12px/1.4 system-ui,sans-serif`;
     box.appendChild(tag);
     layer.appendChild(box);
-    const top = r.top + sy - 4 - 22; // the label sits above the box
-    const bottom = r.bottom + sy + 4;
+    const top = Math.max(0, r.top + sy - 4 - (above ? LABEL : 0));
+    const bottom = r.bottom + sy + 4 + (above ? 0 : LABEL);
     return { top, bottom, changedTop: top, changedBottom: bottom };
   });
 }
