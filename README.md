@@ -3,6 +3,8 @@
 Before and after screenshots of a web page for a pull request, with the change marked: what the
 after page no longer has is red on the before shot, what it adds is green on the after shot. Each
 shot is its own image, with a band on top naming its side, your title, and what its colour means.
+Changes with no words in them are marked too: an element whose look changed (a colour, a border, a
+size) gets a box saying what changed, and so does a picture redrawn under the same file name.
 
 ```sh
 npx github:YannickBaudraz/shot-diff http://localhost:3000/cart http://localhost:3001/cart --title "Cart: the empty state"
@@ -44,15 +46,22 @@ with the same stored settings and clicks, so the only difference is the change.
 3. On the before page it tints the removed words red and strikes them through; on the after page it
    tints the added words green. A box goes around each change. Both are drawn over the page (the
    CSS Custom Highlight API and an overlay), so nothing on it moves.
-4. It shoots the area around the changes, unchanged words next to each change included, so both
+4. It pairs the elements of the two pages the same way, by tag, id, role, own words and image file,
+   and compares what the browser computed for each pair: colours, borders, corners, shadow, font,
+   spacing, alignment, and the size of elements with nothing inside them. Images, canvases and SVGs
+   that kept their style are compared pixel by pixel ([pixelmatch](https://github.com/mapbox/pixelmatch)).
+   Each change gets a box with what changed written on it: red on the before shot, green on the after.
+5. It shoots the area around the changes, unchanged words next to each change included, so both
    shots show the same place even when one side of a change is empty. Changes far apart are shot
    apart, and an edge of a shot never cuts a line of text in half.
-5. It draws the band on each shot with [sharp](https://sharp.pixelplumbing.com).
+6. It draws the band on each shot with [sharp](https://sharp.pixelplumbing.com).
 
 ## Limits
 
-- It compares words and images. A change of style alone (a colour, a spacing) has no words to mark,
-  and the tool says so; shoot that area with `--selector` and say what changed in the title.
+- An element is matched across the pages by its tag, id, role, own words and image file. One whose
+  words changed is marked as words, not looks; one that moved elsewhere in the page is not matched.
+- Pseudo-elements (`::before`, `::after`) and position on the page are not compared: an element
+  pushed down by text added above it is not a change.
 - Moved text shows as removed in one place and added in another.
 - It needs Chrome or Chromium; it does not download one.
 
