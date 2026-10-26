@@ -105,15 +105,23 @@ export function mark(o: MarkOptions): Marked {
       changedTop: changed.length ? Math.min(...changed.map(r => r.top)) + sy : null,
       changedBottom: changed.length ? Math.max(...changed.map(r => r.bottom)) + sy : null,
     });
-    if (!changed.length) continue;
-    const left = Math.min(...changed.map(r => r.left));
-    const right = Math.max(...changed.map(r => r.right));
-    const boxTop = Math.min(...changed.map(r => r.top));
-    const boxBottom = Math.max(...changed.map(r => r.bottom));
-    const box = document.createElement('div');
-    box.style.cssText = `position:absolute;box-sizing:border-box;border:2px solid ${o.color};border-radius:4px;` +
-      `left:${left + sx - 4}px;top:${boxTop + sy - 3}px;width:${right - left + 8}px;height:${boxBottom - boxTop + 6}px`;
-    layer.appendChild(box);
+    // One box per line, so a change that wraps does not get a box through the words between.
+    const lines: DOMRect[][] = [];
+    for (const r of [...changed].sort((p, q) => p.top - q.top || p.left - q.left)) {
+      const line = lines.find(l => Math.abs(l[0].top - r.top) < l[0].height / 2);
+      if (line) line.push(r);
+      else lines.push([r]);
+    }
+    for (const line of lines) {
+      const left = Math.min(...line.map(r => r.left));
+      const right = Math.max(...line.map(r => r.right));
+      const boxTop = Math.min(...line.map(r => r.top));
+      const boxBottom = Math.max(...line.map(r => r.bottom));
+      const box = document.createElement('div');
+      box.style.cssText = `position:absolute;box-sizing:border-box;border:2px solid ${o.color};border-radius:4px;` +
+        `left:${left + sx - 4}px;top:${boxTop + sy - 3}px;width:${right - left + 8}px;height:${boxBottom - boxTop + 6}px`;
+      layer.appendChild(box);
+    }
   }
   return { width: document.documentElement.clientWidth, spans };
 }
