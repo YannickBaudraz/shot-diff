@@ -35,6 +35,7 @@ with the same stored settings and clicks, so the only difference is the change.
 | `--selector <css>` | | shoot this element instead of the area around the changes |
 | `--padding`, `--max-height` | 80, 2400 | room around the changes; the tallest a shot gets |
 | `--chrome <path>` | installed Google Chrome, or `$CHROME` | the browser |
+| `--no-download` | | without Chrome, stop instead of downloading one |
 | `--json` | | print what was marked, where, and what was left out |
 
 ## How it works
@@ -63,7 +64,9 @@ with the same stored settings and clicks, so the only difference is the change.
 - Pseudo-elements (`::before`, `::after`) and position on the page are not compared: an element
   pushed down by text added above it is not a change.
 - Moved text shows as removed in one place and added in another.
-- It needs Chrome or Chromium; it does not download one.
+- It runs Chrome headless, so it needs no screen. Without Google Chrome on the machine, it downloads
+  Playwright's headless Chromium once (about 100 MB, into `~/.cache/ms-playwright`); `--no-download`
+  stops instead, and `--chrome` names any other Chrome or Chromium.
 
 ## Develop
 
