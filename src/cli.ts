@@ -3,6 +3,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Command, InvalidArgumentError, Option } from 'commander';
 import { chromium } from 'playwright-core';
+import { launch } from './browser.ts';
 import { run } from './shoot.ts';
 
 const number = (value: string) => {
@@ -38,10 +39,11 @@ A local file is a file:// URL.`)
   .option('--padding <px>', 'room around the changes', number, 80)
   .option('--max-height <px>', 'the tallest a shot gets; changes farther apart get a pair each', number, 2400)
   .addOption(new Option('--chrome <path>', 'the Chrome or Chromium to use (default: the installed Google Chrome)').env('CHROME'))
+  .option('--no-download', "without Chrome, stop instead of downloading Playwright's headless Chromium")
   .option('--json', 'print what was marked as JSON', false)
   .showHelpAfterError()
   .action(async (beforeUrl: string, afterUrl: string, values) => {
-    const browser = await chromium.launch(values.chrome ? { executablePath: values.chrome } : { channel: 'chrome' });
+    const browser = await launch(chromium, { chrome: values.chrome, download: values.download, log: line => console.error(line) });
     try {
       const result = await run(browser, {
         before: beforeUrl,
