@@ -1,20 +1,9 @@
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { readFileSync } from 'node:fs';
 import { expect, test } from 'vitest';
+import { cli, page, shotDiff } from './run.ts';
 
-const here = import.meta.dirname;
-const cli = join(here, '..', 'src', 'cli.ts');
-const page = (name: string) => pathToFileURL(join(here, 'fixtures', name)).href;
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
-
-function shotDiff(...args: string[]) {
-  const out = mkdtempSync(join(tmpdir(), 'shot-diff-'));
-  const done = spawnSync(process.execPath, [cli, ...args, '--out', out, '--json'], { encoding: 'utf8', timeout: 60_000 });
-  return { done, result: done.status === 0 ? JSON.parse(done.stdout) : null };
-}
 
 test('marks what was removed and what was added, and writes two titled images', () => {
   const { done, result } = shotDiff(page('before.html'), page('after.html'), '--title', 'Step 10');
@@ -103,7 +92,7 @@ test('--markers numbers marks the same changes; an unknown kind is refused', () 
   expect(numbers.done.status, numbers.done.stderr).toBe(0);
   expect(numbers.result.shots[0].after.added).toEqual(labels.result.shots[0].after.added);
   // The numbers' meanings take a line in the band, so the image is taller than with labels.
-  const height = (file: string) => readFileSync(file).readUInt32BE(20);
+  const height = (file: string) => readFileSync(file).readUInt32BE(20); // a PNG's height, in its IHDR chunk
   expect(height(numbers.result.shots[0].after.file)).toBeGreaterThan(height(labels.result.shots[0].after.file));
 
   const wrong = spawnSync(process.execPath, [cli, page('before.html'), page('after.html'), '--title', 't', '--markers', 'arrows'], { encoding: 'utf8' });
