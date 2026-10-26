@@ -20,6 +20,7 @@ export type Options = {
   selector: string | null;
   padding: number;
   maxHeight: number;
+  markers: 'labels' | 'numbers'; // what changed, written on each box, or a number on it and the meanings in the band
 };
 
 export type Side = { png: Buffer; changed: string[]; box: Box };
@@ -175,8 +176,8 @@ export async function run(browser: Browser, o: Options): Promise<Result> {
     const markB: Marked = await after.page.evaluate(mark, {
       ...GREEN, strike: false, hunks: found.map(h => ({ changed: h.added, anchors: h.anchorsB })),
     } satisfies MarkOptions);
-    const lookA: Span[] = await before.page.evaluate(outline, { color: RED.color, items: looks.map((l, i) => ({ index: l.a, n: i + 1 })) });
-    const lookB: Span[] = await after.page.evaluate(outline, { color: GREEN.color, items: looks.map((l, i) => ({ index: l.b, n: i + 1 })) });
+    const lookA: Span[] = await before.page.evaluate(outline, { color: RED.color, markers: o.markers, items: looks.map((l, i) => ({ index: l.a, n: i + 1, label: l.what.join(', ') })) });
+    const lookB: Span[] = await after.page.evaluate(outline, { color: GREEN.color, markers: o.markers, items: looks.map((l, i) => ({ index: l.b, n: i + 1, label: l.what.join(', ') })) });
 
     // Every change, words and looks, in the order they sit on the page, for grouping into shots.
     const changes = [
@@ -202,7 +203,7 @@ export async function run(browser: Browser, o: Options): Promise<Result> {
       groups = [{ hunks: [], before: null, after: null }];
     }
 
-    const keysOf = (indexes: number[]) => indexes.map(i => changes[i].key).filter(k => k !== null).sort((p, q) => p.n - q.n);
+    const keysOf = (indexes: number[]) => o.markers === 'labels' ? [] : indexes.map(i => changes[i].key).filter(k => k !== null).sort((p, q) => p.n - q.n);
     const shots: Shot[] = [];
     const leftOut = { removed: [] as string[], added: [] as string[] };
     for (const [n, g] of groups.entries()) {

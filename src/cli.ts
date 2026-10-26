@@ -37,6 +37,8 @@ A local file is a file:// URL.`)
   .option('--wait <ms>', 'wait after loading and clicking', number, 300)
   .option('--selector <css>', 'shoot this element instead of the area around the changes')
   .option('--padding <px>', 'room around the changes', number, 80)
+  .addOption(new Option('--markers <kind>', 'how a box around a change of look says what changed: a label on it, or a number explained in the band')
+    .choices(['labels', 'numbers']).default('labels'))
   .option('--max-height <px>', 'the tallest a shot gets; changes farther apart get a pair each', number, 2400)
   .addOption(new Option('--chrome <path>', 'the Chrome or Chromium to use (default: the installed Google Chrome)').env('CHROME'))
   .option('--no-download', "without Chrome, stop instead of downloading Playwright's headless Chromium")
@@ -59,6 +61,7 @@ A local file is a file:// URL.`)
         selector: values.selector ?? null,
         padding: values.padding,
         maxHeight: values.maxHeight,
+        markers: values.markers,
       });
       mkdirSync(values.out, { recursive: true });
       const shots = result.shots.map((shot, n) => {

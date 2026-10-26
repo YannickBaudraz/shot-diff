@@ -33,6 +33,7 @@ with the same stored settings and clicks, so the only difference is the change.
 | `--click <selector>` | | click after loading, in order (repeatable) |
 | `--wait <ms>` | 300 | wait after loading and clicking |
 | `--selector <css>` | | shoot this element instead of the area around the changes |
+| `--markers <kind>` | `labels` | on a box around a change of look: `labels` writes what changed on it, over the page; `numbers` puts a small number on it and says what each means in the band |
 | `--padding`, `--max-height` | 80, 2400 | room around the changes; the tallest a shot gets |
 | `--chrome <path>` | installed Google Chrome, or `$CHROME` | the browser |
 | `--no-download` | | without Chrome, stop instead of downloading one |
@@ -51,7 +52,8 @@ with the same stored settings and clicks, so the only difference is the change.
    and compares what the browser computed for each pair: colours, borders, corners, shadow, font,
    spacing, alignment, and the size of elements with nothing inside them. Images, canvases and SVGs
    that kept their style are compared pixel by pixel ([pixelmatch](https://github.com/mapbox/pixelmatch)).
-   Each change gets a box with what changed written on it: red on the before shot, green on the after.
+   Each change gets a box with what changed written on it, or a number explained in the band with
+   `--markers numbers`: red on the before shot, green on the after.
 5. It shoots the area around the changes, unchanged words next to each change included, so both
    shots show the same place even when one side of a change is empty. Changes far apart are shot
    apart, and an edge of a shot never cuts a line of text in half.
