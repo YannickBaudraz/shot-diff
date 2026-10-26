@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest';
 import { painted, pairs, restyled, type El } from '../src/visual.ts';
 
 const el = (sig: string, style: Record<string, string> = {}, more: Partial<El> = {}): El =>
-  ({ sig, parent: -1, leaf: true, paint: false, width: 100, height: 20, style, ...more });
+  ({ sig, parent: -1, leaf: true, paint: false, top: 0, width: 100, height: 20, style, ...more });
 
 describe('pairs', () => {
   test('pairs elements in order, skipping the ones only one page has', () => {

@@ -193,6 +193,7 @@ export function elements(properties: string[]): import('./visual.ts').El[] {
       parent,
       leaf: true,
       paint: painters.has(el.tagName) || style.backgroundImage !== 'none',
+      top: rect.top + window.scrollY,
       width: rect.width,
       height: rect.height,
       // The computed value, as the CSS gave it: `auto` stays `auto`, where getComputedStyle would give
@@ -204,31 +205,33 @@ export function elements(properties: string[]): import('./visual.ts').El[] {
   return out;
 }
 
-/** A box around each element whose look changed, with what changed written on it; and where each
- * one is, in page pixels. */
-export function outline(o: { items: { index: number; label: string }[]; color: string }): Span[] {
+/** A box around each element whose look changed, with its number on a small disc at the top left
+ * corner (the band says what each number means); and where each one is, in page pixels. */
+export function outline(o: { items: { index: number; n: number }[]; color: string }): Span[] {
   const els = (window as unknown as { __shotDiffEls: Element[] }).__shotDiffEls;
   const sx = window.scrollX;
   const sy = window.scrollY;
   const layer = document.createElement('div');
   layer.style.cssText = 'position:absolute;left:0;top:0;width:0;height:0;z-index:2147483647;pointer-events:none';
   document.documentElement.appendChild(layer);
-  return o.items.map(({ index, label }) => {
+  const DISC = 20;
+  return o.items.map(({ index, n }) => {
     const r = els[index].getBoundingClientRect();
     const box = document.createElement('div');
     box.style.cssText = `position:absolute;box-sizing:border-box;border:2px solid ${o.color};border-radius:4px;` +
       `left:${r.left + sx - 4}px;top:${r.top + sy - 4}px;width:${r.width + 8}px;height:${r.height + 8}px`;
-    const tag = document.createElement('div');
-    tag.textContent = label;
-    // The label sits above the box, or below it when the page has no room above.
-    const LABEL = 22;
-    const above = r.top + sy - 4 - LABEL >= 0;
-    tag.style.cssText = `position:absolute;left:-2px;${above ? 'bottom:100%;margin-bottom:2px' : 'top:100%;margin-top:2px'};` +
-      `padding:1px 6px;border-radius:4px;white-space:nowrap;background:${o.color};color:#ffffff;font:600 12px/1.4 system-ui,sans-serif`;
-    box.appendChild(tag);
     layer.appendChild(box);
-    const top = Math.max(0, r.top + sy - 4 - (above ? LABEL : 0));
-    const bottom = r.bottom + sy + 4 + (above ? 0 : LABEL);
+    // The disc sits on the box's corner, kept inside the page.
+    const discLeft = Math.max(0, r.left + sx - 4 - DISC / 2);
+    const discTop = Math.max(0, r.top + sy - 4 - DISC / 2);
+    const disc = document.createElement('div');
+    disc.textContent = String(n);
+    disc.style.cssText = `position:absolute;left:${discLeft}px;top:${discTop}px;width:${DISC}px;height:${DISC}px;` +
+      `border-radius:50%;background:${o.color};color:#ffffff;font:700 12px/${DISC}px system-ui,sans-serif;text-align:center;` +
+      'box-shadow:0 0 0 2px #ffffff';
+    layer.appendChild(disc);
+    const top = Math.min(discTop, r.top + sy - 4);
+    const bottom = r.bottom + sy + 4;
     return { top, bottom, changedTop: top, changedBottom: bottom };
   });
 }

@@ -9,6 +9,7 @@ export type El = {
   parent: number; // the index of its nearest listed ancestor, or -1
   leaf: boolean; // no listed element inside it
   paint: boolean; // draws pixels its style does not describe: an image, a canvas, an SVG, a background image
+  top: number; // in page pixels, to number the changes in reading order
   width: number;
   height: number;
   style: Record<string, string>;
