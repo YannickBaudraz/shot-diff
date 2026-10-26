@@ -36,6 +36,7 @@ export const PROPERTIES: Record<string, string> = {
   'gap': 'spacing',
   'display': 'layout', 'flex-direction': 'layout', 'justify-content': 'alignment', 'align-items': 'alignment',
   'filter': 'filter', 'transform': 'transform',
+  'width': 'size', 'height': 'size', 'min-width': 'size', 'max-width': 'size', 'min-height': 'size', 'max-height': 'size',
 };
 
 /** Properties a child takes from its parent: a change there shows on the parent alone. */
@@ -59,8 +60,8 @@ export function pairs(a: readonly El[], b: readonly El[]): [number, number][] {
 export type Restyled = { a: number; b: number; what: string[] };
 
 /** Paired elements whose look changed, with what changed in words. A change a child only inherits
- * from its parent is left to the parent; a size is compared on leaf elements only, since a box
- * grows with whatever is added inside it. */
+ * from its parent is left to the parent. Sizes are compared as the CSS sets them (`auto` stays
+ * `auto`), so a box that grows or shrinks with the page around it is not a change. */
 export function restyled(a: readonly El[], b: readonly El[], paired: readonly [number, number][]): Restyled[] {
   const out: Restyled[] = [];
   for (const [i, j] of paired) {
@@ -78,7 +79,6 @@ export function restyled(a: readonly El[], b: readonly El[], paired: readonly [n
       }
       what.add(label);
     }
-    if (ea.leaf && eb.leaf && (Math.abs(ea.width - eb.width) > 1 || Math.abs(ea.height - eb.height) > 1)) what.add('size');
     if (what.size) out.push({ a: i, b: j, what: [...what] });
   }
   return out;

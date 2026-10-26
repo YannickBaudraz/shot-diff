@@ -1,0 +1,38 @@
+<!doctype html><meta charset="utf-8"><title>Acme dashboard</title>
+<style>
+ * { box-sizing: border-box }
+ body { margin: 0; font: 14px/1.5 system-ui, sans-serif; color: #1f2328; background: #f6f8fa; display: flex; min-height: 100vh }
+ aside { width: 200px; background: #24292f; color: #d0d7de; padding: 20px 12px }
+ aside h1 { font-size: 16px; color: #fff; margin: 0 8px 20px }
+ aside a { display: block; padding: 8px 10px; border-radius: 6px; margin-bottom: 2px }
+ aside a.active { background: #0969da; color: #ffffff; font-weight: 600 }
+ main { flex: 1; padding: 24px 32px }
+ .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px }
+ .kpi { background: #fff; border: 1px solid #d0d7de; border-radius: 8px; padding: 16px }
+ .kpi .label { color: #59636e; font-size: 12px; text-transform: uppercase; letter-spacing: .04em }
+ .kpi .value { font-size: 26px; font-weight: 600 }
+ .kpi .trend.up { color: #1a7f37 } .kpi .trend.down { color: #cf222e }
+ .panel { background: #fff; border: 1px solid #d0d7de; border-radius: 8px; padding: 16px; margin-top: 24px }
+ .panel h2 { font-size: 15px; margin: 0 0 12px }
+ table { width: 100%; border-collapse: collapse }
+ th, td { text-align: left; padding: 8px; border-bottom: 1px solid #eaeef2 }
+ td.num { text-align: right; font-variant-numeric: tabular-nums }
+ .badge { padding: 2px 8px; border-radius: 999px; font-size: 12px }
+ .badge.paid { background: #dafbe1; color: #1a7f37 }
+ .badge.pending { background: #ffd8b5; color: #7d4e00 }
+ .badge.refunded { background: #ffebe9; color: #cf222e }
+</style>
+<aside><h1>Acme</h1><a class="active">Overview</a><a class="">Orders</a><a class="">Customers</a><a class="">Reports</a><a class="">Settings</a></aside>
+<main>
+ <h1 style="font-size:20px;margin:0 0 20px">Overview</h1>
+ <section class="kpis">
+  <div class="kpi"><div class="label">Revenue</div><div class="value">$51,940</div><div class="trend up">+12% this month</div></div>
+  <div class="kpi"><div class="label">Orders</div><div class="value">1,284</div><div class="trend up">+4% this month</div></div>
+  <div class="kpi"><div class="label">Customers</div><div class="value">932</div><div class="trend up">+2% this month</div></div>
+  <div class="kpi"><div class="label">Refund rate</div><div class="value">1.6%</div><div class="trend up">-0.5 pt this month</div></div>
+ </section>
+ <section class="panel"><h2>Monthly revenue</h2>
+  <svg width="460" height="205" role="img" aria-label="Monthly revenue chart"><rect x="30" y="120" width="34" height="60" rx="4" fill="#0969da"/><text x="47" y="198" font-size="11" text-anchor="middle" fill="#59636e">Jan</text><rect x="82" y="100" width="34" height="80" rx="4" fill="#0969da"/><text x="99" y="198" font-size="11" text-anchor="middle" fill="#59636e">Feb</text><rect x="134" y="105" width="34" height="75" rx="4" fill="#0969da"/><text x="151" y="198" font-size="11" text-anchor="middle" fill="#59636e">Mar</text><rect x="186" y="85" width="34" height="95" rx="4" fill="#0969da"/><text x="203" y="198" font-size="11" text-anchor="middle" fill="#59636e">Apr</text><rect x="238" y="70" width="34" height="110" rx="4" fill="#0969da"/><text x="255" y="198" font-size="11" text-anchor="middle" fill="#59636e">May</text><rect x="290" y="75" width="34" height="105" rx="4" fill="#0969da"/><text x="307" y="198" font-size="11" text-anchor="middle" fill="#59636e">Jun</text><rect x="342" y="50" width="34" height="130" rx="4" fill="#0969da"/><text x="359" y="198" font-size="11" text-anchor="middle" fill="#59636e">Jul</text><rect x="394" y="15" width="34" height="165" rx="4" fill="#0969da"/><text x="411" y="198" font-size="11" text-anchor="middle" fill="#59636e">Aug</text></svg></section>
+ <section class="panel"><h2>Latest orders</h2>
+  <table><thead><tr><th>Customer</th><th>Product</th><th class="num">Amount</th><th>Status</th></tr></thead><tbody><tr><td>Katherine Johnson</td><td>Team plan</td><td class="num">$199.00</td><td><span class="badge paid">paid</span></td></tr><tr><td>Ada Lovelace</td><td>Pro plan</td><td class="num">$49.00</td><td><span class="badge paid">paid</span></td></tr><tr><td>Alan Turing</td><td>Team plan</td><td class="num">$199.00</td><td><span class="badge pending">pending</span></td></tr><tr><td>Grace Hopper</td><td>Pro plan</td><td class="num">$49.00</td><td><span class="badge refunded">refunded</span></td></tr></tbody></table></section>
+</main>

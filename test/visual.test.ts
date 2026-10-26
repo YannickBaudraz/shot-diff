@@ -38,9 +38,9 @@ describe('restyled', () => {
     expect(restyled(a, b, pairs(a, b))).toEqual([{ a: 1, b: 1, what: ['text colour'] }]);
   });
 
-  test('a box that grows with its content is not marked, a leaf that changes size is', () => {
-    const a = [el('main', {}, { leaf: false, height: 300 }), el('img logo.png', {}, { width: 32 })];
-    const b = [el('main', {}, { leaf: false, height: 400 }), el('img logo.png', {}, { width: 48 })];
+  test('a size set in CSS is compared, a size layout gives is not', () => {
+    const a = [el('main', { width: 'auto' }, { leaf: false, height: 300 }), el('img logo.png', { width: '32px' }, { width: 32 })];
+    const b = [el('main', { width: 'auto' }, { leaf: false, height: 400 }), el('img logo.png', { width: '48px' }, { width: 48 })];
     expect(restyled(a, b, pairs(a, b))).toEqual([{ a: 1, b: 1, what: ['size'] }]);
   });
 

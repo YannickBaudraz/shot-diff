@@ -86,3 +86,13 @@ test('changes with no words in them are marked: a restyled button, a picture red
   expect(added).toEqual(expect.arrayContaining(['[image night.svg]', '[img: picture]', '[button: background]']));
   expect(result.leftOut).toEqual({ removed: [], added: [] });
 });
+
+test('a dashboard: only what changed is marked, not the boxes layout resized around it', () => {
+  const { done, result } = shotDiff(page('dashboard/before.html'), page('dashboard/after.html'), '--title', 't');
+  expect(done.status, done.stderr).toBe(0);
+  // A wider grid gap narrows every card, and a longer name widens the table's columns: neither is a change.
+  expect(result.shots[0].before.removed).toEqual(
+    ['$48,210', '[a: background, weight]', '[section: spacing]', '2.1% +0.3', '[svg: picture]', '[span: background]']);
+  expect(result.shots[0].after.added).toEqual(
+    ['$51,940', '[a: background, weight]', '[section: spacing]', '1.6% -0.5', '[svg: picture]', 'Katherine Johnson Team plan $199.00 paid', '[span: background]']);
+});
