@@ -209,16 +209,16 @@ export function elements(properties: string[]): import('./visual.ts').El[] {
  * changed on a tag above the box (below it at the top of the page), over whatever is there;
  * `numbers` puts a small numbered disc on the box's corner, for the band to say what each number
  * means. Returns where each one is, in page pixels. */
-export function outline(o: { items: { index: number; n: number; label: string }[]; color: string; markers: 'labels' | 'numbers' }): Span[] {
+export function outline(o: { items: { index: number; n: number; label: string; disc: string }[]; color: string; markers: 'labels' | 'numbers' }): Span[] {
   const els = (window as unknown as { __shotDiffEls: Element[] }).__shotDiffEls;
   const sx = window.scrollX;
   const sy = window.scrollY;
   const layer = document.createElement('div');
   layer.style.cssText = 'position:absolute;left:0;top:0;width:0;height:0;z-index:2147483647;pointer-events:none';
   document.documentElement.appendChild(layer);
-  const DISC = 20;
+  const DISC = 24; // the disc image's size in CSS pixels, its white ring included
   const LABEL = 22;
-  return o.items.map(({ index, n, label }) => {
+  return o.items.map(({ index, label, disc: src }) => {
     const r = els[index].getBoundingClientRect();
     const boxTop = r.top + sy - 4;
     const boxBottom = r.bottom + sy + 4;
@@ -231,11 +231,9 @@ export function outline(o: { items: { index: number; n: number; label: string }[
       // The disc sits on the box's corner, kept inside the page.
       const discLeft = Math.max(0, r.left + sx - 4 - DISC / 2);
       const discTop = Math.max(0, boxTop - DISC / 2);
-      const disc = document.createElement('div');
-      disc.textContent = String(n);
-      disc.style.cssText = `position:absolute;left:${discLeft}px;top:${discTop}px;width:${DISC}px;height:${DISC}px;` +
-        `border-radius:50%;background:${o.color};color:#ffffff;font:700 12px/${DISC}px system-ui,sans-serif;text-align:center;` +
-        'box-shadow:0 0 0 2px #ffffff';
+      const disc = document.createElement('img');
+      disc.src = src; // drawn by the command, the same image as in the band
+      disc.style.cssText = `position:absolute;left:${discLeft}px;top:${discTop}px;width:${DISC}px;height:${DISC}px`;
       layer.appendChild(disc);
       const top = Math.min(discTop, Math.max(0, boxTop));
       return { top, bottom: boxBottom, changedTop: top, changedBottom: boxBottom };

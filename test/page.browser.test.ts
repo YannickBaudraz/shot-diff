@@ -83,7 +83,7 @@ describe('outline', () => {
     page(twoButtons);
     elements(Object.keys(PROPERTIES));
     const spans = outline({ markers: 'labels', color: 'red', items: [
-      { index: 0, n: 1, label: 'background' }, { index: 1, n: 2, label: 'border' },
+      { index: 0, n: 1, label: 'background', disc: '' }, { index: 1, n: 2, label: 'border', disc: '' },
     ] });
     const labels = drawn().map(box => box.firstElementChild as HTMLElement);
     expect(labels.map(l => l.textContent)).toEqual(['background', 'border']);
@@ -93,12 +93,13 @@ describe('outline', () => {
     expect(spans[1].top).toBeLessThan(200 - 4);
   });
 
-  test('numbers put a disc on the box, and no label', () => {
+  test('numbers put the disc image they are given on the box, and no label', () => {
     page(twoButtons);
     elements(Object.keys(PROPERTIES));
-    outline({ markers: 'numbers', color: 'red', items: [{ index: 1, n: 7, label: 'border' }] });
+    const picture = 'data:image/png;base64,iVBORw0KGgo=';
+    outline({ markers: 'numbers', color: 'red', items: [{ index: 1, n: 7, label: 'border', disc: picture }] });
     const [box, disc] = drawn();
     expect(box.children).toHaveLength(0);
-    expect(disc.textContent).toBe('7');
+    expect((disc as HTMLImageElement).src).toBe(picture);
   });
 });

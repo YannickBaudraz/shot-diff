@@ -79,31 +79,60 @@ const text = (markup: string, size: number, weight: 'Regular' | 'Semi-Bold', o: 
 /** What a numbered box on a shot means. */
 export type Key = { n: number; what: string };
 
+/** A numbered disc in a white ring, 24 CSS pixels across, as a PNG at the shot's scale: the marker
+ * on a box with --markers numbers, and in the band's key. The number is centred on its ink's centre
+ * of mass, not on its box: a 1 is a stroke with a flag on its left, and centring its box puts the
+ * stroke, which the eye reads, right of the middle. */
+export async function disc(n: number, color: string, o: Options): Promise<Buffer> {
+  const s = o.scale;
+  const size = Math.round(24 * s);
+  const ring = 2 * s;
+  const glyph = await sharp((await text(`<span foreground="#ffffff">${n}</span>`, 12, 'Semi-Bold', o)).data)
+    .trim({ background: '#00000000', threshold: 1 }).raw().toBuffer({ resolveWithObject: true });
+  let mass = 0;
+  let sumX = 0;
+  for (let y = 0; y < glyph.info.height; y++) {
+    for (let x = 0; x < glyph.info.width; x++) {
+      const alpha = glyph.data[(y * glyph.info.width + x) * 4 + 3];
+      mass += alpha;
+      sumX += alpha * x;
+    }
+  }
+  const centreX = mass ? sumX / mass : glyph.info.width / 2;
+  const number = await sharp(glyph.data, { raw: glyph.info }).png().toBuffer();
+  const circle = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}">
+    <circle cx="${size / 2}" cy="${size / 2}" r="${size / 2}" fill="#ffffff"/>
+    <circle cx="${size / 2}" cy="${size / 2}" r="${size / 2 - ring}" fill="${color}"/></svg>`;
+  return sharp(Buffer.from(circle))
+    .composite([{ input: number, left: Math.round(size / 2 - centreX), top: Math.round((size - glyph.info.height) / 2) }])
+    .png()
+    .toBuffer();
+}
+
 /** The band's key for numbered boxes: a disc with each number, as outline() draws it on the page, and
  * what it means beside it, laid out in rows no wider than `width`. Returns the pieces to compose,
  * placed from the key's top left corner, and the key's height. */
 async function key(keys: Key[], color: string, width: number, o: Options) {
   const s = o.scale;
-  const disc = Math.round(20 * s);
+  const discSize = Math.round(24 * s);
   const gap = Math.round(6 * s); // between a disc and its meaning
   const space = Math.round(24 * s); // between one meaning and the next disc
   const rowGap = Math.round(6 * s);
   const items = await Promise.all(keys.map(async k => ({
-    number: await text(`<span foreground="#ffffff">${k.n}</span>`, 12, 'Semi-Bold', o),
+    disc: await disc(k.n, color, o),
     what: await text(`<span foreground="#1f2328">${pango(k.what)}</span>`, 14, 'Regular', o),
   })));
-  const rowHeight = Math.max(disc, ...items.map(i => i.what.info.height));
+  const rowHeight = Math.max(discSize, ...items.map(i => i.what.info.height));
   const pieces: { input: Buffer; left: number; top: number }[] = [];
   let x = 0;
   let y = 0;
-  for (const { number, what } of items) {
-    const itemWidth = disc + gap + what.info.width;
+  for (const { disc: picture, what } of items) {
+    const itemWidth = discSize + gap + what.info.width;
     if (x > 0 && x + itemWidth > width) { x = 0; y += rowHeight + rowGap; }
     const middle = (height: number) => y + Math.round((rowHeight - height) / 2);
     pieces.push(
-      { input: Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${disc}" height="${disc}"><circle cx="${disc / 2}" cy="${disc / 2}" r="${disc / 2}" fill="${color}"/></svg>`), left: x, top: middle(disc) },
-      { input: number.data, left: x + Math.round((disc - number.info.width) / 2), top: middle(number.info.height) },
-      { input: what.data, left: x + disc + gap, top: middle(what.info.height) },
+      { input: picture, left: x, top: middle(discSize) },
+      { input: what.data, left: x + discSize + gap, top: middle(what.info.height) },
     );
     x += itemWidth + space;
   }
@@ -204,8 +233,8 @@ export async function run(browser: Browser, o: Options): Promise<Result> {
     const markB: Marked = await after.page.evaluate(mark, {
       ...GREEN, strike: false, hunks: found.map(h => ({ changed: h.added, anchors: h.anchorsB })),
     } satisfies MarkOptions);
-    const lookA: Span[] = await before.page.evaluate(outline, { color: RED.color, markers: o.markers, items: looks.map((l, i) => ({ index: l.a, n: i + 1, label: l.what.join(', ') })) });
-    const lookB: Span[] = await after.page.evaluate(outline, { color: GREEN.color, markers: o.markers, items: looks.map((l, i) => ({ index: l.b, n: i + 1, label: l.what.join(', ') })) });
+    const lookA: Span[] = await before.page.evaluate(outline, { color: RED.color, markers: o.markers, items: await Promise.all(looks.map(async (l, i) => ({ index: l.a, n: i + 1, label: l.what.join(', '), disc: o.markers === 'numbers' ? `data:image/png;base64,${(await disc(i + 1, RED.color, o)).toString('base64')}` : '' }))) });
+    const lookB: Span[] = await after.page.evaluate(outline, { color: GREEN.color, markers: o.markers, items: await Promise.all(looks.map(async (l, i) => ({ index: l.b, n: i + 1, label: l.what.join(', '), disc: o.markers === 'numbers' ? `data:image/png;base64,${(await disc(i + 1, GREEN.color, o)).toString('base64')}` : '' }))) });
 
     // Every change, words and looks, in the order they sit on the page, for grouping into shots.
     const changes = [
