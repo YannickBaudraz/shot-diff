@@ -79,6 +79,37 @@ const text = (markup: string, size: number, weight: 'Regular' | 'Semi-Bold', o: 
 /** What a numbered box on a shot means. */
 export type Key = { n: number; what: string };
 
+/** The band's key for numbered boxes: a disc with each number, as outline() draws it on the page, and
+ * what it means beside it, laid out in rows no wider than `width`. Returns the pieces to compose,
+ * placed from the key's top left corner, and the key's height. */
+async function key(keys: Key[], color: string, width: number, o: Options) {
+  const s = o.scale;
+  const disc = Math.round(20 * s);
+  const gap = Math.round(6 * s); // between a disc and its meaning
+  const space = Math.round(24 * s); // between one meaning and the next disc
+  const rowGap = Math.round(6 * s);
+  const items = await Promise.all(keys.map(async k => ({
+    number: await text(`<span foreground="#ffffff">${k.n}</span>`, 12, 'Semi-Bold', o),
+    what: await text(`<span foreground="#1f2328">${pango(k.what)}</span>`, 14, 'Regular', o),
+  })));
+  const rowHeight = Math.max(disc, ...items.map(i => i.what.info.height));
+  const pieces: { input: Buffer; left: number; top: number }[] = [];
+  let x = 0;
+  let y = 0;
+  for (const { number, what } of items) {
+    const itemWidth = disc + gap + what.info.width;
+    if (x > 0 && x + itemWidth > width) { x = 0; y += rowHeight + rowGap; }
+    const middle = (height: number) => y + Math.round((rowHeight - height) / 2);
+    pieces.push(
+      { input: Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${disc}" height="${disc}"><circle cx="${disc / 2}" cy="${disc / 2}" r="${disc / 2}" fill="${color}"/></svg>`), left: x, top: middle(disc) },
+      { input: number.data, left: x + Math.round((disc - number.info.width) / 2), top: middle(number.info.height) },
+      { input: what.data, left: x + disc + gap, top: middle(what.info.height) },
+    );
+    x += itemWidth + space;
+  }
+  return { pieces, height: y + rowHeight };
+}
+
 /** The shot with a band on top: which side it is, the title, which shot of how many, and what its
  * colour means; under them, when the shot has numbered boxes, what each number means. */
 async function titled(png: Buffer, side: 'before' | 'after', n: number, of: number, keys: Key[], o: Options): Promise<Buffer> {
@@ -105,18 +136,15 @@ async function titled(png: Buffer, side: 'before' | 'after', n: number, of: numb
   const mid = (height: number) => Math.round((band - height) / 2) + line;
   const width = w! + 2 * line;
 
-  // The numbers' meanings, on as many lines as they need.
-  const legend = keys.length
-    ? await text(keys.map(k => `<span background="${colour.color}" foreground="#ffffff" weight="bold"> ${k.n} </span> ${pango(k.what)}`)
-      .join('      '), 14, 'Regular', o, w! - 2 * pad)
-    : null;
-  const below = legend ? legend.info.height + Math.round(12 * s) : 0;
+  // The numbers' meanings, each number on a disc like the one on the page, on as many rows as they need.
+  const legend = keys.length ? await key(keys, colour.color, w! - 2 * pad, o) : null;
+  const below = legend ? legend.height + Math.round(12 * s) : 0;
   const head = band + below;
 
   return sharp({ create: { width, height: line + head + line + h! + line, channels: 4, background: '#d0d7de' } })
     .composite([
       { input: { create: { width: w!, height: head, channels: 4, background: '#f6f8fa' } }, left: line, top: line },
-      ...(legend ? [{ input: legend.data, left: line + pad, top: line + band - Math.round(4 * s) }] : []),
+      ...(legend ? legend.pieces.map(p => ({ ...p, left: p.left + line + pad, top: p.top + line + band - Math.round(4 * s) })) : []),
       { input: Buffer.from(pillSvg), left: line + pad, top: mid(pill.h) },
       { input: label.data, left: line + pad + Math.round(10 * s), top: mid(label.info.height) },
       { input: title.data, left: line + pad + pill.w + gap, top: mid(title.info.height) },
