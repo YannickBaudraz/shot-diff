@@ -2,3 +2,5 @@ node_modules/
 dist/
 *.png
 !docs/*.png
+!test/__image_snapshots__/*.png
+test/__image_snapshots__/__diff_output__/

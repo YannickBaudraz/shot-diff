@@ -74,7 +74,11 @@ with the same stored settings and clicks, so the only difference is the change.
 
 ```sh
 npm install
-npm test          # vitest: the diff, the grouping, and the command on fixture pages (needs Chrome)
+npm test          # vitest, needs Chrome: units in Node, src/page.ts in Chrome (browser mode),
+                  # the command on fixture pages, and its images against test/__image_snapshots__
+npx vitest run -u # update the reference images after a change meant to alter them
 npm run check     # types
 npm run build     # vite: dist/cli.js
 ```
+
+The reference images depend on the fonts of the machine that made them, so CI does not compare them.
