@@ -1,5 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
+import sharp from 'sharp';
 import { expect, test } from 'vitest';
 import { cli, page, shotDiff } from './run.ts';
 
@@ -86,14 +87,14 @@ test('a dashboard: only what changed is marked, not the boxes layout resized aro
     ['$51,940', '[a: background, weight]', '[section: spacing]', '1.6% -0.5', '[svg: picture]', 'Katherine Johnson Team plan $199.00 paid', '[span: background]']);
 });
 
-test('--markers numbers marks the same changes; an unknown kind is refused', () => {
+test('--markers numbers marks the same changes; an unknown kind is refused', async () => {
   const labels = shotDiff(page('dashboard/before.html'), page('dashboard/after.html'), '--title', 't');
   const numbers = shotDiff(page('dashboard/before.html'), page('dashboard/after.html'), '--title', 't', '--markers', 'numbers');
   expect(numbers.done.status, numbers.done.stderr).toBe(0);
   expect(numbers.result.shots[0].after.added).toEqual(labels.result.shots[0].after.added);
   // The numbers' meanings take a line in the band, so the image is taller than with labels.
-  const height = (file: string) => readFileSync(file).readUInt32BE(20); // a PNG's height, in its IHDR chunk
-  expect(height(numbers.result.shots[0].after.file)).toBeGreaterThan(height(labels.result.shots[0].after.file));
+  const height = async (file: string) => (await sharp(file).metadata()).height;
+  expect(await height(numbers.result.shots[0].after.file)).toBeGreaterThan(await height(labels.result.shots[0].after.file));
 
   const wrong = spawnSync(process.execPath, [cli, page('before.html'), page('after.html'), '--title', 't', '--markers', 'arrows'], { encoding: 'utf8' });
   expect(wrong.status).not.toBe(0);
