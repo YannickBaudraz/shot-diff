@@ -1,3 +1,4 @@
+import { playwright } from '@vitest/browser-playwright';
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
@@ -11,8 +12,31 @@ export default defineConfig({
     rolldownOptions: { output: { entryFileNames: 'cli.js' } },
   },
   test: {
-    include: ['test/**/*.test.ts'],
-    // The command tests open Chrome.
-    testTimeout: 60_000,
+    projects: [
+      {
+        extends: true,
+        test: {
+          name: 'node',
+          include: ['test/**/*.test.ts'],
+          exclude: ['test/**/*.browser.test.ts'],
+          // The command tests open Chrome.
+          testTimeout: 60_000,
+        },
+      },
+      {
+        extends: true,
+        test: {
+          // The functions of src/page.ts, run in Chrome on small pages each test builds.
+          name: 'browser',
+          include: ['test/**/*.browser.test.ts'],
+          browser: {
+            enabled: true,
+            headless: true,
+            provider: playwright({ launchOptions: { channel: 'chrome' } }),
+            instances: [{ browser: 'chromium', viewport: { width: 1000, height: 700 } }],
+          },
+        },
+      },
+    ],
   },
 });
