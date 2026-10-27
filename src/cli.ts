@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import confirm from '@inquirer/confirm';
 import { Command, InvalidArgumentError, Option } from 'commander';
 import { chromium } from 'playwright-core';
 import { launch } from './browser.ts';
@@ -41,11 +42,17 @@ A local file is a file:// URL.`)
     .choices(['labels', 'numbers']).default('labels'))
   .option('--max-height <px>', 'the tallest a shot gets; changes farther apart get a pair each', number, 2400)
   .addOption(new Option('--chrome <path>', 'the Chrome or Chromium to use (default: the installed Google Chrome)').env('CHROME'))
-  .option('--no-download', "without Chrome, stop instead of downloading Playwright's headless Chromium")
+  .option('--download', "without Chrome, download Playwright's headless Chromium without asking")
+  .option('--no-download', 'without Chrome, stop instead of offering to download it')
   .option('--json', 'print what was marked as JSON', false)
   .showHelpAfterError()
   .action(async (beforeUrl: string, afterUrl: string, values) => {
-    const browser = await launch(chromium, { chrome: values.chrome, download: values.download, log: line => console.error(line) });
+    // The question goes to stderr, so stdout stays the --json output; it is asked only on a terminal.
+    const ask = process.stdin.isTTY && process.stderr.isTTY
+      ? (message: string) => confirm({ message, default: false }, { output: process.stderr })
+      : null;
+    const download = values.download === true ? 'yes' : values.download === false ? 'no' : 'ask';
+    const browser = await launch(chromium, { chrome: values.chrome, download, confirm: ask, log: line => console.error(line) });
     try {
       const result = await run(browser, {
         before: beforeUrl,

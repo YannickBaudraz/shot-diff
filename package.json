@@ -25,6 +25,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@inquirer/confirm": "^6.3.5",
     "commander": "^15.0.0",
     "diff": "^9.0.0",
     "pixelmatch": "^8.0.0",

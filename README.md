@@ -36,7 +36,7 @@ with the same stored settings and clicks, so the only difference is the change.
 | `--markers <kind>` | `labels` | on a box around a change of look: `labels` writes what changed on it, over the page; `numbers` puts a small number on it and says what each means in the band |
 | `--padding`, `--max-height` | 80, 2400 | room around the changes; the tallest a shot gets |
 | `--chrome <path>` | installed Google Chrome, or `$CHROME` | the browser |
-| `--no-download` | | without Chrome, stop instead of downloading one |
+| `--download`, `--no-download` | ask | without Chrome: download one without asking, or stop without asking |
 | `--json` | | print what was marked, where, and what was left out |
 
 ## How it works
@@ -66,9 +66,10 @@ with the same stored settings and clicks, so the only difference is the change.
 - Pseudo-elements (`::before`, `::after`) and position on the page are not compared: an element
   pushed down by text added above it is not a change.
 - Moved text shows as removed in one place and added in another.
-- It runs Chrome headless, so it needs no screen. Without Google Chrome on the machine, it downloads
-  Playwright's headless Chromium once (about 100 MB, into `~/.cache/ms-playwright`); `--no-download`
-  stops instead, and `--chrome` names any other Chrome or Chromium.
+- It runs Chrome headless, so it needs no screen. Without Google Chrome on the machine, it offers to
+  download Playwright's headless Chromium into Playwright's cache (about 100 MB, once) and waits for
+  a yes. With no terminal to ask, as on CI, it stops instead, unless `--download` says yes up front.
+  `--chrome` names any other Chrome or Chromium.
 
 ## Develop
 
