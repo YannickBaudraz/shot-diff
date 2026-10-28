@@ -1,5 +1,4 @@
 import type { Browser } from 'playwright-core';
-import pixelmatch from 'pixelmatch';
 import sharp from 'sharp';
 import { diff, hunks, type Hunk } from './diff.ts';
 import { group, outside, type Region } from './group.ts';
@@ -7,7 +6,7 @@ import { COLOURS, load, type LoadedPage, type Side } from './loaded.ts';
 import { DISC, markers, type Marker, type Mode } from './markers.ts';
 import type { Box } from './page.ts';
 import { pango, text } from './text.ts';
-import { painted, pairs, restyled, type El, type Restyled } from './visual.ts';
+import { looks as compare, type Look } from './looks.ts';
 
 export type Options = {
   before: string;
@@ -30,9 +29,6 @@ export type ShotSide = { png: Buffer; changed: string[]; box: Box };
 export type Shot = { before: ShotSide; after: ShotSide };
 /** `left out`: changes found but not in any image (above or below a cut, or outside --selector). */
 export type Result = { hunks: number; restyled: number; shots: Shot[]; leftOut: { removed: string[]; added: string[] } };
-
-/** The most pictures compared pixel by pixel, so a page of thumbnails stays quick. */
-const MAX_PICTURES = 300;
 
 /** The part of the page to shoot around `region`: padded, its edges off any line of text, and cut
  * to the maximum height. */
@@ -122,36 +118,13 @@ async function titled(png: Buffer, side: Side, n: number, of: number, keys: Key[
     .toBuffer();
 }
 
-/** Whether element `i` of page `a` and element `j` of page `b` draw different pixels. */
-async function repainted(a: LoadedPage, i: number, b: LoadedPage, j: number): Promise<boolean> {
-  const raw = async (png: Buffer | null) => png && sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-  const pa = await raw(await a.pixels(i));
-  const pb = await raw(await b.pixels(j));
-  if (!pa || !pb) return false;
-  if (pa.info.width !== pb.info.width || pa.info.height !== pb.info.height) return true;
-  return pixelmatch(pa.data, pb.data, null, pa.info.width, pa.info.height, { threshold: 0.1 }) > 0;
-}
-
-/** What a restyled element is, in a word, for the lists of changes. */
-const named = (el: El, what: string[]) => `[${el.sig.split(' ')[0].toLowerCase()}: ${what.join(', ')}]`;
-
 export async function run(browser: Browser, o: Options): Promise<Result> {
   const before = await load(browser, o.before, 'before', o);
   const after = await load(browser, o.after, 'after', o).catch(async error => { await before.close(); throw error; });
   try {
     const found: Hunk[] = hunks(diff(before.words, after.words));
 
-    const elsA = before.elements;
-    const elsB = after.elements;
-    const paired = pairs(elsA, elsB);
-    const looks: Restyled[] = restyled(elsA, elsB, paired);
-    for (const [i, j] of painted(elsA, elsB, paired, looks).slice(0, MAX_PICTURES)) {
-      if (await repainted(before, i, after, j)) looks.push({ a: i, b: j, what: ['picture'] });
-    }
-
-    // Numbered top to bottom, as the shots are read.
-    looks.sort((p, q) => elsA[p.a].top - elsA[q.a].top || elsA[p.a].sig.localeCompare(elsA[q.a].sig));
-
+    const looks: Look[] = await compare(before, after); // before anything is drawn over the pages
     const marks: Marker[] = await markers(looks, o.markers, o.scale);
     const markA = await before.mark(found, marks);
     const markB = await after.mark(found, marks);
@@ -165,7 +138,7 @@ export async function run(browser: Browser, o: Options): Promise<Result> {
         key: null as Marker | null,
       })),
       ...looks.map((l, i) => ({
-        a: markA.looks[i], b: markB.looks[i], removed: named(elsA[l.a], l.what), added: named(elsB[l.b], l.what),
+        a: markA.looks[i], b: markB.looks[i], removed: l.name, added: l.name,
         key: marks[i] as Marker | null,
       })),
     ].sort((x, y) => (x.a?.top ?? x.b?.top ?? 0) - (y.a?.top ?? y.b?.top ?? 0));

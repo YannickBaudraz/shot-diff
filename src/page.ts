@@ -2,7 +2,7 @@
 // closure, so runtime() stands alone: no imports at run time, nothing from outside its body. It
 // returns the page's interface; loaded.ts installs it once per page and calls it.
 
-import type { El } from './visual.ts';
+import type { El } from './looks.ts';
 
 export type Box = { x: number; y: number; width: number; height: number };
 
@@ -76,7 +76,7 @@ export function runtime() {
     return { words: out, tokens: found };
   };
 
-  /** Every visible element, in document order, as visual.ts compares them. */
+  /** Every visible element, in document order, as looks.ts compares them. */
   const elements = (properties: string[]): { elements: El[]; els: Element[] } => {
     const found: Element[] = [];
     const out: El[] = [];

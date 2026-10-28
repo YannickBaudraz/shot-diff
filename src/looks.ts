@@ -1,9 +1,38 @@
-// Changes with no words in them: an element whose look changed (a colour, a border, its size), found
-// by pairing the elements of the two pages and comparing what the browser computed for them.
+// Changes of look: changes with no words in them. An element whose look changed (a colour, a border,
+// a size set in CSS), found by pairing the elements of the two pages and comparing what the browser
+// computed for them; and a picture redrawn, found by comparing its pixels.
 
 import { diffArrays } from 'diff';
+import pixelmatch from 'pixelmatch';
+import sharp from 'sharp';
 
-/** One visible element, as elements() in page.ts reads it. */
+/** What the comparison needs from a loaded page: its elements, and a PNG of one element's own
+ * pixels (null when it cannot be shot). loaded.ts gives the real one. */
+export type Seen = { elements: El[]; pixels(index: number): Promise<Buffer | null> };
+
+/** A change of look: the element on each page (indexes into their elements), what changed, and what
+ * to call it in a list of changes. */
+export type Look = { a: number; b: number; what: string[]; name: string };
+
+/** The most pictures compared pixel by pixel, so a page of thumbnails stays quick. */
+export const MAX_PICTURES = 300;
+
+/** The changes of look between two pages, top to bottom on the before page. Read the pages before
+ * anything is drawn over them. */
+export async function looks(before: Seen, after: Seen): Promise<Look[]> {
+  const a = before.elements;
+  const b = after.elements;
+  const paired = pairs(a, b);
+  const found = restyled(a, b, paired);
+  for (const [i, j] of painted(a, b, paired, found).slice(0, MAX_PICTURES)) {
+    if (await repainted(await before.pixels(i), await after.pixels(j))) found.push({ a: i, b: j, what: ['picture'] });
+  }
+  return found
+    .sort((p, q) => a[p.a].top - a[q.a].top || a[p.a].sig.localeCompare(a[q.a].sig))
+    .map(l => ({ ...l, name: `[${a[l.a].sig.split(' ')[0].toLowerCase()}: ${l.what.join(', ')}]` }));
+}
+
+/** One visible element, as the page's runtime reads it. */
 export type El = {
   sig: string; // what pairs it with its match on the other page: tag, id, role, own words, image file
   parent: number; // the index of its nearest listed ancestor, or -1
@@ -46,7 +75,7 @@ const INHERITED = new Set(['color', 'font-family', 'font-size', 'font-weight', '
 
 /** Elements that are the same on both pages, as [before index, after index]: the elements of each
  * page in document order, diffed on their signatures. */
-export function pairs(a: readonly El[], b: readonly El[]): [number, number][] {
+function pairs(a: readonly El[], b: readonly El[]): [number, number][] {
   const out: [number, number][] = [];
   let x = 0;
   let y = 0;
@@ -58,12 +87,12 @@ export function pairs(a: readonly El[], b: readonly El[]): [number, number][] {
   return out;
 }
 
-export type Restyled = { a: number; b: number; what: string[] };
+type Restyled = { a: number; b: number; what: string[] };
 
 /** Paired elements whose look changed, with what changed in words. A change a child only inherits
  * from its parent is left to the parent. Sizes are compared as the CSS sets them (`auto` stays
  * `auto`), so a box that grows or shrinks with the page around it is not a change. */
-export function restyled(a: readonly El[], b: readonly El[], paired: readonly [number, number][]): Restyled[] {
+function restyled(a: readonly El[], b: readonly El[], paired: readonly [number, number][]): Restyled[] {
   const out: Restyled[] = [];
   for (const [i, j] of paired) {
     const ea = a[i];
@@ -87,7 +116,18 @@ export function restyled(a: readonly El[], b: readonly El[], paired: readonly [n
 
 /** Paired elements that draw their own pixels and whose look did not change otherwise: the ones
  * to compare pixel by pixel. */
-export function painted(a: readonly El[], b: readonly El[], paired: readonly [number, number][], changed: readonly Restyled[]): [number, number][] {
+function painted(a: readonly El[], b: readonly El[], paired: readonly [number, number][], changed: readonly Restyled[]): [number, number][] {
   const done = new Set(changed.map(c => c.a));
   return paired.filter(([i, j]) => a[i].paint && b[j].paint && !done.has(i));
+}
+
+/** Whether two shots of an element differ. One that could not be shot is no change; a size that
+ * differs is one. */
+async function repainted(before: Buffer | null, after: Buffer | null): Promise<boolean> {
+  if (!before || !after) return false;
+  const raw = (png: Buffer) => sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const pa = await raw(before);
+  const pb = await raw(after);
+  if (pa.info.width !== pb.info.width || pa.info.height !== pb.info.height) return true;
+  return pixelmatch(pa.data, pb.data, null, pa.info.width, pa.info.height, { threshold: 0.1 }) > 0;
 }

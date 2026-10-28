@@ -5,7 +5,7 @@
 import type { Browser, BrowserContext, Page } from 'playwright-core';
 import type { Hunk } from './diff.ts';
 import { runtime, type Box, type Marked, type MarkOptions, type Region, type Runtime } from './page.ts';
-import { PROPERTIES, type El } from './visual.ts';
+import { PROPERTIES, type El } from './looks.ts';
 
 export type Side = 'before' | 'after';
 

@@ -2,7 +2,7 @@ import sharp from 'sharp';
 import { describe, expect, test } from 'vitest';
 import { DISC, markers } from '../src/markers.ts';
 
-const looks = [{ a: 3, b: 4, what: ['background', 'weight'] }, { a: 7, b: 9, what: ['picture'] }];
+const looks = [{ a: 3, b: 4, what: ['background', 'weight'], name: '[a: background, weight]' }, { a: 7, b: 9, what: ['picture'], name: '[img: picture]' }];
 
 describe('markers', () => {
   test('labels: what changed goes on the box, and there is no disc', async () => {

@@ -3,10 +3,9 @@
 
 import { afterEach, describe, expect, test } from 'vitest';
 import { runtime, type Runtime } from '../src/page.ts';
-import { PROPERTIES } from '../src/visual.ts';
 
 const STYLE = '<style>body { margin: 0; font: 16px/24px sans-serif } p { margin: 0 0 24px }</style>';
-const PROPS = Object.keys(PROPERTIES);
+const PROPS = ['margin-top', 'color']; // read as looks.ts reads them; the full list lives there, with Node-only code
 const install = () => new Function(`return (${runtime.toString()})()`)() as Runtime;
 const page = (html: string) => { document.body.innerHTML = STYLE + html; return install(); };
 /** What mark() drew over the page: boxes, and the discs beside them. */

@@ -5,7 +5,7 @@
 import sharp from 'sharp';
 import { COLOURS, type LookMark, type Side } from './loaded.ts';
 import { text } from './text.ts';
-import type { Restyled } from './visual.ts';
+import type { Look } from './looks.ts';
 
 export type Mode = 'labels' | 'numbers';
 
@@ -16,7 +16,7 @@ export const DISC = 24;
 export type Marker = LookMark & { n: number; what: string };
 
 /** The markers of `looks`, numbered in their order. */
-export async function markers(looks: Restyled[], mode: Mode, scale: number): Promise<Marker[]> {
+export async function markers(looks: Look[], mode: Mode, scale: number): Promise<Marker[]> {
   return Promise.all(looks.map(async (l, i) => {
     const n = i + 1;
     const what = l.what.join(', ');
