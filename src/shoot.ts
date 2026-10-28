@@ -4,7 +4,9 @@ import sharp from 'sharp';
 import { diff, hunks, type Hunk } from './diff.ts';
 import { group, outside, type Region } from './group.ts';
 import { COLOURS, load, type LoadedPage, type Side } from './loaded.ts';
+import { DISC, markers, type Marker, type Mode } from './markers.ts';
 import type { Box } from './page.ts';
+import { pango, text } from './text.ts';
 import { painted, pairs, restyled, type El, type Restyled } from './visual.ts';
 
 export type Options = {
@@ -21,7 +23,7 @@ export type Options = {
   selector: string | null;
   padding: number;
   maxHeight: number;
-  markers: 'labels' | 'numbers'; // what changed, written on each box, or a number on it and the meanings in the band
+  markers: Mode; // what changed, written on each box, or a number on it and the meanings in the band
 };
 
 export type ShotSide = { png: Buffer; changed: string[]; box: Box };
@@ -41,59 +43,21 @@ async function clipOf(page: LoadedPage, region: Region | null, o: Options): Prom
   return { x: 0, y: top, width: page.width, height: Math.min(bottom - top, o.maxHeight) };
 }
 
-const pango = (s: string) => s.replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
+/** What a numbered box on a shot means: its disc, the same image as on the page, and what changed. */
+type Key = { disc: Buffer; what: string };
 
-/** Text as an image, drawn by Pango: `size` in points, at 72 dpi per device pixel ratio, so one point
- * is one CSS pixel; wrapped at `wrap` device pixels when given. */
-const text = (markup: string, size: number, weight: 'Regular' | 'Semi-Bold', o: Options, wrap?: number) =>
-  sharp({ text: { text: markup, font: `sans-serif ${weight} ${size}`, dpi: 72 * o.scale, rgba: true, width: wrap, spacing: 6 * o.scale } })
-    .png().toBuffer({ resolveWithObject: true });
-
-/** What a numbered box on a shot means. */
-export type Key = { n: number; what: string };
-
-/** A numbered disc in a white ring, 24 CSS pixels across, as a PNG at the shot's scale: the marker
- * on a box with --markers numbers, and in the band's key. The number is centred on its ink's centre
- * of mass, not on its box: a 1 is a stroke with a flag on its left, and centring its box puts the
- * stroke, which the eye reads, right of the middle. */
-export async function disc(n: number, color: string, o: Options): Promise<Buffer> {
+/** The band's key for numbered boxes: each disc and what it means beside it, laid out in rows no
+ * wider than `width`. Returns the pieces to compose, placed from the key's top left corner, and the
+ * key's height. */
+async function key(keys: Key[], width: number, o: Options) {
   const s = o.scale;
-  const size = Math.round(24 * s);
-  const ring = 2 * s;
-  const glyph = await sharp((await text(`<span foreground="#ffffff">${n}</span>`, 12, 'Semi-Bold', o)).data)
-    .trim({ background: '#00000000', threshold: 1 }).raw().toBuffer({ resolveWithObject: true });
-  let mass = 0;
-  let sumX = 0;
-  for (let y = 0; y < glyph.info.height; y++) {
-    for (let x = 0; x < glyph.info.width; x++) {
-      const alpha = glyph.data[(y * glyph.info.width + x) * 4 + 3];
-      mass += alpha;
-      sumX += alpha * x;
-    }
-  }
-  const centreX = mass ? sumX / mass : glyph.info.width / 2;
-  const number = await sharp(glyph.data, { raw: glyph.info }).png().toBuffer();
-  const circle = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}">
-    <circle cx="${size / 2}" cy="${size / 2}" r="${size / 2}" fill="#ffffff"/>
-    <circle cx="${size / 2}" cy="${size / 2}" r="${size / 2 - ring}" fill="${color}"/></svg>`;
-  return sharp(Buffer.from(circle))
-    .composite([{ input: number, left: Math.round(size / 2 - centreX), top: Math.round((size - glyph.info.height) / 2) }])
-    .png()
-    .toBuffer();
-}
-
-/** The band's key for numbered boxes: a disc with each number, as outline() draws it on the page, and
- * what it means beside it, laid out in rows no wider than `width`. Returns the pieces to compose,
- * placed from the key's top left corner, and the key's height. */
-async function key(keys: Key[], color: string, width: number, o: Options) {
-  const s = o.scale;
-  const discSize = Math.round(24 * s);
+  const discSize = Math.round(DISC * s);
   const gap = Math.round(6 * s); // between a disc and its meaning
   const space = Math.round(24 * s); // between one meaning and the next disc
   const rowGap = Math.round(6 * s);
   const items = await Promise.all(keys.map(async k => ({
-    disc: await disc(k.n, color, o),
-    what: await text(`<span foreground="#1f2328">${pango(k.what)}</span>`, 14, 'Regular', o),
+    disc: k.disc,
+    what: await text(`<span foreground="#1f2328">${pango(k.what)}</span>`, 14, 'Regular', s),
   })));
   const rowHeight = Math.max(discSize, ...items.map(i => i.what.info.height));
   const pieces: { input: Buffer; left: number; top: number }[] = [];
@@ -121,10 +85,10 @@ async function titled(png: Buffer, side: Side, n: number, of: number, keys: Key[
   const band = Math.round(52 * s);
   const line = Math.max(1, Math.round(s));
 
-  const label = await text(`<span foreground="#ffffff">${side === 'before' ? 'Before' : 'After'}</span>`, 15, 'Semi-Bold', o);
+  const label = await text(`<span foreground="#ffffff">${side === 'before' ? 'Before' : 'After'}</span>`, 15, 'Semi-Bold', s);
   const count = of > 1 ? `<span foreground="#59636e" weight="normal">   ${n} of ${of}</span>` : '';
-  const title = await text(`<span foreground="#1f2328">${pango(o.title)}</span>${count}`, 18, 'Semi-Bold', o);
-  const meaning = await text(`<span foreground="#1f2328">${side === 'before' ? 'removed' : 'added'}</span>`, 15, 'Regular', o);
+  const title = await text(`<span foreground="#1f2328">${pango(o.title)}</span>${count}`, 18, 'Semi-Bold', s);
+  const meaning = await text(`<span foreground="#1f2328">${side === 'before' ? 'removed' : 'added'}</span>`, 15, 'Regular', s);
 
   const pill = { w: label.info.width + Math.round(20 * s), h: Math.round(26 * s) };
   const pillSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${pill.w}" height="${pill.h}">
@@ -139,7 +103,7 @@ async function titled(png: Buffer, side: Side, n: number, of: number, keys: Key[
   const width = w! + 2 * line;
 
   // The numbers' meanings, each number on a disc like the one on the page, on as many rows as they need.
-  const legend = keys.length ? await key(keys, colour.color, w! - 2 * pad, o) : null;
+  const legend = keys.length ? await key(keys, w! - 2 * pad, o) : null;
   const below = legend ? legend.height + Math.round(12 * s) : 0;
   const head = band + below;
 
@@ -188,14 +152,7 @@ export async function run(browser: Browser, o: Options): Promise<Result> {
     // Numbered top to bottom, as the shots are read.
     looks.sort((p, q) => elsA[p.a].top - elsA[q.a].top || elsA[p.a].sig.localeCompare(elsA[q.a].sig));
 
-    const marks = await Promise.all(looks.map(async (l, i) => ({
-      a: l.a,
-      b: l.b,
-      label: o.markers === 'labels' ? l.what.join(', ') : null,
-      disc: o.markers === 'numbers'
-        ? { before: await disc(i + 1, COLOURS.before.color, o), after: await disc(i + 1, COLOURS.after.color, o), size: 24 }
-        : null,
-    })));
+    const marks: Marker[] = await markers(looks, o.markers, o.scale);
     const markA = await before.mark(found, marks);
     const markB = await after.mark(found, marks);
 
@@ -205,11 +162,11 @@ export async function run(browser: Browser, o: Options): Promise<Result> {
         a: markA.words[i], b: markB.words[i],
         removed: h.removed.map(t => before.words[t]).join(' '),
         added: h.added.map(t => after.words[t]).join(' '),
-        key: null as Key | null,
+        key: null as Marker | null,
       })),
       ...looks.map((l, i) => ({
         a: markA.looks[i], b: markB.looks[i], removed: named(elsA[l.a], l.what), added: named(elsB[l.b], l.what),
-        key: { n: i + 1, what: l.what.join(', ') },
+        key: marks[i] as Marker | null,
       })),
     ].sort((x, y) => (x.a?.top ?? x.b?.top ?? 0) - (y.a?.top ?? y.b?.top ?? 0));
 
@@ -223,7 +180,9 @@ export async function run(browser: Browser, o: Options): Promise<Result> {
       groups = [{ hunks: [], before: null, after: null }];
     }
 
-    const keysOf = (indexes: number[]) => o.markers === 'labels' ? [] : indexes.map(i => changes[i].key).filter(k => k !== null).sort((p, q) => p.n - q.n);
+    // The band's key: the shot's numbered markers, in their order, with this side's disc.
+    const keysOf = (indexes: number[], side: Side): Key[] => indexes.map(i => changes[i].key)
+      .filter(m => m?.disc != null).sort((p, q) => p!.n - q!.n).map(m => ({ disc: m!.disc![side], what: m!.what }));
     const shots: Shot[] = [];
     const leftOut = { removed: [] as string[], added: [] as string[] };
     for (const [n, g] of groups.entries()) {
@@ -237,12 +196,12 @@ export async function run(browser: Browser, o: Options): Promise<Result> {
       }
       shots.push({
         before: {
-          png: await titled(await before.shoot(clipA), 'before', n + 1, groups.length, keysOf(g.hunks), o),
+          png: await titled(await before.shoot(clipA), 'before', n + 1, groups.length, keysOf(g.hunks, 'before'), o),
           box: clipA,
           changed: g.hunks.map(i => changes[i].removed).filter(Boolean),
         },
         after: {
-          png: await titled(await after.shoot(clipB), 'after', n + 1, groups.length, keysOf(g.hunks), o),
+          png: await titled(await after.shoot(clipB), 'after', n + 1, groups.length, keysOf(g.hunks, 'after'), o),
           box: clipB,
           changed: g.hunks.map(i => changes[i].added).filter(Boolean),
         },
