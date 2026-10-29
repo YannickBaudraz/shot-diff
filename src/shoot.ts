@@ -1,7 +1,7 @@
 import type { Browser } from 'playwright-core';
 import sharp from 'sharp';
 import { diff, hunks, type Hunk } from './diff.ts';
-import { group, outside, type Region } from './group.ts';
+import { plan } from './plan.ts';
 import { COLOURS, load, type LoadedPage, type Side } from './loaded.ts';
 import { DISC, markers, type Marker, type Mode } from './markers.ts';
 import type { Box } from './page.ts';
@@ -29,15 +29,6 @@ export type ShotSide = { png: Buffer; changed: string[]; box: Box };
 export type Shot = { before: ShotSide; after: ShotSide };
 /** `left out`: changes found but not in any image (above or below a cut, or outside --selector). */
 export type Result = { hunks: number; restyled: number; shots: Shot[]; leftOut: { removed: string[]; added: string[] } };
-
-/** The part of the page to shoot around `region`: padded, its edges off any line of text, and cut
- * to the maximum height. */
-async function clipOf(page: LoadedPage, region: Region | null, o: Options): Promise<Box> {
-  if (!region) return { x: 0, y: 0, width: page.width, height: o.height };
-  const padded = { top: Math.max(0, region.top - o.padding), bottom: region.bottom + o.padding };
-  const { top, bottom } = await page.snap(padded);
-  return { x: 0, y: top, width: page.width, height: Math.min(bottom - top, o.maxHeight) };
-}
 
 /** What a numbered box on a shot means: its disc, the same image as on the page, and what changed. */
 type Key = { disc: Buffer; what: string };
@@ -129,57 +120,46 @@ export async function run(browser: Browser, o: Options): Promise<Result> {
     const markA = await before.mark(found, marks);
     const markB = await after.mark(found, marks);
 
-    // Every change, words and looks, in the order they sit on the page, for grouping into shots.
+    // Every change, words and looks: where it is on each page, what it is called in each list, and
+    // its marker when it has a numbered one.
     const changes = [
       ...found.map((h, i) => ({
-        a: markA.words[i], b: markB.words[i],
+        place: { before: markA.words[i], after: markB.words[i] },
         removed: h.removed.map(t => before.words[t]).join(' '),
         added: h.added.map(t => after.words[t]).join(' '),
-        key: null as Marker | null,
+        marker: null as Marker | null,
       })),
       ...looks.map((l, i) => ({
-        a: markA.looks[i], b: markB.looks[i], removed: l.name, added: l.name,
-        key: marks[i] as Marker | null,
+        place: { before: markA.looks[i], after: markB.looks[i] },
+        removed: l.name,
+        added: l.name,
+        marker: marks[i] as Marker | null,
       })),
-    ].sort((x, y) => (x.a?.top ?? x.b?.top ?? 0) - (y.a?.top ?? y.b?.top ?? 0));
-
-    let groups = group(changes.map(c => c.a), changes.map(c => c.b), o.padding, o.maxHeight);
-    if (o.selector) {
-      const a = await before.region(o.selector);
-      const b = await after.region(o.selector);
-      if (!a || !b) throw new Error(`--selector ${o.selector} matches nothing on the ${!a ? 'before' : 'after'} page`);
-      groups = [{ hunks: changes.map((_, i) => i), before: a, after: b }];
-    } else if (!groups.length) {
-      groups = [{ hunks: [], before: null, after: null }];
-    }
+    ];
+    const planned = await plan(changes.map(c => c.place), o, { before, after });
 
     // The band's key: the shot's numbered markers, in their order, with this side's disc.
-    const keysOf = (indexes: number[], side: Side): Key[] => indexes.map(i => changes[i].key)
+    const keysOf = (indexes: number[], side: Side): Key[] => indexes.map(i => changes[i].marker)
       .filter(m => m?.disc != null).sort((p, q) => p!.n - q!.n).map(m => ({ disc: m!.disc![side], what: m!.what }));
     const shots: Shot[] = [];
-    const leftOut = { removed: [] as string[], added: [] as string[] };
-    for (const [n, g] of groups.entries()) {
-      const clipA = await clipOf(before, g.before, o);
-      const clipB = await clipOf(after, g.after, o);
-      const regionA = { top: clipA.y, bottom: clipA.y + clipA.height };
-      const regionB = { top: clipB.y, bottom: clipB.y + clipB.height };
-      for (const i of g.hunks) {
-        if (outside(changes[i].a, regionA)) leftOut.removed.push(changes[i].removed);
-        if (outside(changes[i].b, regionB)) leftOut.added.push(changes[i].added);
-      }
+    for (const [n, p] of planned.shots.entries()) {
       shots.push({
         before: {
-          png: await titled(await before.shoot(clipA), 'before', n + 1, groups.length, keysOf(g.hunks, 'before'), o),
-          box: clipA,
-          changed: g.hunks.map(i => changes[i].removed).filter(Boolean),
+          png: await titled(await before.shoot(p.before), 'before', n + 1, planned.shots.length, keysOf(p.changes, 'before'), o),
+          box: p.before,
+          changed: p.changes.map(i => changes[i].removed).filter(Boolean),
         },
         after: {
-          png: await titled(await after.shoot(clipB), 'after', n + 1, groups.length, keysOf(g.hunks, 'after'), o),
-          box: clipB,
-          changed: g.hunks.map(i => changes[i].added).filter(Boolean),
+          png: await titled(await after.shoot(p.after), 'after', n + 1, planned.shots.length, keysOf(p.changes, 'after'), o),
+          box: p.after,
+          changed: p.changes.map(i => changes[i].added).filter(Boolean),
         },
       });
     }
+    const leftOut = {
+      removed: planned.leftOut.before.map(i => changes[i].removed),
+      added: planned.leftOut.after.map(i => changes[i].added),
+    };
     return { hunks: found.length, restyled: looks.length, shots, leftOut };
   } finally {
     await before.close();

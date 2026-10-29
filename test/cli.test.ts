@@ -100,3 +100,10 @@ test('--markers numbers marks the same changes; an unknown kind is refused', asy
   expect(wrong.status).not.toBe(0);
   expect(wrong.stderr).toMatch(/labels, numbers/);
 });
+
+test('--max-height cuts a change too tall for it, and says so', () => {
+  const { done, result } = shotDiff(page('dashboard/before.html'), page('dashboard/after.html'), '--title', 't', '--max-height', '120');
+  expect(done.status, done.stderr).toBe(0);
+  expect(result.leftOut.removed).toContain('[section: spacing]');
+  expect(done.stderr).toMatch(/not in any image/);
+});
