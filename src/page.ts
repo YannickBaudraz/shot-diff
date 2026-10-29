@@ -76,49 +76,167 @@ export function runtime() {
     return { words: out, tokens: found };
   };
 
+  /** What pairs an element with its match on the other page: tag, id, role, label, own words, file. */
+  const signature = (el: Element) => {
+    const own = [...el.childNodes].filter(n => n.nodeType === Node.TEXT_NODE).map(n => n.textContent).join(' ')
+      .replace(/\s+/g, ' ').trim().slice(0, 80);
+    const file = (el.getAttribute('src') || el.getAttribute('href') || '').split(/[?#]/)[0].split('/').pop() || '';
+    return [el.tagName, el.id && `#${el.id}`, el.getAttribute('role') || '', el.getAttribute('aria-label') || '', own, file]
+      .filter(Boolean).join(' ');
+  };
+
+  const PAINTERS = new Set(['IMG', 'CANVAS', 'svg', 'VIDEO']);
+
+  /** An element as looks.ts compares it, its parent still to find. */
+  const describe = (el: Element, rect: DOMRect, properties: string[]): El => {
+    const style = getComputedStyle(el);
+    const computed = el.computedStyleMap();
+    return {
+      sig: signature(el),
+      parent: -1,
+      leaf: true,
+      paint: PAINTERS.has(el.tagName) || style.backgroundImage !== 'none',
+      top: rect.top + window.scrollY,
+      width: rect.width,
+      height: rect.height,
+      // The computed value, as the CSS gave it: `auto` stays `auto`, where getComputedStyle would give
+      // the pixels layout made of it, which change with whatever else changed on the page.
+      style: Object.fromEntries(properties.map(p => [p, (computed.get(p) ?? style.getPropertyValue(p)).toString()])),
+    };
+  };
+
   /** Every visible element, in document order, as looks.ts compares them. */
   const elements = (properties: string[]): { elements: El[]; els: Element[] } => {
     const found: Element[] = [];
     const out: El[] = [];
     const index = new Map<Element, number>();
-    const painters = new Set(['IMG', 'CANVAS', 'svg', 'VIDEO']);
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT, {
       // An SVG is one picture: its shapes are not elements of their own here.
       acceptNode: node => (node.parentElement?.closest('svg') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT),
     });
     for (let node = walker.nextNode(); node; node = walker.nextNode()) {
       const el = node as Element;
-      if (!el.checkVisibility({ checkOpacity: false, checkVisibilityCSS: true })) continue;
       const rect = el.getBoundingClientRect();
-      if (!rect.width || !rect.height) continue;
-      const style = getComputedStyle(el);
-      const computed = el.computedStyleMap();
-      const own = [...el.childNodes].filter(n => n.nodeType === Node.TEXT_NODE).map(n => n.textContent).join(' ')
-        .replace(/\s+/g, ' ').trim().slice(0, 80);
-      const file = (el.getAttribute('src') || el.getAttribute('href') || '').split(/[?#]/)[0].split('/').pop() || '';
-      const sig = [el.tagName, el.id && `#${el.id}`, el.getAttribute('role') || '', el.getAttribute('aria-label') || '', own, file]
-        .filter(Boolean).join(' ');
-      let parent = -1;
+      if (!el.checkVisibility({ checkOpacity: false, checkVisibilityCSS: true }) || !rect.width || !rect.height) continue;
+      const entry = describe(el, rect, properties);
       for (let up = el.parentElement; up; up = up.parentElement) {
         const at = index.get(up);
-        if (at !== undefined) { parent = at; out[at].leaf = false; break; }
+        if (at !== undefined) { entry.parent = at; out[at].leaf = false; break; }
       }
       index.set(el, out.length);
       found.push(el);
-      out.push({
-        sig,
-        parent,
-        leaf: true,
-        paint: painters.has(el.tagName) || style.backgroundImage !== 'none',
-        top: rect.top + window.scrollY,
-        width: rect.width,
-        height: rect.height,
-        // The computed value, as the CSS gave it: `auto` stays `auto`, where getComputedStyle would give
-        // the pixels layout made of it, which change with whatever else changed on the page.
-        style: Object.fromEntries(properties.map(p => [p, (computed.get(p) ?? style.getPropertyValue(p)).toString()])),
-      });
+      out.push(entry);
     }
     return { elements: out, els: found };
+  };
+
+  /** Tint the changed words, struck through on the before side: one highlight range per run of
+   * tokens in the same text node. A changed image gets an outline instead. */
+  const highlight = (o: MarkOptions, tokens: Token[]) => {
+    const ranges: Range[] = [];
+    for (const hunk of o.hunks) {
+      let last: { node: Text; range: Range } | null = null;
+      for (const i of hunk.changed) {
+        const t = tokens[i];
+        if ('el' in t) {
+          (t.el as HTMLElement).style.outline = `3px solid ${o.color}`;
+          (t.el as HTMLElement).style.outlineOffset = '2px';
+          last = null;
+        } else if (last && last.node === t.node) {
+          last.range.setEnd(t.node, t.end);
+        } else {
+          last = { node: t.node, range: range(t) };
+          ranges.push(last.range);
+        }
+      }
+    }
+    const style = document.createElement('style');
+    style.textContent = `::highlight(shot-diff){background-color:${o.tint};` +
+      (o.strike ? `text-decoration:line-through 2px ${o.color};` : '') + '}';
+    document.head.appendChild(style);
+    CSS.highlights.set('shot-diff', new Highlight(...ranges));
+  };
+
+  /** A box on `layer`, at these page coordinates; drawn over the page so nothing it lays out moves. */
+  const drawBox = (layer: HTMLElement, color: string, left: number, top: number, width: number, height: number) => {
+    const box = document.createElement('div');
+    box.style.cssText = `position:absolute;box-sizing:border-box;border:2px solid ${color};border-radius:4px;` +
+      `left:${left}px;top:${top}px;width:${width}px;height:${height}px`;
+    layer.appendChild(box);
+    return box;
+  };
+
+  /** Rects grouped by the line they sit on, top to bottom. */
+  const linesOf = (rects: DOMRect[]) => {
+    const lines: DOMRect[][] = [];
+    for (const r of [...rects].sort((p, q) => p.top - q.top || p.left - q.left)) {
+      const line = lines.find(l => Math.abs(l[0].top - r.top) < l[0].height / 2);
+      if (line) line.push(r);
+      else lines.push([r]);
+    }
+    return lines;
+  };
+
+  /** Box a word change, one box per line so a change that wraps gets no box through the words
+   * between, and say where it is with the unchanged words around it. */
+  const boxWords = (hunk: MarkOptions['hunks'][number], tokens: Token[], layer: HTMLElement, color: string): Span | null => {
+    const sx = window.scrollX;
+    const sy = window.scrollY;
+    const changed = hunk.changed.flatMap(i => rects(tokens[i]));
+    const all = [...changed, ...hunk.anchors.flatMap(i => rects(tokens[i]))];
+    if (!all.length) return null;
+    for (const line of linesOf(changed)) {
+      const left = Math.min(...line.map(r => r.left));
+      const top = Math.min(...line.map(r => r.top));
+      drawBox(layer, color, left + sx - 4, top + sy - 3, Math.max(...line.map(r => r.right)) - left + 8, Math.max(...line.map(r => r.bottom)) - top + 6);
+    }
+    return {
+      top: Math.min(...all.map(r => r.top)) + sy,
+      bottom: Math.max(...all.map(r => r.bottom)) + sy,
+      changedTop: changed.length ? Math.min(...changed.map(r => r.top)) + sy : null,
+      changedBottom: changed.length ? Math.max(...changed.map(r => r.bottom)) + sy : null,
+    };
+  };
+
+  /** A numbered disc on a box's top left corner, kept inside the page; returns the disc's top. */
+  const drawDisc = (layer: HTMLElement, disc: { src: string; size: number }, boxLeft: number, boxTop: number) => {
+    const img = document.createElement('img');
+    img.src = disc.src;
+    const top = Math.max(0, boxTop - disc.size / 2);
+    img.style.cssText = `position:absolute;left:${Math.max(0, boxLeft - disc.size / 2)}px;top:${top}px;width:${disc.size}px;height:${disc.size}px`;
+    layer.appendChild(img);
+    return top;
+  };
+
+  const LABEL = 22; // a label's height, in CSS pixels
+
+  /** What changed, on a tag above the box, or below it when the page has no room above; returns
+   * whether it went above. */
+  const drawLabel = (box: HTMLElement, label: string, color: string, boxTop: number) => {
+    const above = boxTop - LABEL >= 0;
+    const tag = document.createElement('div');
+    tag.textContent = label;
+    tag.style.cssText = `position:absolute;left:-2px;${above ? 'bottom:100%;margin-bottom:2px' : 'top:100%;margin-top:2px'};` +
+      `padding:1px 6px;border-radius:4px;white-space:nowrap;background:${color};color:#ffffff;font:600 12px/1.4 system-ui,sans-serif`;
+    box.appendChild(tag);
+    return above;
+  };
+
+  /** Box an element whose look changed, with its label or its disc, and say where all that is. */
+  const boxLook = (look: MarkOptions['looks'][number], el: Element, layer: HTMLElement, color: string): Span => {
+    const r = el.getBoundingClientRect();
+    const boxLeft = r.left + window.scrollX - 4;
+    const boxTop = r.top + window.scrollY - 4;
+    const boxBottom = r.bottom + window.scrollY + 4;
+    const box = drawBox(layer, color, boxLeft, boxTop, r.width + 8, r.height + 8);
+    let top = Math.max(0, boxTop);
+    let bottom = boxBottom;
+    if (look.disc) top = Math.min(top, drawDisc(layer, look.disc, boxLeft, boxTop));
+    if (look.label) {
+      if (drawLabel(box, look.label, color, boxTop)) top = Math.max(0, boxTop - LABEL);
+      else bottom += LABEL;
+    }
+    return { top, bottom, changedTop: top, changedBottom: bottom };
   };
 
   return {
@@ -141,101 +259,12 @@ export function runtime() {
     mark(o: MarkOptions): Marked {
       const { tokens, els } = read();
       marked = true;
-      const sx = window.scrollX;
-      const sy = window.scrollY;
-
-      // Changed words: one highlight range per run of tokens in the same text node.
-      const ranges: Range[] = [];
-      for (const hunk of o.hunks) {
-        let last: { node: Text; range: Range } | null = null;
-        for (const i of hunk.changed) {
-          const t = tokens[i];
-          if ('el' in t) {
-            (t.el as HTMLElement).style.outline = `3px solid ${o.color}`;
-            (t.el as HTMLElement).style.outlineOffset = '2px';
-            last = null;
-          } else if (last && last.node === t.node) {
-            last.range.setEnd(t.node, t.end);
-          } else {
-            const r = range(t);
-            ranges.push(r);
-            last = { node: t.node, range: r };
-          }
-        }
-      }
-      const style = document.createElement('style');
-      style.textContent = `::highlight(shot-diff){background-color:${o.tint};` +
-        (o.strike ? `text-decoration:line-through 2px ${o.color};` : '') + '}';
-      document.head.appendChild(style);
-      CSS.highlights.set('shot-diff', new Highlight(...ranges));
-
-      // Boxes, drawn over the page so nothing it lays out moves.
+      highlight(o, tokens);
       const layer = overlay();
-      const box = (left: number, top: number, width: number, height: number) => {
-        const b = document.createElement('div');
-        b.style.cssText = `position:absolute;box-sizing:border-box;border:2px solid ${o.color};border-radius:4px;` +
-          `left:${left}px;top:${top}px;width:${width}px;height:${height}px`;
-        layer.appendChild(b);
-        return b;
+      return {
+        words: o.hunks.map(hunk => boxWords(hunk, tokens, layer, o.color)),
+        looks: o.looks.map(look => boxLook(look, els[look.index], layer, o.color)),
       };
-
-      const wordSpans = o.hunks.map(hunk => {
-        const changed = hunk.changed.flatMap(i => rects(tokens[i]));
-        const all = [...changed, ...hunk.anchors.flatMap(i => rects(tokens[i]))];
-        if (!all.length) return null;
-        // One box per line, so a change that wraps does not get a box through the words between.
-        const lines: DOMRect[][] = [];
-        for (const r of [...changed].sort((p, q) => p.top - q.top || p.left - q.left)) {
-          const line = lines.find(l => Math.abs(l[0].top - r.top) < l[0].height / 2);
-          if (line) line.push(r);
-          else lines.push([r]);
-        }
-        for (const line of lines) {
-          const left = Math.min(...line.map(r => r.left));
-          const top = Math.min(...line.map(r => r.top));
-          box(left + sx - 4, top + sy - 3, Math.max(...line.map(r => r.right)) - left + 8, Math.max(...line.map(r => r.bottom)) - top + 6);
-        }
-        return {
-          top: Math.min(...all.map(r => r.top)) + sy,
-          bottom: Math.max(...all.map(r => r.bottom)) + sy,
-          changedTop: changed.length ? Math.min(...changed.map(r => r.top)) + sy : null,
-          changedBottom: changed.length ? Math.max(...changed.map(r => r.bottom)) + sy : null,
-        };
-      });
-
-      // Changes of look: a box with what changed on a label (above it, or below at the top of the
-      // page), or a numbered disc on its corner.
-      const LABEL = 22;
-      const lookSpans = o.looks.map(({ index, label, disc }) => {
-        const r = els[index].getBoundingClientRect();
-        const boxTop = r.top + sy - 4;
-        const boxBottom = r.bottom + sy + 4;
-        const b = box(r.left + sx - 4, boxTop, r.width + 8, r.height + 8);
-        let top = Math.max(0, boxTop);
-        let bottom = boxBottom;
-        if (disc) {
-          const img = document.createElement('img');
-          img.src = disc.src;
-          const left = Math.max(0, r.left + sx - 4 - disc.size / 2);
-          const discTop = Math.max(0, boxTop - disc.size / 2);
-          img.style.cssText = `position:absolute;left:${left}px;top:${discTop}px;width:${disc.size}px;height:${disc.size}px`;
-          layer.appendChild(img);
-          top = Math.min(top, discTop);
-        }
-        if (label) {
-          const above = boxTop - LABEL >= 0;
-          const tag = document.createElement('div');
-          tag.textContent = label;
-          tag.style.cssText = `position:absolute;left:-2px;${above ? 'bottom:100%;margin-bottom:2px' : 'top:100%;margin-top:2px'};` +
-            `padding:1px 6px;border-radius:4px;white-space:nowrap;background:${o.color};color:#ffffff;font:600 12px/1.4 system-ui,sans-serif`;
-          b.appendChild(tag);
-          if (above) top = Math.max(0, boxTop - LABEL);
-          else bottom += LABEL;
-        }
-        return { top, bottom, changedTop: top, changedBottom: bottom };
-      });
-
-      return { words: wordSpans, looks: lookSpans };
     },
 
     /** Where `selector`'s element is, or null when it is not there. */
