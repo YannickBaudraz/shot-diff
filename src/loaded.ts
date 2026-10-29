@@ -57,57 +57,22 @@ function call<K extends keyof Runtime>(page: Page, name: K, arg: Parameters<Runt
 }
 
 export async function load(browser: Browser, url: string, side: Side, o: LoadOptions): Promise<LoadedPage> {
-  const context: BrowserContext = await browser.newContext({
+  const context = await browser.newContext({
     viewport: { width: o.width, height: o.height },
     deviceScaleFactor: o.scale,
     colorScheme: o.dark ? 'dark' : 'light',
     reducedMotion: 'reduce',
   });
   try {
-    if (o.storage.length) {
-      await context.addInitScript(pairs => {
-        for (const [key, value] of pairs) localStorage.setItem(key, value);
-      }, o.storage);
-    }
-    const page = await context.newPage();
-    await page.goto(url, { waitUntil: 'load' });
-    for (const selector of o.click) {
-      await page.click(selector);
-      await page.waitForTimeout(300);
-    }
-    await page.waitForTimeout(o.wait);
-    await page.evaluate(`window.__shotDiff = (${runtime.toString()})()`);
+    const page = await open(context, url, o);
     const { words, elements, width } = await call(page, 'read', Object.keys(PROPERTIES));
-    const colour = COLOURS[side];
-
     return {
       side,
       words,
       elements,
       width,
-      async pixels(index) {
-        const handle = await page.evaluateHandle(
-          i => (window as unknown as { __shotDiff: Runtime }).__shotDiff.element(i), index);
-        try {
-          return (await handle.asElement()?.screenshot({ animations: 'disabled' })) ?? null;
-        } catch {
-          return null; // gone, or not shootable: nothing to compare
-        } finally {
-          await handle.dispose();
-        }
-      },
-      async mark(hunks, looks) {
-        return call(page, 'mark', {
-          ...colour,
-          strike: side === 'before',
-          hunks: hunks.map(h => side === 'before' ? { changed: h.removed, anchors: h.anchorsA } : { changed: h.added, anchors: h.anchorsB }),
-          looks: looks.map(l => ({
-            index: side === 'before' ? l.a : l.b,
-            label: l.label,
-            disc: l.disc ? { src: `data:image/png;base64,${l.disc[side].toString('base64')}`, size: l.disc.size } : null,
-          })),
-        } satisfies MarkOptions);
-      },
+      pixels: index => pixels(page, index),
+      mark: (hunks, looks) => call(page, 'mark', markOptions(side, hunks, looks)),
       region: selector => call(page, 'region', selector),
       snap: region => call(page, 'snap', region),
       shoot: clip => page.screenshot({ clip, fullPage: true, animations: 'disabled' }),
@@ -117,4 +82,50 @@ export async function load(browser: Browser, url: string, side: Side, o: LoadOpt
     await context.close();
     throw error;
   }
+}
+
+/** The page at `url`, with the stored settings set before it runs, clicked, waited for, and the
+ * runtime installed. */
+async function open(context: BrowserContext, url: string, o: LoadOptions): Promise<Page> {
+  if (o.storage.length) {
+    await context.addInitScript(pairs => {
+      for (const [key, value] of pairs) localStorage.setItem(key, value);
+    }, o.storage);
+  }
+  const page = await context.newPage();
+  await page.goto(url, { waitUntil: 'load' });
+  for (const selector of o.click) {
+    await page.click(selector);
+    await page.waitForTimeout(300);
+  }
+  await page.waitForTimeout(o.wait);
+  await page.evaluate(`window.__shotDiff = (${runtime.toString()})()`);
+  return page;
+}
+
+/** A PNG of element `index`'s own pixels, or null when it is gone or cannot be shot. */
+async function pixels(page: Page, index: number): Promise<Buffer | null> {
+  const handle = await page.evaluateHandle(i => (window as unknown as { __shotDiff: Runtime }).__shotDiff.element(i), index);
+  try {
+    return (await handle.asElement()?.screenshot({ animations: 'disabled' })) ?? null;
+  } catch {
+    return null;
+  } finally {
+    await handle.dispose();
+  }
+}
+
+/** What the runtime draws on `side`'s page: its colour, its half of each word change, and each
+ * change of look's element there with its label or this side's disc. */
+function markOptions(side: Side, hunks: Hunk[], looks: LookMark[]): MarkOptions {
+  return {
+    ...COLOURS[side],
+    strike: side === 'before',
+    hunks: hunks.map(h => side === 'before' ? { changed: h.removed, anchors: h.anchorsA } : { changed: h.added, anchors: h.anchorsB }),
+    looks: looks.map(l => ({
+      index: side === 'before' ? l.a : l.b,
+      label: l.label,
+      disc: l.disc ? { src: `data:image/png;base64,${l.disc[side].toString('base64')}`, size: l.disc.size } : null,
+    })),
+  };
 }
