@@ -4,16 +4,10 @@
 
 import type { Browser, BrowserContext, Page } from 'playwright-core';
 import type { Hunk } from './diff.ts';
+import { PROPERTIES, type ElementInfo } from './looks.ts';
+import type { Marker } from './markers.ts';
 import { runtime, type Box, type Marked, type MarkOptions, type Region, type Runtime } from './page.ts';
-import { PROPERTIES, type El } from './looks.ts';
-
-export type Side = 'before' | 'after';
-
-/** Each side's colour: what the before page no longer has is red, what the after page adds is green. */
-export const COLOURS: Record<Side, { color: string; tint: string }> = {
-  before: { color: '#cf222e', tint: 'rgba(255, 129, 130, 0.45)' },
-  after: { color: '#1a7f37', tint: 'rgba(74, 194, 107, 0.4)' },
-};
+import { COLOURS, type Side } from './side.ts';
 
 export type LoadOptions = {
   width: number;
@@ -25,23 +19,15 @@ export type LoadOptions = {
   wait: number;
 };
 
-/** A change of look to box on both pages: its element on each, and what to put on the box. */
-export type LookMark = {
-  a: number; // the element, as an index into the before page's elements
-  b: number; // the same on the after page
-  label: string | null;
-  disc: { before: Buffer; after: Buffer; size: number } | null; // size in CSS pixels
-};
-
 export type LoadedPage = {
   side: Side;
   words: string[];
-  elements: El[];
+  elements: ElementInfo[];
   width: number;
   /** A PNG of element `index`'s own pixels, or null when it cannot be shot. Only before mark(). */
   pixels(index: number): Promise<Buffer | null>;
   /** Mark this side's part of the word changes and the changes of look; once. */
-  mark(hunks: Hunk[], looks: LookMark[]): Promise<Marked>;
+  mark(hunks: Hunk[], markers: Marker[]): Promise<Marked>;
   region(selector: string): Promise<Region | null>;
   snap(region: Region): Promise<Region>;
   shoot(clip: Box): Promise<Buffer>;
@@ -72,7 +58,7 @@ export async function load(browser: Browser, url: string, side: Side, o: LoadOpt
       elements,
       width,
       pixels: index => pixels(page, index),
-      mark: (hunks, looks) => call(page, 'mark', markOptions(side, hunks, looks)),
+      mark: (hunks, markers) => call(page, 'mark', markOptions(side, hunks, markers)),
       region: selector => call(page, 'region', selector),
       snap: region => call(page, 'snap', region),
       shoot: clip => page.screenshot({ clip, fullPage: true, animations: 'disabled' }),
@@ -117,15 +103,15 @@ async function pixels(page: Page, index: number): Promise<Buffer | null> {
 
 /** What the runtime draws on `side`'s page: its colour, its half of each word change, and each
  * change of look's element there with its label or this side's disc. */
-function markOptions(side: Side, hunks: Hunk[], looks: LookMark[]): MarkOptions {
+function markOptions(side: Side, hunks: Hunk[], markers: Marker[]): MarkOptions {
   return {
     ...COLOURS[side],
     strike: side === 'before',
-    hunks: hunks.map(h => side === 'before' ? { changed: h.removed, anchors: h.anchorsA } : { changed: h.added, anchors: h.anchorsB }),
-    looks: looks.map(l => ({
-      index: side === 'before' ? l.a : l.b,
-      label: l.label,
-      disc: l.disc ? { src: `data:image/png;base64,${l.disc[side].toString('base64')}`, size: l.disc.size } : null,
+    hunks: hunks.map(hunk => ({ changed: hunk.changed[side], anchors: hunk.anchors[side] })),
+    looks: markers.map(marker => ({
+      index: marker.element[side],
+      label: marker.label,
+      disc: marker.disc && { src: `data:image/png;base64,${marker.disc.image[side].toString('base64')}`, size: marker.disc.size },
     })),
   };
 }

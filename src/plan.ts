@@ -2,7 +2,7 @@
 // enough on both pages share one; changes far apart get one each, so no change falls off a shot cut
 // to the maximum height. What still falls outside every shot is said, not dropped.
 
-import type { Side } from './loaded.ts';
+import { SIDES, type Side } from './side.ts';
 import type { Box, Region, Span } from './page.ts';
 
 /** Where a change sits on each page; null on a page it has no place on. */
@@ -23,8 +23,6 @@ export type PlannedShot = { changes: number[] } & Record<Side, Box>;
 
 /** The shots, and the changes whose changed part is in no shot, on each page. */
 export type Plan = { shots: PlannedShot[]; leftOut: Record<Side, number[]> };
-
-const SIDES: Side[] = ['before', 'after'];
 
 export async function plan(places: Place[], o: PlanOptions, pages: Record<Side, Frame>): Promise<Plan> {
   const order = places.map((_, i) => i).sort((i, j) => top(places[i]) - top(places[j]));

@@ -2,11 +2,12 @@
 
 import sharp from 'sharp';
 
-/** `s` with Pango's markup characters escaped. */
-export const pango = (s: string) => s.replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
+/** `text` with Pango's markup characters escaped, so it shows as written. */
+export const escapePango = (text: string) => text.replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
 
-/** Pango markup as a PNG at the shot's `scale`: `size` in points, at 72 dpi per device pixel ratio, so
- * one point is one CSS pixel; wrapped at `wrap` device pixels when given. */
-export const text = (markup: string, size: number, weight: 'Regular' | 'Semi-Bold', scale: number, wrap?: number) =>
-  sharp({ text: { text: markup, font: `sans-serif ${weight} ${size}`, dpi: 72 * scale, rgba: true, width: wrap, spacing: 6 * scale } })
-    .png().toBuffer({ resolveWithObject: true });
+/** Pango markup drawn as a PNG at the shot's `scale`. `size` is in points, at 72 dpi per device pixel
+ * ratio, so one point is one CSS pixel. */
+export function renderText(markup: string, size: number, weight: 'Regular' | 'Semi-Bold', scale: number) {
+  const font = `sans-serif ${weight} ${size}`;
+  return sharp({ text: { text: markup, font, dpi: 72 * scale, rgba: true, spacing: 6 * scale } }).png().toBuffer({ resolveWithObject: true });
+}

@@ -1,16 +1,16 @@
 import sharp from 'sharp';
 import { describe, expect, test } from 'vitest';
 import { band, type Content } from '../src/band.ts';
-import { markers } from '../src/markers.ts';
+import { markersFor } from '../src/markers.ts';
 
 const SCALE = 2;
 const shot = sharp({ create: { width: 800, height: 300, channels: 4, background: '#ffffff' } }).png().toBuffer();
 const size = async (png: Buffer) => { const { width, height } = await sharp(png).metadata(); return { width: width!, height: height! }; };
 const content = (more: Partial<Content> = {}): Content => ({ side: 'before', title: 'Cart', n: 1, of: 1, key: [], ...more });
 /** The band's key for `count` numbered changes of look, with this side's discs. */
-const key = async (count: number) => (await markers(
-  Array.from({ length: count }, (_, i) => ({ a: i, b: i, what: ['background', 'border colour'], name: '' })), 'numbers', SCALE,
-)).map(m => ({ disc: m.disc!.before, what: m.what }));
+const key = async (count: number) => (await markersFor(
+  Array.from({ length: count }, (_, i) => ({ element: { before: i, after: i }, what: ['background', 'border colour'], name: '' })), 'numbers', SCALE,
+)).map(m => ({ disc: m.disc!.image.before, what: m.what }));
 
 describe('band', () => {
   test('puts a band on top of the shot, and a 1px frame around both', async () => {

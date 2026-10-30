@@ -4,8 +4,8 @@ import { diff, hunks, type Op } from '../src/diff.ts';
 const words = (s: string) => s.split(' ').filter(Boolean);
 const apply = (a: string[], b: string[], ops: Op[]) => {
   // Replaying the ops rebuilds both lists: proof the diff is complete and in order.
-  const left = ops.filter(o => o.type !== 'add').map(o => a[o.a]);
-  const right = ops.filter(o => o.type !== 'remove').map(o => b[o.b]);
+  const left = ops.filter(o => o.type !== 'add').map(o => a[o.before]);
+  const right = ops.filter(o => o.type !== 'remove').map(o => b[o.after]);
   return { left, right };
 };
 
@@ -23,9 +23,9 @@ test('a replaced phrase is one hunk with its neighbours as anchors', () => {
   expect(apply(a, b, ops)).toEqual({ left: a, right: b });
   const found = hunks(ops);
   expect(found.length).toBe(1);
-  expect(found[0].removed.map(i => a[i])).toEqual(words('approve them before they are published.'));
-  expect(found[0].added.map(i => b[i])).toEqual(words('confirm the breakdown in the same session.'));
-  expect(found[0].anchorsA.map(i => a[i])).toEqual(words('You tickets. the'));
+  expect(found[0].changed.before.map(i => a[i])).toEqual(words('approve them before they are published.'));
+  expect(found[0].changed.after.map(i => b[i])).toEqual(words('confirm the breakdown in the same session.'));
+  expect(found[0].anchors.before.map(i => a[i])).toEqual(words('You tickets. the'));
 });
 
 test('an addition at the end has an empty removed side and anchors before it', () => {
@@ -33,10 +33,10 @@ test('an addition at the end has an empty removed side and anchors before it', (
   const b = words('a b c d e');
   const found = hunks(diff(a, b));
   expect(found.length).toBe(1);
-  expect(found[0].removed).toEqual([]);
-  expect(found[0].added.map(i => b[i])).toEqual(['d', 'e']);
-  expect(found[0].anchorsA.map(i => a[i])).toEqual(['c', 'b', 'a']);
-  expect(found[0].anchorsB.map(i => b[i])).toEqual(['c', 'b', 'a']);
+  expect(found[0].changed.before).toEqual([]);
+  expect(found[0].changed.after.map(i => b[i])).toEqual(['d', 'e']);
+  expect(found[0].anchors.before.map(i => a[i])).toEqual(['c', 'b', 'a']);
+  expect(found[0].anchors.after.map(i => b[i])).toEqual(['c', 'b', 'a']);
 });
 
 test('changes far apart are separate hunks', () => {

@@ -2,7 +2,7 @@
 // closure, so runtime() stands alone: no imports at run time, nothing from outside its body. It
 // returns the page's interface; loaded.ts installs it once per page and calls it.
 
-import type { El } from './looks.ts';
+import type { ElementInfo } from './looks.ts';
 
 export type Box = { x: number; y: number; width: number; height: number };
 
@@ -88,14 +88,15 @@ export function runtime() {
   const PAINTERS = new Set(['IMG', 'CANVAS', 'svg', 'VIDEO']);
 
   /** An element as looks.ts compares it, its parent still to find. */
-  const describe = (el: Element, rect: DOMRect, properties: string[]): El => {
+  const describe = (el: Element, rect: DOMRect, properties: string[]): ElementInfo => {
     const style = getComputedStyle(el);
     const computed = el.computedStyleMap();
     return {
-      sig: signature(el),
+      signature: signature(el),
+      tag: el.tagName.toLowerCase(),
       parent: -1,
       leaf: true,
-      paint: PAINTERS.has(el.tagName) || style.backgroundImage !== 'none',
+      paints: PAINTERS.has(el.tagName) || style.backgroundImage !== 'none',
       top: rect.top + window.scrollY,
       width: rect.width,
       height: rect.height,
@@ -106,9 +107,9 @@ export function runtime() {
   };
 
   /** Every visible element, in document order, as looks.ts compares them. */
-  const elements = (properties: string[]): { elements: El[]; els: Element[] } => {
+  const elements = (properties: string[]): { elements: ElementInfo[]; els: Element[] } => {
     const found: Element[] = [];
-    const out: El[] = [];
+    const out: ElementInfo[] = [];
     const index = new Map<Element, number>();
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT, {
       // An SVG is one picture: its shapes are not elements of their own here.
@@ -241,7 +242,7 @@ export function runtime() {
 
   return {
     /** The page's words and elements, read before anything is drawn over it, and its width. */
-    read(properties: string[]): { words: string[]; elements: El[]; width: number } {
+    read(properties: string[]): { words: string[]; elements: ElementInfo[]; width: number } {
       const w = words();
       const e = elements(properties);
       tokens = w.tokens;

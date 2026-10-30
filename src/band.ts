@@ -1,9 +1,9 @@
 // The band drawn on top of each shot, with sharp: no browser needed.
 
 import sharp from 'sharp';
-import { COLOURS, type Side } from './loaded.ts';
+import { COLOURS, type Side } from './side.ts';
 import { DISC } from './markers.ts';
-import { pango, text } from './text.ts';
+import { escapePango, renderText } from './text.ts';
 
 /** What a numbered box on a shot means: its disc, the same image as on the page, and what changed. */
 export type Key = { disc: Buffer; what: string };
@@ -18,7 +18,7 @@ async function key(keys: Key[], width: number, s: number) {
   const rowGap = Math.round(6 * s);
   const items = await Promise.all(keys.map(async k => ({
     disc: k.disc,
-    what: await text(`<span foreground="#1f2328">${pango(k.what)}</span>`, 14, 'Regular', s),
+    what: await renderText(`<span foreground="#1f2328">${escapePango(k.what)}</span>`, 14, 'Regular', s),
   })));
   const rowHeight = Math.max(discSize, ...items.map(i => i.what.info.height));
   const pieces: { input: Buffer; left: number; top: number }[] = [];
@@ -74,9 +74,9 @@ const middle = (height: number, s: number) => Math.round((Math.round(BAND * s) -
 /** The band's left: the side's pill, then the title and which shot of how many; placed from the
  * band's top left corner. */
 async function heading({ side, title, n, of }: Content, s: number): Promise<Piece[]> {
-  const label = await text(`<span foreground="#ffffff">${side === 'before' ? 'Before' : 'After'}</span>`, 15, 'Semi-Bold', s);
+  const label = await renderText(`<span foreground="#ffffff">${side === 'before' ? 'Before' : 'After'}</span>`, 15, 'Semi-Bold', s);
   const count = of > 1 ? `<span foreground="#59636e" weight="normal">   ${n} of ${of}</span>` : '';
-  const words = await text(`<span foreground="#1f2328">${pango(title)}</span>${count}`, 18, 'Semi-Bold', s);
+  const words = await renderText(`<span foreground="#1f2328">${escapePango(title)}</span>${count}`, 18, 'Semi-Bold', s);
   const pill = { w: label.info.width + Math.round(20 * s), h: Math.round(26 * s) };
   const pillSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${pill.w}" height="${pill.h}">
     <rect width="${pill.w}" height="${pill.h}" rx="${pill.h / 2}" fill="${COLOURS[side].color}"/></svg>`;
@@ -91,7 +91,7 @@ async function heading({ side, title, n, of }: Content, s: number): Promise<Piec
  * right corner, so the lefts are negative. */
 async function colourKey(side: Side, s: number): Promise<Piece[]> {
   const { color, tint } = COLOURS[side];
-  const meaning = await text(`<span foreground="#1f2328">${side === 'before' ? 'removed' : 'added'}</span>`, 15, 'Regular', s);
+  const meaning = await renderText(`<span foreground="#1f2328">${side === 'before' ? 'removed' : 'added'}</span>`, 15, 'Regular', s);
   const sw = Math.round(16 * s);
   const swatchSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${sw}" height="${sw}">
     <rect x="${s}" y="${s}" width="${sw - 2 * s}" height="${sw - 2 * s}" rx="${3 * s}" fill="${tint}" stroke="${color}" stroke-width="${2 * s}"/></svg>`;

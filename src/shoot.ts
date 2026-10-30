@@ -1,11 +1,12 @@
 import type { Browser } from 'playwright-core';
 import { band, type Content, type Key } from './band.ts';
 import { diff, hunks, type Hunk } from './diff.ts';
-import { load, type LoadedPage, type Side } from './loaded.ts';
-import { looks as compare, type Look } from './looks.ts';
-import { markers, type Marker, type Mode } from './markers.ts';
+import { load, type LoadedPage } from './loaded.ts';
+import { compareLooks, type Look } from './looks.ts';
+import { markersFor, type Marker, type Mode } from './markers.ts';
 import type { Box } from './page.ts';
 import { plan, type Place } from './plan.ts';
+import type { Side } from './side.ts';
 
 export type Options = {
   before: string;
@@ -35,9 +36,9 @@ export async function run(browser: Browser, o: Options): Promise<Result> {
   const pages = { before, after };
   try {
     const found = hunks(diff(before.words, after.words));
-    const looks = await compare(before, after); // before anything is drawn over the pages
-    const marks = await markers(looks, o.markers, o.scale);
-    const changes = await mark(pages, found, looks, marks);
+    const looks = await compareLooks(before, after); // before anything is drawn over the pages
+    const markers = await markersFor(looks, o.markers, o.scale);
+    const changes = await mark(pages, found, looks, markers);
     const planned = await plan(changes.map(c => c.place), o, pages);
     const shots: Shot[] = [];
     for (const [n, p] of planned.shots.entries()) {
@@ -67,18 +68,18 @@ type Change = { place: Place; text: Record<Side, string>; marker: Marker | null 
 type Heading = Pick<Content, 'title' | 'n' | 'of'>;
 
 /** Mark both pages, and list every change. */
-async function mark(pages: Record<Side, LoadedPage>, found: Hunk[], looks: Look[], marks: Marker[]): Promise<Change[]> {
-  const marked = { before: await pages.before.mark(found, marks), after: await pages.after.mark(found, marks) };
+async function mark(pages: Record<Side, LoadedPage>, found: Hunk[], looks: Look[], markers: Marker[]): Promise<Change[]> {
+  const marked = { before: await pages.before.mark(found, markers), after: await pages.after.mark(found, markers) };
   return [
     ...found.map((h, i) => ({
       place: { before: marked.before.words[i], after: marked.after.words[i] },
-      text: { before: h.removed.map(t => pages.before.words[t]).join(' '), after: h.added.map(t => pages.after.words[t]).join(' ') },
+      text: { before: h.changed.before.map(t => pages.before.words[t]).join(' '), after: h.changed.after.map(t => pages.after.words[t]).join(' ') },
       marker: null,
     })),
     ...looks.map((l, i) => ({
       place: { before: marked.before.looks[i], after: marked.after.looks[i] },
       text: { before: l.name, after: l.name },
-      marker: marks[i],
+      marker: markers[i],
     })),
   ];
 }
@@ -87,8 +88,8 @@ async function mark(pages: Record<Side, LoadedPage>, found: Hunk[], looks: Look[
 async function picture(page: LoadedPage, box: Box, changes: Change[], heading: Heading, scale: number): Promise<ShotSide> {
   const side = page.side;
   // The band's key: the shot's numbered markers, in their order, with this side's disc.
-  const key: Key[] = changes.map(c => c.marker).filter(m => m?.disc != null)
-    .sort((p, q) => p!.n - q!.n).map(m => ({ disc: m!.disc![side], what: m!.what }));
+  const key: Key[] = changes.flatMap(c => c.marker?.disc ? [{ number: c.marker.number, disc: c.marker.disc.image[side], what: c.marker.what }] : [])
+    .sort((x, y) => x.number - y.number).map(({ disc, what }) => ({ disc, what }));
   return {
     png: await band(await page.shoot(box), { ...heading, side, key }, scale),
     box,

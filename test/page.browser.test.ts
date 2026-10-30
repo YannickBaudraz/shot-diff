@@ -29,17 +29,17 @@ describe('read', () => {
   test('reads the CSS value, so a margin set to auto stays auto', () => {
     const p = page('<div style="display:flex;flex-direction:column;height:300px"><p>a</p><p style="margin-top:auto">b</p></div>');
     const { elements } = p.read(PROPS);
-    const b = elements.find(e => e.sig === 'P b')!;
+    const b = elements.find(e => e.signature === 'P b')!;
     expect(b.style['margin-top']).toBe('auto');
-    expect(elements[b.parent].sig).toBe('DIV');
+    expect(elements[b.parent].signature).toBe('DIV');
     expect(elements[b.parent].leaf).toBe(false);
   });
 
   test('an SVG is one element that paints, its shapes are not listed', () => {
     const p = page('<svg width="40" height="40" aria-label="chart"><rect width="40" height="40" fill="blue"/></svg>');
     const { elements } = p.read(PROPS);
-    expect(elements.map(e => e.sig)).toEqual(['svg chart']);
-    expect(elements[0].paint).toBe(true);
+    expect(elements.map(e => e.signature)).toEqual(['svg chart']);
+    expect(elements[0].paints).toBe(true);
   });
 });
 
