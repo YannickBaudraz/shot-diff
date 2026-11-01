@@ -2,7 +2,7 @@
 // Playwright sends it, so a helper used from outside its body fails here too.
 
 import { afterEach, describe, expect, test } from 'vitest';
-import { runtime, type Runtime } from '../src/page.ts';
+import { runtime, type Marks, type Runtime } from '../src/page.ts';
 
 const STYLE = '<style>body { margin: 0; font: 16px/24px sans-serif } p { margin: 0 0 24px }</style>';
 const PROPS = ['margin-top', 'color']; // read as looks.ts reads them; the full list lives there, with Node-only code
@@ -10,8 +10,7 @@ const install = () => new Function(`return (${runtime.toString()})()`)() as Runt
 const page = (html: string) => { document.body.innerHTML = STYLE + html; return install(); };
 /** What mark() drew over the page: boxes, and the discs beside them. */
 const drawn = () => [...document.documentElement.children].filter(e => e !== document.head && e !== document.body).flatMap(l => [...l.children]) as HTMLElement[];
-const marks = (more: { hunks?: { changed: number[]; anchors: number[] }[]; looks?: { index: number; label: string | null; disc: { src: string; size: number } | null }[] }) =>
-  ({ color: 'red', tint: 'pink', strike: true, hunks: [], looks: [], ...more });
+const marks = (more: Partial<Marks>): Marks => ({ color: 'red', tint: 'pink', strike: true, words: [], looks: [], ...more });
 
 afterEach(() => {
   for (const layer of [...document.documentElement.children]) if (layer !== document.head && layer !== document.body) layer.remove();
@@ -46,8 +45,8 @@ describe('read', () => {
 describe('the order', () => {
   test('nothing is marked or snapped before the page is read', () => {
     const p = page('<p>a</p>');
-    expect(() => p.mark(marks({}))).toThrow(/read before/);
-    expect(() => p.snap({ top: 0, bottom: 10 })).toThrow(/read before/);
+    expect(() => p.mark(marks({}))).toThrow(/read\(\) has not run/);
+    expect(() => p.snap({ top: 0, bottom: 10 })).toThrow(/read\(\) has not run/);
   });
 
   test("an element's pixels are not given once the page is marked", () => {
@@ -55,7 +54,7 @@ describe('the order', () => {
     p.read(PROPS);
     expect(p.element(0).tagName).toBe('P');
     p.mark(marks({}));
-    expect(() => p.element(0)).toThrow(/before anything is drawn/);
+    expect(() => p.element(0)).toThrow(/only given before anything is drawn/);
   });
 });
 
@@ -63,7 +62,7 @@ describe('mark', () => {
   test('tints the changed words and boxes a wrapped change line by line', () => {
     const p = page('<p style="width:120px">aa bb cc dd ee ff gg hh</p>');
     p.read(PROPS);
-    const marked = p.mark(marks({ hunks: [{ changed: [2, 3, 4, 5, 6], anchors: [1, 7] }] }));
+    const marked = p.mark(marks({ words: [{ changed: [2, 3, 4, 5, 6], anchors: [1, 7] }] }));
     expect(CSS.highlights.get('shot-diff')?.size).toBeGreaterThan(0);
     const boxes = drawn();
     expect(boxes.length).toBeGreaterThan(1);

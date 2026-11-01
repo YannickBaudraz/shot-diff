@@ -6,17 +6,24 @@ import type { Browser, BrowserContext, Page } from 'playwright-core';
 import type { Hunk } from './diff.ts';
 import { PROPERTIES, type ElementInfo } from './looks.ts';
 import type { Marker } from './markers.ts';
-import { runtime, type Box, type Marked, type MarkOptions, type Region, type Runtime } from './page.ts';
+import { runtime, type Box, type Marks, type Region, type Runtime, type Spans } from './page.ts';
 import { COLOURS, type Side } from './side.ts';
+
+declare global {
+  interface Window {
+    /** The page's runtime, as open() installs it. */
+    __shotDiff: Runtime;
+  }
+}
 
 export type LoadOptions = {
   width: number;
   height: number;
   scale: number;
   dark: boolean;
-  storage: [string, string][];
-  click: string[];
-  wait: number;
+  storage: [string, string][]; // set in localStorage before the page runs
+  click: string[]; // selectors to click after loading, in order
+  wait: number; // milliseconds to wait after loading and clicking
 };
 
 export type LoadedPage = {
@@ -27,30 +34,25 @@ export type LoadedPage = {
   /** A PNG of element `index`'s own pixels, or null when it cannot be shot. Only before mark(). */
   pixels(index: number): Promise<Buffer | null>;
   /** Mark this side's part of the word changes and the changes of look; once. */
-  mark(hunks: Hunk[], markers: Marker[]): Promise<Marked>;
+  mark(hunks: Hunk[], markers: Marker[]): Promise<Spans>;
   region(selector: string): Promise<Region | null>;
   snap(region: Region): Promise<Region>;
   shoot(clip: Box): Promise<Buffer>;
   close(): Promise<void>;
 };
 
-/** Call the page's runtime. The function sent to the page names nothing outside itself. */
-function call<K extends keyof Runtime>(page: Page, name: K, arg: Parameters<Runtime[K]>[0]): Promise<ReturnType<Runtime[K]>> {
-  return page.evaluate(
-    ({ name, arg }) => (window as unknown as { __shotDiff: Record<string, (a: unknown) => unknown> }).__shotDiff[name](arg),
-    { name, arg },
-  ) as Promise<ReturnType<Runtime[K]>>;
-}
+/** Time for what a click opens (a menu, a tab) to settle before the next click. */
+const AFTER_CLICK_MS = 300;
 
-export async function load(browser: Browser, url: string, side: Side, o: LoadOptions): Promise<LoadedPage> {
+export async function load(browser: Browser, url: string, side: Side, options: LoadOptions): Promise<LoadedPage> {
   const context = await browser.newContext({
-    viewport: { width: o.width, height: o.height },
-    deviceScaleFactor: o.scale,
-    colorScheme: o.dark ? 'dark' : 'light',
+    viewport: { width: options.width, height: options.height },
+    deviceScaleFactor: options.scale,
+    colorScheme: options.dark ? 'dark' : 'light',
     reducedMotion: 'reduce',
   });
   try {
-    const page = await open(context, url, o);
+    const page = await open(context, url, options);
     const { words, elements, width } = await call(page, 'read', Object.keys(PROPERTIES));
     return {
       side,
@@ -58,7 +60,7 @@ export async function load(browser: Browser, url: string, side: Side, o: LoadOpt
       elements,
       width,
       pixels: index => pixels(page, index),
-      mark: (hunks, markers) => call(page, 'mark', markOptions(side, hunks, markers)),
+      mark: (hunks, markers) => call(page, 'mark', marksFor(side, hunks, markers)),
       region: selector => call(page, 'region', selector),
       snap: region => call(page, 'snap', region),
       shoot: clip => page.screenshot({ clip, fullPage: true, animations: 'disabled' }),
@@ -70,28 +72,35 @@ export async function load(browser: Browser, url: string, side: Side, o: LoadOpt
   }
 }
 
-/** The page at `url`, with the stored settings set before it runs, clicked, waited for, and the
+/** The page at `url`: stored settings set before it runs, loaded, clicked, waited for, and with the
  * runtime installed. */
-async function open(context: BrowserContext, url: string, o: LoadOptions): Promise<Page> {
-  if (o.storage.length) {
+async function open(context: BrowserContext, url: string, options: LoadOptions): Promise<Page> {
+  if (options.storage.length) {
     await context.addInitScript(pairs => {
       for (const [key, value] of pairs) localStorage.setItem(key, value);
-    }, o.storage);
+    }, options.storage);
   }
   const page = await context.newPage();
   await page.goto(url, { waitUntil: 'load' });
-  for (const selector of o.click) {
+  for (const selector of options.click) {
     await page.click(selector);
-    await page.waitForTimeout(300);
+    await page.waitForTimeout(AFTER_CLICK_MS);
   }
-  await page.waitForTimeout(o.wait);
+  await page.waitForTimeout(options.wait);
   await page.evaluate(`window.__shotDiff = (${runtime.toString()})()`);
   return page;
 }
 
+/** Call one of the runtime's functions in the page. What is sent to the page names nothing outside
+ * itself; its result comes back untyped, so it is typed here from the runtime's own signature. */
+function call<Name extends keyof Runtime>(page: Page, name: Name, arg: Parameters<Runtime[Name]>[0]) {
+  const result = page.evaluate(({ name, arg }) => (window.__shotDiff[name] as (arg: unknown) => unknown)(arg), { name, arg });
+  return result as Promise<ReturnType<Runtime[Name]>>;
+}
+
 /** A PNG of element `index`'s own pixels, or null when it is gone or cannot be shot. */
 async function pixels(page: Page, index: number): Promise<Buffer | null> {
-  const handle = await page.evaluateHandle(i => (window as unknown as { __shotDiff: Runtime }).__shotDiff.element(i), index);
+  const handle = await page.evaluateHandle(i => window.__shotDiff.element(i), index);
   try {
     return (await handle.asElement()?.screenshot({ animations: 'disabled' })) ?? null;
   } catch {
@@ -101,13 +110,13 @@ async function pixels(page: Page, index: number): Promise<Buffer | null> {
   }
 }
 
-/** What the runtime draws on `side`'s page: its colour, its half of each word change, and each
- * change of look's element there with its label or this side's disc. */
-function markOptions(side: Side, hunks: Hunk[], markers: Marker[]): MarkOptions {
+/** What to draw on `side`'s page: its colour, its half of each word change, and each change of look's
+ * element there with its label or this side's disc. */
+function marksFor(side: Side, hunks: Hunk[], markers: Marker[]): Marks {
   return {
     ...COLOURS[side],
     strike: side === 'before',
-    hunks: hunks.map(hunk => ({ changed: hunk.changed[side], anchors: hunk.anchors[side] })),
+    words: hunks.map(hunk => ({ changed: hunk.changed[side], anchors: hunk.anchors[side] })),
     looks: markers.map(marker => ({
       index: marker.element[side],
       label: marker.label,
