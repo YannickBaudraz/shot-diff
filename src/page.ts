@@ -57,6 +57,37 @@ export function runtime() {
     return range;
   };
 
+  /** A rectangle on screen, as a box in page pixels. */
+  const pageBox = (rect: { left: number; top: number; width: number; height: number }): Box => ({
+    x: rect.left + window.scrollX,
+    y: rect.top + window.scrollY,
+    width: rect.width,
+    height: rect.height,
+  });
+
+  /** The stretch of the page that rectangles on screen take up, in page pixels. */
+  const pageRegion = (rects: DOMRect[]): Region => ({
+    top: Math.min(...rects.map(r => r.top)) + window.scrollY,
+    bottom: Math.max(...rects.map(r => r.bottom)) + window.scrollY,
+  });
+
+  /** The smallest rectangle around `rects`, on screen. */
+  const around = (rects: DOMRect[]) => {
+    const left = Math.min(...rects.map(r => r.left));
+    const top = Math.min(...rects.map(r => r.top));
+    const width = Math.max(...rects.map(r => r.right)) - left;
+    const height = Math.max(...rects.map(r => r.bottom)) - top;
+    return { left, top, width, height };
+  };
+
+  /** A box grown by `dx` on its left and right and `dy` above and below. */
+  const grow = (box: Box, dx: number, dy = dx): Box => ({
+    x: box.x - dx,
+    y: box.y - dy,
+    width: box.width + 2 * dx,
+    height: box.height + 2 * dy,
+  });
+
   /** The token's rectangles on screen, one per line it is on. */
   const rectsOf = (token: Token) => [...rangeOf(token).getClientRects()].filter(r => r.width || r.height);
 
@@ -123,7 +154,7 @@ export function runtime() {
       parent: -1,
       leaf: true,
       paints: PAINTERS.has(element.tagName) || style.backgroundImage !== 'none',
-      top: rect.top + window.scrollY,
+      top: pageBox(rect).y,
       width: rect.width,
       height: rect.height,
       // The computed value, as the CSS gave it: `auto` stays `auto`, where getComputedStyle would give
@@ -227,26 +258,10 @@ export function runtime() {
     const changed = change.changed.flatMap(i => rectsOf(tokens[i]));
     const shown = [...changed, ...change.anchors.flatMap(i => rectsOf(tokens[i]))];
     if (!shown.length) return null;
-    const { x: dx, y: dy } = WORD_BOX_MARGIN;
-    for (const line of linesOf(changed)) {
-      const left = Math.min(...line.map(r => r.left)) + window.scrollX;
-      const right = Math.max(...line.map(r => r.right)) + window.scrollX;
-      const top = Math.min(...line.map(r => r.top)) + window.scrollY;
-      const bottom = Math.max(...line.map(r => r.bottom)) + window.scrollY;
-      drawBox(layer, color, {
-        x: left - dx,
-        y: top - dy,
-        width: right - left + 2 * dx,
-        height: bottom - top + 2 * dy,
-      });
-    }
-    const sy = window.scrollY;
-    return {
-      top: Math.min(...shown.map(r => r.top)) + sy,
-      bottom: Math.max(...shown.map(r => r.bottom)) + sy,
-      changedTop: changed.length ? Math.min(...changed.map(r => r.top)) + sy : null,
-      changedBottom: changed.length ? Math.max(...changed.map(r => r.bottom)) + sy : null,
-    };
+    for (const line of linesOf(changed))
+      drawBox(layer, color, grow(pageBox(around(line)), WORD_BOX_MARGIN.x, WORD_BOX_MARGIN.y));
+    const own = changed.length ? pageRegion(changed) : null;
+    return { ...pageRegion(shown), changedTop: own?.top ?? null, changedBottom: own?.bottom ?? null };
   };
 
   /** A numbered disc on a box's top left corner, kept inside the page. Returns the disc's top. */
@@ -281,13 +296,7 @@ export function runtime() {
     layer: HTMLElement,
     color: string,
   ): Span => {
-    const rect = element.getBoundingClientRect();
-    const box = {
-      x: rect.left + window.scrollX - BOX_MARGIN,
-      y: rect.top + window.scrollY - BOX_MARGIN,
-      width: rect.width + 2 * BOX_MARGIN,
-      height: rect.height + 2 * BOX_MARGIN,
-    };
+    const box = grow(pageBox(element.getBoundingClientRect()), BOX_MARGIN);
     const boxElement = drawBox(layer, color, box);
     let top = Math.max(0, box.y);
     let bottom = box.y + box.height;
@@ -335,7 +344,7 @@ export function runtime() {
     /** Where `selector`'s element is, or null when it is not there. */
     region(selector: string): Region | null {
       const rect = document.querySelector(selector)?.getBoundingClientRect();
-      return rect ? { top: rect.top + window.scrollY, bottom: rect.bottom + window.scrollY } : null;
+      return rect ? pageRegion([rect]) : null;
     },
 
     /** The region with its edges moved out of any line of text they would cut: the top up, the
@@ -344,8 +353,7 @@ export function runtime() {
       const lines: Region[] = [];
       for (const token of stored().tokens) {
         for (const rect of rangeOf(token).getClientRects()) {
-          if (rect.height)
-            lines.push({ top: rect.top + window.scrollY, bottom: rect.bottom + window.scrollY });
+          if (rect.height) lines.push(pageRegion([rect]));
         }
       }
       let { top, bottom } = region;
