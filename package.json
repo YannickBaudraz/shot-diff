@@ -22,7 +22,9 @@
     "build": "vite build",
     "prepare": "vite build",
     "check": "tsc",
-    "test": "vitest run"
+    "test": "vitest run",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "dependencies": {
     "@inquirer/confirm": "^6.3.5",
@@ -36,6 +38,7 @@
     "@brachkow/vitest-image-snapshot": "^0.3.0",
     "@types/node": "^24.19.2",
     "@vitest/browser-playwright": "^5.1.0",
+    "prettier": "^3.9.10",
     "typescript": "^7.0.2",
     "vite": "^8.3.5",
     "vitest": "^5.1.0"

@@ -44,7 +44,12 @@ export type LoadedPage = {
 /** Time for what a click opens (a menu, a tab) to settle before the next click. */
 const AFTER_CLICK_MS = 300;
 
-export async function load(browser: Browser, url: string, side: Side, options: LoadOptions): Promise<LoadedPage> {
+export async function load(
+  browser: Browser,
+  url: string,
+  side: Side,
+  options: LoadOptions,
+): Promise<LoadedPage> {
   const context = await browser.newContext({
     viewport: { width: options.width, height: options.height },
     deviceScaleFactor: options.scale,
@@ -94,7 +99,10 @@ async function open(context: BrowserContext, url: string, options: LoadOptions):
 /** Call one of the runtime's functions in the page. What is sent to the page names nothing outside
  * itself; its result comes back untyped, so it is typed here from the runtime's own signature. */
 function call<Name extends keyof Runtime>(page: Page, name: Name, arg: Parameters<Runtime[Name]>[0]) {
-  const result = page.evaluate(({ name, arg }) => (window.__shotDiff[name] as (arg: unknown) => unknown)(arg), { name, arg });
+  const result = page.evaluate(
+    ({ name, arg }) => (window.__shotDiff[name] as (arg: unknown) => unknown)(arg),
+    { name, arg },
+  );
   return result as Promise<ReturnType<Runtime[Name]>>;
 }
 
@@ -120,7 +128,10 @@ function marksFor(side: Side, hunks: Hunk[], markers: Marker[]): Marks {
     looks: markers.map(marker => ({
       index: marker.element[side],
       label: marker.label,
-      disc: marker.disc && { src: `data:image/png;base64,${marker.disc.image[side].toString('base64')}`, size: marker.disc.size },
+      disc: marker.disc && {
+        src: `data:image/png;base64,${marker.disc.image[side].toString('base64')}`,
+        size: marker.disc.size,
+      },
     })),
   };
 }

@@ -1,0 +1,6 @@
+dist/
+node_modules/
+test/__image_snapshots__/
+package-lock.json
+test/fixtures/
+*.md

@@ -54,7 +54,10 @@ test('either side empty', () => {
 
 test('random lists replay exactly', () => {
   let seed = 7;
-  const rand = (n: number) => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed % n; };
+  const rand = (n: number) => {
+    seed = (seed * 1103515245 + 12345) % 2147483648;
+    return seed % n;
+  };
   for (let round = 0; round < 200; round++) {
     const a = Array.from({ length: rand(30) }, () => String(rand(5)));
     const b = Array.from({ length: rand(30) }, () => String(rand(5)));

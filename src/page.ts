@@ -50,7 +50,10 @@ export function runtime() {
   const rangeOf = (token: Token) => {
     const range = document.createRange();
     if ('image' in token) range.selectNode(token.image);
-    else { range.setStart(token.node, token.start); range.setEnd(token.node, token.end); }
+    else {
+      range.setStart(token.node, token.start);
+      range.setEnd(token.node, token.end);
+    }
     return range;
   };
 
@@ -60,7 +63,8 @@ export function runtime() {
   /** A layer over the page for the boxes, so nothing the page lays out moves. */
   const overlay = () => {
     const layer = document.createElement('div');
-    layer.style.cssText = 'position:absolute;left:0;top:0;width:0;height:0;z-index:2147483647;pointer-events:none';
+    layer.style.cssText =
+      'position:absolute;left:0;top:0;width:0;height:0;z-index:2147483647;pointer-events:none';
     document.documentElement.appendChild(layer);
     return layer;
   };
@@ -74,7 +78,8 @@ export function runtime() {
       if (node.nodeType === Node.ELEMENT_NODE) {
         const element = node as Element;
         if (element.tagName === 'IMG' && element.checkVisibility()) {
-          const name = element.getAttribute('alt') || (element.getAttribute('src') || '').split('/').pop() || 'image';
+          const name =
+            element.getAttribute('alt') || (element.getAttribute('src') || '').split('/').pop() || 'image';
           found.push({ image: element });
           words.push(`[image ${name}]`);
         }
@@ -92,13 +97,18 @@ export function runtime() {
 
   /** What pairs an element with its match on the other page: tag, id, role, label, own words, file. */
   const signature = (element: Element) => {
-    const ownText = [...element.childNodes].filter(n => n.nodeType === Node.TEXT_NODE).map(n => n.textContent).join(' ');
+    const ownText = [...element.childNodes]
+      .filter(n => n.nodeType === Node.TEXT_NODE)
+      .map(n => n.textContent)
+      .join(' ');
     const ownWords = ownText.replace(/\s+/g, ' ').trim().slice(0, 80);
     const link = element.getAttribute('src') || element.getAttribute('href') || '';
     const file = link.split(/[?#]/)[0].split('/').pop() || '';
     const role = element.getAttribute('role') || '';
     const label = element.getAttribute('aria-label') || '';
-    return [element.tagName, element.id && `#${element.id}`, role, label, ownWords, file].filter(Boolean).join(' ');
+    return [element.tagName, element.id && `#${element.id}`, role, label, ownWords, file]
+      .filter(Boolean)
+      .join(' ');
   };
 
   const PAINTERS = new Set(['IMG', 'CANVAS', 'svg', 'VIDEO']);
@@ -118,7 +128,9 @@ export function runtime() {
       height: rect.height,
       // The computed value, as the CSS gave it: `auto` stays `auto`, where getComputedStyle would give
       // the pixels layout made of it, which change with whatever else changed on the page.
-      style: Object.fromEntries(properties.map(p => [p, (computed.get(p) ?? style.getPropertyValue(p)).toString()])),
+      style: Object.fromEntries(
+        properties.map(p => [p, (computed.get(p) ?? style.getPropertyValue(p)).toString()]),
+      ),
     };
   };
 
@@ -130,12 +142,16 @@ export function runtime() {
     const indexOf = new Map<Element, number>();
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT, {
       // An SVG is one picture: its shapes are not elements of their own here.
-      acceptNode: node => (node.parentElement?.closest('svg') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT),
+      acceptNode: node =>
+        node.parentElement?.closest('svg') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT,
     });
     for (let node = walker.nextNode(); node; node = walker.nextNode()) {
       const element = node as Element;
       const rect = element.getBoundingClientRect();
-      const visible = element.checkVisibility({ checkOpacity: false, checkVisibilityCSS: true }) && rect.width && rect.height;
+      const visible =
+        element.checkVisibility({ checkOpacity: false, checkVisibilityCSS: true }) &&
+        rect.width &&
+        rect.height;
       if (!visible) continue;
       const info = describe(element, rect, properties);
       for (let ancestor = element.parentElement; ancestor; ancestor = ancestor.parentElement) {
@@ -182,7 +198,8 @@ export function runtime() {
   /** A box drawn on `layer` at `box`, in page pixels. */
   const drawBox = (layer: HTMLElement, color: string, box: Box) => {
     const element = document.createElement('div');
-    element.style.cssText = `position:absolute;box-sizing:border-box;border:2px solid ${color};border-radius:4px;` +
+    element.style.cssText =
+      `position:absolute;box-sizing:border-box;border:2px solid ${color};border-radius:4px;` +
       `left:${box.x}px;top:${box.y}px;width:${box.width}px;height:${box.height}px`;
     layer.appendChild(element);
     return element;
@@ -201,7 +218,12 @@ export function runtime() {
 
   /** Box a word change, one box per line, so a change that wraps gets no box through the words
    * between; and say where it is, with the unchanged words around it. */
-  const boxWords = (change: Marks['words'][number], tokens: Token[], layer: HTMLElement, color: string): Span | null => {
+  const boxWords = (
+    change: Marks['words'][number],
+    tokens: Token[],
+    layer: HTMLElement,
+    color: string,
+  ): Span | null => {
     const changed = change.changed.flatMap(i => rectsOf(tokens[i]));
     const shown = [...changed, ...change.anchors.flatMap(i => rectsOf(tokens[i]))];
     if (!shown.length) return null;
@@ -211,7 +233,12 @@ export function runtime() {
       const right = Math.max(...line.map(r => r.right)) + window.scrollX;
       const top = Math.min(...line.map(r => r.top)) + window.scrollY;
       const bottom = Math.max(...line.map(r => r.bottom)) + window.scrollY;
-      drawBox(layer, color, { x: left - dx, y: top - dy, width: right - left + 2 * dx, height: bottom - top + 2 * dy });
+      drawBox(layer, color, {
+        x: left - dx,
+        y: top - dy,
+        width: right - left + 2 * dx,
+        height: bottom - top + 2 * dy,
+      });
     }
     const sy = window.scrollY;
     return {
@@ -240,14 +267,20 @@ export function runtime() {
     const place = above ? 'bottom:100%;margin-bottom:2px' : 'top:100%;margin-top:2px';
     const tag = document.createElement('div');
     tag.textContent = label;
-    tag.style.cssText = `position:absolute;left:-2px;${place};padding:1px 6px;border-radius:4px;white-space:nowrap;` +
+    tag.style.cssText =
+      `position:absolute;left:-2px;${place};padding:1px 6px;border-radius:4px;white-space:nowrap;` +
       `background:${color};color:#ffffff;font:600 12px/1.4 system-ui,sans-serif`;
     boxElement.appendChild(tag);
     return above;
   };
 
   /** Box an element whose look changed, with its label or its disc, and say where all that is. */
-  const boxLook = (look: Marks['looks'][number], element: Element, layer: HTMLElement, color: string): Span => {
+  const boxLook = (
+    look: Marks['looks'][number],
+    element: Element,
+    layer: HTMLElement,
+    color: string,
+  ): Span => {
     const rect = element.getBoundingClientRect();
     const box = {
       x: rect.left + window.scrollX - BOX_MARGIN,
@@ -282,7 +315,8 @@ export function runtime() {
 
     /** Element `index` of read(), for a shot of its own pixels; only before the page is marked. */
     element(index: number): Element {
-      if (marked) throw new Error("an element's pixels are only given before anything is drawn over the page");
+      if (marked)
+        throw new Error("an element's pixels are only given before anything is drawn over the page");
       return stored().domElements[index];
     },
 
@@ -310,7 +344,8 @@ export function runtime() {
       const lines: Region[] = [];
       for (const token of stored().tokens) {
         for (const rect of rangeOf(token).getClientRects()) {
-          if (rect.height) lines.push({ top: rect.top + window.scrollY, bottom: rect.bottom + window.scrollY });
+          if (rect.height)
+            lines.push({ top: rect.top + window.scrollY, bottom: rect.bottom + window.scrollY });
         }
       }
       let { top, bottom } = region;
@@ -318,8 +353,14 @@ export function runtime() {
       do {
         moved = false;
         for (const line of lines) {
-          if (line.top < top && top < line.bottom) { top = line.top - SNAP_CLEARANCE; moved = true; }
-          if (line.top < bottom && bottom < line.bottom) { bottom = line.bottom + SNAP_CLEARANCE; moved = true; }
+          if (line.top < top && top < line.bottom) {
+            top = line.top - SNAP_CLEARANCE;
+            moved = true;
+          }
+          if (line.top < bottom && bottom < line.bottom) {
+            bottom = line.bottom + SNAP_CLEARANCE;
+            moved = true;
+          }
         }
       } while (moved);
       return { top: Math.max(0, top), bottom };

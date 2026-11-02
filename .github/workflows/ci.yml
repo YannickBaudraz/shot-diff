@@ -17,6 +17,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check
+      - run: npm run format:check
       # GitHub's Ubuntu runners come with Google Chrome, which the tool uses by default.
       - run: npm test
       # The built command, as it is installed: bundling must keep the page's runtime self-contained.

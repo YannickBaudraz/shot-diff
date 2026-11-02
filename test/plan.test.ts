@@ -3,20 +3,34 @@ import { plan, type Place, type PlanOptions, type PlanPage } from '../src/plan.t
 import type { Region, Span } from '../src/page.ts';
 
 /** A change from `top` to `bottom`, the unchanged words around it included. */
-const at = (top: number, bottom = top + 20): Span => ({ top, bottom, changedTop: top, changedBottom: bottom });
+const at = (top: number, bottom = top + 20): Span => ({
+  top,
+  bottom,
+  changedTop: top,
+  changedBottom: bottom,
+});
 const both = (s: Span | null): Place => ({ before: s, after: s });
 const OPTIONS: PlanOptions = { padding: 80, maxHeight: 2400, height: 900, selector: null };
 
 /** A page 1000px wide, whose snap moves edges as `snap` says (not at all by default), and whose
  * elements are where `regions` says. */
-const fakePage = (snap: (r: Region) => Region = r => r, regions: Record<string, Region> = {}): PlanPage =>
-  ({ width: 1000, snap: async r => snap(r), region: async s => regions[s] ?? null });
+const fakePage = (snap: (r: Region) => Region = r => r, regions: Record<string, Region> = {}): PlanPage => ({
+  width: 1000,
+  snap: async r => snap(r),
+  region: async s => regions[s] ?? null,
+});
 const pages = (page: PlanPage = fakePage()) => ({ before: page, after: page });
 
 describe('plan', () => {
   test('changes close together share one shot, padded around them', async () => {
     const p = await plan([both(at(300)), both(at(100)), both(at(500))], OPTIONS, pages());
-    expect(p.shots).toEqual([{ changes: [1, 0, 2], before: { x: 0, y: 20, width: 1000, height: 580 }, after: { x: 0, y: 20, width: 1000, height: 580 } }]);
+    expect(p.shots).toEqual([
+      {
+        changes: [1, 0, 2],
+        before: { x: 0, y: 20, width: 1000, height: 580 },
+        after: { x: 0, y: 20, width: 1000, height: 580 },
+      },
+    ]);
     expect(p.leftOut).toEqual({ before: [], after: [] });
   });
 
@@ -26,7 +40,14 @@ describe('plan', () => {
   });
 
   test('the two pages are grouped alike, by the taller of the two', async () => {
-    const p = await plan([{ before: at(100), after: at(100) }, { before: at(1000), after: at(3000) }], OPTIONS, pages());
+    const p = await plan(
+      [
+        { before: at(100), after: at(100) },
+        { before: at(1000), after: at(3000) },
+      ],
+      OPTIONS,
+      pages(),
+    );
     expect(p.shots.map(s => s.changes)).toEqual([[0], [1]]);
   });
 
@@ -43,11 +64,21 @@ describe('plan', () => {
 
   test('no changes: one shot of the top of the page, the viewport high', async () => {
     const p = await plan([], OPTIONS, pages());
-    expect(p.shots).toEqual([{ changes: [], before: { x: 0, y: 0, width: 1000, height: 900 }, after: { x: 0, y: 0, width: 1000, height: 900 } }]);
+    expect(p.shots).toEqual([
+      {
+        changes: [],
+        before: { x: 0, y: 0, width: 1000, height: 900 },
+        after: { x: 0, y: 0, width: 1000, height: 900 },
+      },
+    ]);
   });
 
   test('the shot is where snap moves its edges', async () => {
-    const p = await plan([both(at(300))], OPTIONS, pages(fakePage(r => ({ top: r.top - 10, bottom: r.bottom + 10 }))));
+    const p = await plan(
+      [both(at(300))],
+      OPTIONS,
+      pages(fakePage(r => ({ top: r.top - 10, bottom: r.bottom + 10 }))),
+    );
     expect(p.shots[0].before).toEqual({ x: 0, y: 210, width: 1000, height: 200 });
   });
 });
@@ -69,7 +100,11 @@ describe('what is left out', () => {
 
   test('--selector: one shot around the element, and the changes outside it left out', async () => {
     const options = { ...OPTIONS, selector: '#end' };
-    const p = await plan([both(at(100)), both(at(5000))], options, pages(fakePage(undefined, { '#end': { top: 4900, bottom: 5100 } })));
+    const p = await plan(
+      [both(at(100)), both(at(5000))],
+      options,
+      pages(fakePage(undefined, { '#end': { top: 4900, bottom: 5100 } })),
+    );
     expect(p.shots).toHaveLength(1);
     expect(p.shots[0].before).toEqual({ x: 0, y: 4820, width: 1000, height: 360 });
     expect(p.leftOut).toEqual({ before: [0], after: [0] });
@@ -77,13 +112,21 @@ describe('what is left out', () => {
 
   test('--selector that matches nothing names the page', async () => {
     const options = { ...OPTIONS, selector: '#gone' };
-    await expect(plan([], options, { before: fakePage(undefined, { '#gone': { top: 0, bottom: 10 } }), after: fakePage() }))
-      .rejects.toThrow('--selector #gone matches nothing on the after page');
+    await expect(
+      plan([], options, {
+        before: fakePage(undefined, { '#gone': { top: 0, bottom: 10 } }),
+        after: fakePage(),
+      }),
+    ).rejects.toThrow('--selector #gone matches nothing on the after page');
   });
 
   test('a side with no changed words has nothing to leave out', async () => {
     const empty: Span = { top: 3000, bottom: 3020, changedTop: null, changedBottom: null };
-    const p = await plan([{ before: empty, after: at(100) }], { ...OPTIONS, selector: '#top' }, pages(fakePage(undefined, { '#top': { top: 0, bottom: 200 } })));
+    const p = await plan(
+      [{ before: empty, after: at(100) }],
+      { ...OPTIONS, selector: '#top' },
+      pages(fakePage(undefined, { '#top': { top: 0, bottom: 200 } })),
+    );
     expect(p.leftOut).toEqual({ before: [], after: [] });
   });
 });

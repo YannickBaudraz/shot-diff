@@ -16,7 +16,11 @@ export type PlanOptions = {
 };
 
 /** What planning needs from a loaded page; loaded.ts gives the real one. */
-export type PlanPage = { width: number; region(selector: string): Promise<Region | null>; snap(region: Region): Promise<Region> };
+export type PlanPage = {
+  width: number;
+  region(selector: string): Promise<Region | null>;
+  snap(region: Region): Promise<Region>;
+};
 
 /** A shot: its changes (indexes into the places, top to bottom), and the part of each page it shows. */
 export type PlannedShot = { changes: number[] } & Record<Side, Box>;
@@ -24,9 +28,15 @@ export type PlannedShot = { changes: number[] } & Record<Side, Box>;
 /** The shots, and the changes whose changed part is in no shot, on each page. */
 export type Plan = { shots: PlannedShot[]; leftOut: Record<Side, number[]> };
 
-export async function plan(places: Place[], options: PlanOptions, pages: Record<Side, PlanPage>): Promise<Plan> {
+export async function plan(
+  places: Place[],
+  options: PlanOptions,
+  pages: Record<Side, PlanPage>,
+): Promise<Plan> {
   const order = places.map((_, i) => i).sort((i, j) => startOf(places[i]) - startOf(places[j]));
-  const groups = options.selector ? [await aroundSelector(order, options.selector, pages)] : byDistance(order, places, options);
+  const groups = options.selector
+    ? [await aroundSelector(order, options.selector, pages)]
+    : byDistance(order, places, options);
   const shots: PlannedShot[] = [];
   const leftOut: Record<Side, number[]> = { before: [], after: [] };
   for (const group of groups) {
@@ -46,7 +56,8 @@ type Group = { changes: number[] } & Record<Side, Region | null>;
 /** Changes in page order, each joining the shot before it when that shot, padded, still fits in the
  * maximum height on both pages. With no changes, one shot of the top of the page. */
 function byDistance(order: number[], places: Place[], options: PlanOptions): Group[] {
-  const fits = (region: Region | null) => !region || height(padded(region, options.padding)) <= options.maxHeight;
+  const fits = (region: Region | null) =>
+    !region || height(padded(region, options.padding)) <= options.maxHeight;
   const groups: Group[] = [];
   for (const i of order) {
     const last = groups.at(-1);
@@ -58,13 +69,21 @@ function byDistance(order: number[], places: Place[], options: PlanOptions): Gro
         continue;
       }
     }
-    groups.push({ changes: [i], before: extend(null, places[i].before), after: extend(null, places[i].after) });
+    groups.push({
+      changes: [i],
+      before: extend(null, places[i].before),
+      after: extend(null, places[i].after),
+    });
   }
   return groups.length ? groups : [{ changes: [], before: null, after: null }];
 }
 
 /** All the changes in one shot, around the element `selector` matches on each page. */
-async function aroundSelector(order: number[], selector: string, pages: Record<Side, PlanPage>): Promise<Group> {
+async function aroundSelector(
+  order: number[],
+  selector: string,
+  pages: Record<Side, PlanPage>,
+): Promise<Group> {
   const before = await pages.before.region(selector);
   const after = await pages.after.region(selector);
   if (!before) throw new Error(`--selector ${selector} matches nothing on the before page`);
@@ -93,7 +112,10 @@ function extend(region: Region | null, span: Span | null): Region | null {
   return { top: Math.min(region.top, span.top), bottom: Math.max(region.bottom, span.bottom) };
 }
 
-const padded = (region: Region, padding: number): Region => ({ top: Math.max(0, region.top - padding), bottom: region.bottom + padding });
+const padded = (region: Region, padding: number): Region => ({
+  top: Math.max(0, region.top - padding),
+  bottom: region.bottom + padding,
+});
 
 const height = (region: Region) => region.bottom - region.top;
 

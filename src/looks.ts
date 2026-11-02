@@ -36,45 +36,93 @@ export const MAX_PICTURES = 300;
 export async function compareLooks(before: ComparedPage, after: ComparedPage): Promise<Look[]> {
   const pairs = pairUp(before.elements, after.elements);
   const changes = restyled(pairs, before.elements, after.elements);
-  for (const pair of unchangedPictures(pairs, before.elements, after.elements, changes).slice(0, MAX_PICTURES)) {
+  for (const pair of unchangedPictures(pairs, before.elements, after.elements, changes).slice(
+    0,
+    MAX_PICTURES,
+  )) {
     if (await repainted(await before.pixels(pair.before), await after.pixels(pair.after))) {
       changes.push({ element: pair, what: ['picture'] });
     }
   }
   const onBefore = (change: Restyle) => before.elements[change.element.before];
   return changes
-    .sort((x, y) => onBefore(x).top - onBefore(y).top || onBefore(x).signature.localeCompare(onBefore(y).signature))
+    .sort(
+      (x, y) =>
+        onBefore(x).top - onBefore(y).top || onBefore(x).signature.localeCompare(onBefore(y).signature),
+    )
     .map(change => ({ ...change, name: `[${onBefore(change).tag}: ${change.what.join(', ')}]` }));
 }
 
 /** The computed properties compared, and what to call each in a label. */
 export const PROPERTIES: Record<string, string> = {
-  'color': 'text colour',
+  color: 'text colour',
   'background-color': 'background',
   'background-image': 'background image',
-  'border-top-color': 'border colour', 'border-right-color': 'border colour',
-  'border-bottom-color': 'border colour', 'border-left-color': 'border colour',
-  'border-top-width': 'border', 'border-right-width': 'border', 'border-bottom-width': 'border', 'border-left-width': 'border',
-  'border-top-style': 'border', 'border-right-style': 'border', 'border-bottom-style': 'border', 'border-left-style': 'border',
-  'border-top-left-radius': 'corners', 'border-top-right-radius': 'corners',
-  'border-bottom-left-radius': 'corners', 'border-bottom-right-radius': 'corners',
-  'outline-color': 'outline', 'outline-style': 'outline', 'outline-width': 'outline',
+  'border-top-color': 'border colour',
+  'border-right-color': 'border colour',
+  'border-bottom-color': 'border colour',
+  'border-left-color': 'border colour',
+  'border-top-width': 'border',
+  'border-right-width': 'border',
+  'border-bottom-width': 'border',
+  'border-left-width': 'border',
+  'border-top-style': 'border',
+  'border-right-style': 'border',
+  'border-bottom-style': 'border',
+  'border-left-style': 'border',
+  'border-top-left-radius': 'corners',
+  'border-top-right-radius': 'corners',
+  'border-bottom-left-radius': 'corners',
+  'border-bottom-right-radius': 'corners',
+  'outline-color': 'outline',
+  'outline-style': 'outline',
+  'outline-width': 'outline',
   'box-shadow': 'shadow',
-  'opacity': 'opacity',
-  'font-family': 'font', 'font-size': 'text size', 'font-weight': 'weight', 'font-style': 'italic',
-  'text-decoration-line': 'underline', 'text-transform': 'case', 'letter-spacing': 'letter spacing',
-  'line-height': 'line height', 'text-align': 'alignment',
-  'padding-top': 'spacing', 'padding-right': 'spacing', 'padding-bottom': 'spacing', 'padding-left': 'spacing',
-  'margin-top': 'spacing', 'margin-right': 'spacing', 'margin-bottom': 'spacing', 'margin-left': 'spacing',
-  'gap': 'spacing',
-  'display': 'layout', 'flex-direction': 'layout', 'justify-content': 'alignment', 'align-items': 'alignment',
-  'filter': 'filter', 'transform': 'transform',
-  'width': 'size', 'height': 'size', 'min-width': 'size', 'max-width': 'size', 'min-height': 'size', 'max-height': 'size',
+  opacity: 'opacity',
+  'font-family': 'font',
+  'font-size': 'text size',
+  'font-weight': 'weight',
+  'font-style': 'italic',
+  'text-decoration-line': 'underline',
+  'text-transform': 'case',
+  'letter-spacing': 'letter spacing',
+  'line-height': 'line height',
+  'text-align': 'alignment',
+  'padding-top': 'spacing',
+  'padding-right': 'spacing',
+  'padding-bottom': 'spacing',
+  'padding-left': 'spacing',
+  'margin-top': 'spacing',
+  'margin-right': 'spacing',
+  'margin-bottom': 'spacing',
+  'margin-left': 'spacing',
+  gap: 'spacing',
+  display: 'layout',
+  'flex-direction': 'layout',
+  'justify-content': 'alignment',
+  'align-items': 'alignment',
+  filter: 'filter',
+  transform: 'transform',
+  width: 'size',
+  height: 'size',
+  'min-width': 'size',
+  'max-width': 'size',
+  'min-height': 'size',
+  'max-height': 'size',
 };
 
 /** Properties a child takes from its parent: a change there shows on the parent alone. */
-const INHERITED = new Set(['color', 'font-family', 'font-size', 'font-weight', 'font-style', 'letter-spacing',
-  'line-height', 'text-align', 'text-transform']);
+const INHERITED = new Set([
+  'color',
+  'font-family',
+  'font-size',
+  'font-weight',
+  'font-style',
+  'letter-spacing',
+  'line-height',
+  'text-align',
+  'text-transform',
+]);
 
 /** The same element on both pages: its index on each. */
 type Pair = Record<Side, number>;
@@ -88,7 +136,10 @@ function pairUp(before: readonly ElementInfo[], after: readonly ElementInfo[]): 
   const pairs: Pair[] = [];
   let beforeAt = 0;
   let afterAt = 0;
-  for (const change of diffArrays(before.map(e => e.signature), after.map(e => e.signature))) {
+  for (const change of diffArrays(
+    before.map(e => e.signature),
+    after.map(e => e.signature),
+  )) {
     if (change.removed) beforeAt += change.count;
     else if (change.added) afterAt += change.count;
     else for (let i = 0; i < change.count; i++) pairs.push({ before: beforeAt++, after: afterAt++ });
@@ -110,15 +161,21 @@ function restyled(pairs: Pair[], before: readonly ElementInfo[], after: readonly
  * kind of change. A change a child only inherits from its parent is left to the parent. Sizes are
  * compared as the CSS sets them (`auto` stays `auto`), so a box that grows or shrinks with the page
  * around it is not a change. */
-function changedProperties(was: ElementInfo, now: ElementInfo, before: readonly ElementInfo[], after: readonly ElementInfo[]): string[] {
+function changedProperties(
+  was: ElementInfo,
+  now: ElementInfo,
+  before: readonly ElementInfo[],
+  after: readonly ElementInfo[],
+): string[] {
   const what = new Set<string>();
   for (const [property, label] of Object.entries(PROPERTIES)) {
     const oldValue = was.style[property];
     const newValue = now.style[property];
     if (oldValue === newValue) continue;
-    const fromParent = INHERITED.has(property)
-      && before[was.parent]?.style[property] === oldValue
-      && after[now.parent]?.style[property] === newValue;
+    const fromParent =
+      INHERITED.has(property) &&
+      before[was.parent]?.style[property] === oldValue &&
+      after[now.parent]?.style[property] === newValue;
     if (!fromParent) what.add(label);
   }
   return [...what];
@@ -126,9 +183,16 @@ function changedProperties(was: ElementInfo, now: ElementInfo, before: readonly 
 
 /** The pairs that draw their own pixels and whose style did not change: the ones to compare pixel
  * by pixel. */
-function unchangedPictures(pairs: Pair[], before: readonly ElementInfo[], after: readonly ElementInfo[], restyles: Restyle[]): Pair[] {
+function unchangedPictures(
+  pairs: Pair[],
+  before: readonly ElementInfo[],
+  after: readonly ElementInfo[],
+  restyles: Restyle[],
+): Pair[] {
   const restyledBefore = new Set(restyles.map(r => r.element.before));
-  return pairs.filter(pair => before[pair.before].paints && after[pair.after].paints && !restyledBefore.has(pair.before));
+  return pairs.filter(
+    pair => before[pair.before].paints && after[pair.after].paints && !restyledBefore.has(pair.before),
+  );
 }
 
 /** Whether two shots of an element differ. One that could not be shot is no change; a size that

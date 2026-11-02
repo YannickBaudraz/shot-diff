@@ -7,26 +7,45 @@ import { runtime, type Marks, type Runtime } from '../src/page.ts';
 const STYLE = '<style>body { margin: 0; font: 16px/24px sans-serif } p { margin: 0 0 24px }</style>';
 const PROPS = ['margin-top', 'color']; // read as looks.ts reads them; the full list lives there, with Node-only code
 const install = () => new Function(`return (${runtime.toString()})()`)() as Runtime;
-const page = (html: string) => { document.body.innerHTML = STYLE + html; return install(); };
+const page = (html: string) => {
+  document.body.innerHTML = STYLE + html;
+  return install();
+};
 /** What mark() drew over the page: boxes, and the discs beside them. */
-const drawn = () => [...document.documentElement.children].filter(e => e !== document.head && e !== document.body).flatMap(l => [...l.children]) as HTMLElement[];
-const marks = (more: Partial<Marks>): Marks => ({ color: 'red', tint: 'pink', strike: true, words: [], looks: [], ...more });
+const drawn = () =>
+  [...document.documentElement.children]
+    .filter(e => e !== document.head && e !== document.body)
+    .flatMap(l => [...l.children]) as HTMLElement[];
+const marks = (more: Partial<Marks>): Marks => ({
+  color: 'red',
+  tint: 'pink',
+  strike: true,
+  words: [],
+  looks: [],
+  ...more,
+});
 
 afterEach(() => {
-  for (const layer of [...document.documentElement.children]) if (layer !== document.head && layer !== document.body) layer.remove();
-  for (const style of document.head.querySelectorAll('style')) if (style.textContent?.includes('shot-diff')) style.remove();
+  for (const layer of [...document.documentElement.children])
+    if (layer !== document.head && layer !== document.body) layer.remove();
+  for (const style of document.head.querySelectorAll('style'))
+    if (style.textContent?.includes('shot-diff')) style.remove();
   CSS.highlights.clear();
   document.body.innerHTML = '';
 });
 
 describe('read', () => {
   test('lists visible words and images in order, and leaves hidden text out', () => {
-    const p = page('<p>One two</p><p style="display:none">hidden</p><img src="pics/logo.png" width="10" height="10"><p>three</p>');
+    const p = page(
+      '<p>One two</p><p style="display:none">hidden</p><img src="pics/logo.png" width="10" height="10"><p>three</p>',
+    );
     expect(p.read(PROPS).words).toEqual(['One', 'two', '[image logo.png]', 'three']);
   });
 
   test('reads the CSS value, so a margin set to auto stays auto', () => {
-    const p = page('<div style="display:flex;flex-direction:column;height:300px"><p>a</p><p style="margin-top:auto">b</p></div>');
+    const p = page(
+      '<div style="display:flex;flex-direction:column;height:300px"><p>a</p><p style="margin-top:auto">b</p></div>',
+    );
     const { elements } = p.read(PROPS);
     const b = elements.find(e => e.signature === 'P b')!;
     expect(b.style['margin-top']).toBe('auto');
@@ -35,7 +54,9 @@ describe('read', () => {
   });
 
   test('an SVG is one element that paints, its shapes are not listed', () => {
-    const p = page('<svg width="40" height="40" aria-label="chart"><rect width="40" height="40" fill="blue"/></svg>');
+    const p = page(
+      '<svg width="40" height="40" aria-label="chart"><rect width="40" height="40" fill="blue"/></svg>',
+    );
     const { elements } = p.read(PROPS);
     expect(elements.map(e => e.signature)).toEqual(['svg chart']);
     expect(elements[0].paints).toBe(true);
@@ -70,12 +91,20 @@ describe('mark', () => {
     expect(marked.words[0]!.changedTop).toBeLessThan(marked.words[0]!.changedBottom!);
   });
 
-  const twoButtons = '<button style="position:absolute;top:0;left:20px">top</button><button style="position:absolute;top:200px;left:20px">lower</button>';
+  const twoButtons =
+    '<button style="position:absolute;top:0;left:20px">top</button><button style="position:absolute;top:200px;left:20px">lower</button>';
 
   test('a label sits above its box, or below it at the top of the page', () => {
     const p = page(twoButtons);
     p.read(PROPS);
-    const { looks } = p.mark(marks({ looks: [{ index: 0, label: 'background', disc: null }, { index: 1, label: 'border', disc: null }] }));
+    const { looks } = p.mark(
+      marks({
+        looks: [
+          { index: 0, label: 'background', disc: null },
+          { index: 1, label: 'border', disc: null },
+        ],
+      }),
+    );
     const labels = drawn().map(box => box.firstElementChild as HTMLElement);
     expect(labels.map(l => l.textContent)).toEqual(['background', 'border']);
     expect(labels[0].style.top).toBe('100%'); // no room above: below

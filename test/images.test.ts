@@ -16,14 +16,21 @@ const CASES: { name: string; before: string; after: string; args?: string[] }[] 
   { name: 'words', before: 'before.html', after: 'after.html' },
   { name: 'pictures-and-looks', before: 'visual/before/index.html', after: 'visual/after/index.html' },
   { name: 'dashboard-labels', before: 'dashboard/before.html', after: 'dashboard/after.html' },
-  { name: 'dashboard-numbers', before: 'dashboard/before.html', after: 'dashboard/after.html', args: ['--markers', 'numbers'] },
+  {
+    name: 'dashboard-numbers',
+    before: 'dashboard/before.html',
+    after: 'dashboard/after.html',
+    args: ['--markers', 'numbers'],
+  },
 ];
 
 describe.skipIf(process.env.CI)('images', () => {
   test.each(CASES)('$name', ({ name, before, after, args = [] }) => {
     const { done, result } = shotDiff(page(before), page(after), '--title', name, ...args);
     expect(done.status, done.stderr).toBe(0);
-    for (const [n, shot] of (result.shots as { before: { file: string }; after: { file: string } }[]).entries()) {
+    for (const [n, shot] of (
+      result.shots as { before: { file: string }; after: { file: string } }[]
+    ).entries()) {
       for (const side of ['before', 'after'] as const) {
         expect(readFileSync(shot[side].file)).toMatchImageSnapshot({
           customSnapshotIdentifier: `${name}-${n + 1}-${side}`,

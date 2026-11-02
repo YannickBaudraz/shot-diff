@@ -2,41 +2,95 @@ import sharp from 'sharp';
 import { describe, expect, test, vi } from 'vitest';
 import { compareLooks, MAX_PICTURES, type ComparedPage, type ElementInfo } from '../src/looks.ts';
 
-const el = (signature: string, style: Record<string, string> = {}, more: Partial<ElementInfo> = {}): ElementInfo =>
-  ({ signature, tag: signature.split(' ')[0].toLowerCase(), parent: -1, leaf: true, paints: false, top: 0, width: 100, height: 20, style, ...more });
+const el = (
+  signature: string,
+  style: Record<string, string> = {},
+  more: Partial<ElementInfo> = {},
+): ElementInfo => ({
+  signature,
+  tag: signature.split(' ')[0].toLowerCase(),
+  parent: -1,
+  leaf: true,
+  paints: false,
+  top: 0,
+  width: 100,
+  height: 20,
+  style,
+  ...more,
+});
 /** A page with these elements, whose pixels are `pictures[i]` (none by default). */
-const seen = (elements: ElementInfo[], pictures: Record<number, Buffer | null> = {}): ComparedPage & { pixels: ReturnType<typeof vi.fn> } =>
-  ({ elements, pixels: vi.fn(async (i: number) => pictures[i] ?? null) });
+const seen = (
+  elements: ElementInfo[],
+  pictures: Record<number, Buffer | null> = {},
+): ComparedPage & { pixels: ReturnType<typeof vi.fn> } => ({
+  elements,
+  pixels: vi.fn(async (i: number) => pictures[i] ?? null),
+});
 const square = (color: string, size = 10) =>
-  sharp({ create: { width: size, height: size, channels: 4, background: color } }).png().toBuffer();
+  sharp({ create: { width: size, height: size, channels: 4, background: color } })
+    .png()
+    .toBuffer();
 
 describe('compareLooks', () => {
   test('names what changed in words, and pairs past elements only one page has', async () => {
-    const before = seen([el('header'), el('h2 Trip'), el('BUTTON Book', { 'background-color': 'blue', color: 'white' })]);
-    const after = seen([el('header'), el('p New'), el('h2 Trip'), el('BUTTON Book', { 'background-color': 'green', color: 'white' })]);
-    expect(await compareLooks(before, after)).toEqual([{ element: { before: 2, after: 3 }, what: ['background'], name: '[button: background]' }]);
+    const before = seen([
+      el('header'),
+      el('h2 Trip'),
+      el('BUTTON Book', { 'background-color': 'blue', color: 'white' }),
+    ]);
+    const after = seen([
+      el('header'),
+      el('p New'),
+      el('h2 Trip'),
+      el('BUTTON Book', { 'background-color': 'green', color: 'white' }),
+    ]);
+    expect(await compareLooks(before, after)).toEqual([
+      { element: { before: 2, after: 3 }, what: ['background'], name: '[button: background]' },
+    ]);
   });
 
   test('one label for the four sides of a border', async () => {
-    const sides = (c: string) => ({ 'border-top-color': c, 'border-right-color': c, 'border-bottom-color': c, 'border-left-color': c });
+    const sides = (c: string) => ({
+      'border-top-color': c,
+      'border-right-color': c,
+      'border-bottom-color': c,
+      'border-left-color': c,
+    });
     const [look] = await compareLooks(seen([el('DIV', sides('grey'))]), seen([el('DIV', sides('red'))]));
     expect(look.what).toEqual(['border colour']);
   });
 
   test('a colour a child inherits is marked on the parent alone', async () => {
-    const page = (c: string) => seen([el('NAV', { color: c }, { leaf: false }), el('A Home', { color: c }, { parent: 0 })]);
-    expect((await compareLooks(page('black'), page('navy'))).map(l => [l.element.before, l.what])).toEqual([[0, ['text colour']]]);
+    const page = (c: string) =>
+      seen([el('NAV', { color: c }, { leaf: false }), el('A Home', { color: c }, { parent: 0 })]);
+    expect((await compareLooks(page('black'), page('navy'))).map(l => [l.element.before, l.what])).toEqual([
+      [0, ['text colour']],
+    ]);
   });
 
   test('a child that changes colour on its own is marked', async () => {
-    const before = seen([el('NAV', { color: 'black' }, { leaf: false }), el('A Home', { color: 'black' }, { parent: 0 })]);
-    const after = seen([el('NAV', { color: 'black' }, { leaf: false }), el('A Home', { color: 'red' }, { parent: 0 })]);
-    expect((await compareLooks(before, after)).map(l => [l.element.before, l.what])).toEqual([[1, ['text colour']]]);
+    const before = seen([
+      el('NAV', { color: 'black' }, { leaf: false }),
+      el('A Home', { color: 'black' }, { parent: 0 }),
+    ]);
+    const after = seen([
+      el('NAV', { color: 'black' }, { leaf: false }),
+      el('A Home', { color: 'red' }, { parent: 0 }),
+    ]);
+    expect((await compareLooks(before, after)).map(l => [l.element.before, l.what])).toEqual([
+      [1, ['text colour']],
+    ]);
   });
 
   test('a size set in CSS is a change, a size layout gives is not', async () => {
-    const before = seen([el('MAIN', { width: 'auto' }, { leaf: false, height: 300 }), el('IMG logo.png', { width: '32px' })]);
-    const after = seen([el('MAIN', { width: 'auto' }, { leaf: false, height: 400 }), el('IMG logo.png', { width: '48px' })]);
+    const before = seen([
+      el('MAIN', { width: 'auto' }, { leaf: false, height: 300 }),
+      el('IMG logo.png', { width: '32px' }),
+    ]);
+    const after = seen([
+      el('MAIN', { width: 'auto' }, { leaf: false, height: 400 }),
+      el('IMG logo.png', { width: '48px' }),
+    ]);
     expect((await compareLooks(before, after)).map(l => [l.element.before, l.what])).toEqual([[1, ['size']]]);
   });
 
@@ -46,8 +100,14 @@ describe('compareLooks', () => {
   });
 
   test('top to bottom on the before page', async () => {
-    const before = seen([el('P one', { color: 'black' }, { top: 500 }), el('P two', { color: 'black' }, { top: 100 })]);
-    const after = seen([el('P one', { color: 'red' }, { top: 500 }), el('P two', { color: 'red' }, { top: 100 })]);
+    const before = seen([
+      el('P one', { color: 'black' }, { top: 500 }),
+      el('P two', { color: 'black' }, { top: 100 }),
+    ]);
+    const after = seen([
+      el('P one', { color: 'red' }, { top: 500 }),
+      el('P two', { color: 'red' }, { top: 100 }),
+    ]);
     expect((await compareLooks(before, after)).map(l => l.element.before)).toEqual([1, 0]);
   });
 });
@@ -57,14 +117,24 @@ describe('pictures', () => {
 
   test('a picture redrawn under the same name is a change; one drawn the same is not', async () => {
     const red = await square('#ff0000');
-    const changed = await compareLooks(seen([picture()], { 0: red }), seen([picture()], { 0: await square('#ff8800') }));
-    expect(changed).toEqual([{ element: { before: 0, after: 0 }, what: ['picture'], name: '[img: picture]' }]);
+    const changed = await compareLooks(
+      seen([picture()], { 0: red }),
+      seen([picture()], { 0: await square('#ff8800') }),
+    );
+    expect(changed).toEqual([
+      { element: { before: 0, after: 0 }, what: ['picture'], name: '[img: picture]' },
+    ]);
     expect(await compareLooks(seen([picture()], { 0: red }), seen([picture()], { 0: red }))).toEqual([]);
   });
 
   test('a picture whose size changed is a change; one that cannot be shot is not', async () => {
     const red = await square('#ff0000');
-    expect(await compareLooks(seen([picture()], { 0: red }), seen([picture()], { 0: await square('#ff0000', 12) }))).toHaveLength(1);
+    expect(
+      await compareLooks(
+        seen([picture()], { 0: red }),
+        seen([picture()], { 0: await square('#ff0000', 12) }),
+      ),
+    ).toHaveLength(1);
     expect(await compareLooks(seen([picture()], { 0: red }), seen([picture()], { 0: null }))).toEqual([]);
   });
 

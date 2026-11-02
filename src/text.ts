@@ -9,5 +9,7 @@ export const escapePango = (text: string) => text.replace(/[&<>"']/g, c => `&#${
  * ratio, so one point is one CSS pixel. */
 export function renderText(markup: string, size: number, weight: 'Regular' | 'Semi-Bold', scale: number) {
   const font = `sans-serif ${weight} ${size}`;
-  return sharp({ text: { text: markup, font, dpi: 72 * scale, rgba: true, spacing: 6 * scale } }).png().toBuffer({ resolveWithObject: true });
+  return sharp({ text: { text: markup, font, dpi: 72 * scale, rgba: true, spacing: 6 * scale } })
+    .png()
+    .toBuffer({ resolveWithObject: true });
 }

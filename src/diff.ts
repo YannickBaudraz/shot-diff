@@ -32,9 +32,15 @@ export function hunks(ops: readonly Op[], context = 3): Hunk[] {
   const found: Hunk[] = [];
   let i = 0;
   while (i < ops.length) {
-    if (ops[i].type === 'equal') { i++; continue; }
+    if (ops[i].type === 'equal') {
+      i++;
+      continue;
+    }
     const hunk: Hunk = { changed: { before: [], after: [] }, anchors: { before: [], after: [] } };
-    const anchor = (op: Op) => { hunk.anchors.before.push(op.before); hunk.anchors.after.push(op.after); };
+    const anchor = (op: Op) => {
+      hunk.anchors.before.push(op.before);
+      hunk.anchors.after.push(op.after);
+    };
     for (let j = i - 1; j >= 0 && j >= i - context && ops[j].type === 'equal'; j--) anchor(ops[j]);
     for (; i < ops.length && ops[i].type !== 'equal'; i++) {
       if (ops[i].type === 'remove') hunk.changed.before.push(ops[i].before);

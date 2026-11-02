@@ -17,7 +17,8 @@ export type Choice = {
   log: (line: string) => void;
 };
 
-const QUESTION = "No Chrome found. Download Playwright's headless Chromium into Playwright's cache (about 100 MB, once)?";
+const QUESTION =
+  "No Chrome found. Download Playwright's headless Chromium into Playwright's cache (about 100 MB, once)?";
 const OTHER_CHROME = 'install Google Chrome, or name one with --chrome or $CHROME';
 const OR_DOWNLOAD = `${OTHER_CHROME}, or run again with --download`;
 
@@ -25,7 +26,11 @@ const OR_DOWNLOAD = `${OTHER_CHROME}, or run again with --download`;
 const missing = (error: unknown) =>
   error instanceof Error && /distribution '.*' is not found|Executable doesn't exist/.test(error.message);
 
-export async function launch(chromium: Pick<BrowserType, 'launch'>, choice: Choice, install: () => void = installHeadlessShell): Promise<Browser> {
+export async function launch(
+  chromium: Pick<BrowserType, 'launch'>,
+  choice: Choice,
+  install: () => void = installHeadlessShell,
+): Promise<Browser> {
   if (choice.chrome) return chromium.launch({ executablePath: choice.chrome });
   const tries: LaunchOptions[] = [{ channel: 'chrome' }, {}]; // the installed Chrome, then Playwright's headless shell
   for (const options of tries) {
@@ -37,8 +42,10 @@ export async function launch(chromium: Pick<BrowserType, 'launch'>, choice: Choi
   }
   if (choice.download === 'no') throw new Error(`no Chrome found: ${OTHER_CHROME}`);
   if (choice.download === 'ask') {
-    if (!choice.confirm) throw new Error(`no Chrome found, and no terminal to ask before downloading one: ${OR_DOWNLOAD}`);
-    if (!(await choice.confirm(QUESTION))) throw new Error(`no Chrome found, and the download was declined: ${OR_DOWNLOAD}`);
+    if (!choice.confirm)
+      throw new Error(`no Chrome found, and no terminal to ask before downloading one: ${OR_DOWNLOAD}`);
+    if (!(await choice.confirm(QUESTION)))
+      throw new Error(`no Chrome found, and the download was declined: ${OR_DOWNLOAD}`);
   }
   choice.log("shot-diff: downloading Playwright's headless Chromium");
   install();
@@ -49,8 +56,12 @@ export async function launch(chromium: Pick<BrowserType, 'launch'>, choice: Choi
  * the other browsers in Playwright's cache, which other projects may use. */
 export function installHeadlessShell(): void {
   const root = dirname(createRequire(import.meta.url).resolve('playwright-core/package.json'));
-  const done = spawnSync(process.execPath, [join(root, 'cli.js'), 'install', '--no-remove', 'chromium-headless-shell'], {
-    stdio: ['ignore', 'inherit', 'inherit'],
-  });
+  const done = spawnSync(
+    process.execPath,
+    [join(root, 'cli.js'), 'install', '--no-remove', 'chromium-headless-shell'],
+    {
+      stdio: ['ignore', 'inherit', 'inherit'],
+    },
+  );
   if (done.status !== 0) throw new Error("the download of Playwright's headless Chromium failed");
 }

@@ -30,18 +30,30 @@ export type Options = {
 export type ShotSide = { png: Buffer; changed: string[]; box: Box };
 export type Shot = { before: ShotSide; after: ShotSide };
 /** `left out`: changes found but not in any image (above or below a cut, or outside --selector). */
-export type Result = { hunks: number; restyled: number; shots: Shot[]; leftOut: { removed: string[]; added: string[] } };
+export type Result = {
+  hunks: number;
+  restyled: number;
+  shots: Shot[];
+  leftOut: { removed: string[]; added: string[] };
+};
 
 export async function run(browser: Browser, options: Options): Promise<Result> {
   const before = await load(browser, options.before, 'before', options);
-  const after = await load(browser, options.after, 'after', options).catch(async error => { await before.close(); throw error; });
+  const after = await load(browser, options.after, 'after', options).catch(async error => {
+    await before.close();
+    throw error;
+  });
   const pages = { before, after };
   try {
     const wordChanges = hunks(diff(before.words, after.words));
     const looks = await compareLooks(before, after); // before anything is drawn over the pages
     const markers = await markersFor(looks, options.markers, options.scale);
     const changes = await markPages(pages, wordChanges, looks, markers);
-    const planned = await plan(changes.map(change => change.place), options, pages);
+    const planned = await plan(
+      changes.map(change => change.place),
+      options,
+      pages,
+    );
     const shots: Shot[] = [];
     for (const [index, shot] of planned.shots.entries()) {
       const shown = shot.changes.map(i => changes[i]);
@@ -72,8 +84,16 @@ type Heading = Pick<Content, 'title' | 'number' | 'total'>;
 /** Mark both pages, and list every change: the word changes, then the changes of look. A page's
  * mark() gives their spans in the order it was given them, so index i is the same change in every
  * list here. */
-async function markPages(pages: Record<Side, LoadedPage>, wordChanges: Hunk[], looks: Look[], markers: Marker[]): Promise<Change[]> {
-  const spans = { before: await pages.before.mark(wordChanges, markers), after: await pages.after.mark(wordChanges, markers) };
+async function markPages(
+  pages: Record<Side, LoadedPage>,
+  wordChanges: Hunk[],
+  looks: Look[],
+  markers: Marker[],
+): Promise<Change[]> {
+  const spans = {
+    before: await pages.before.mark(wordChanges, markers),
+    after: await pages.after.mark(wordChanges, markers),
+  };
   const wordsOf = (side: Side, tokens: number[]) => tokens.map(token => pages[side].words[token]).join(' ');
   return [
     ...wordChanges.map((hunk, i) => ({
@@ -90,7 +110,13 @@ async function markPages(pages: Record<Side, LoadedPage>, wordChanges: Hunk[], l
 }
 
 /** One side of a shot: the part `box` of its page with the band on top, and what it shows changed. */
-async function picture(page: LoadedPage, box: Box, changes: Change[], heading: Heading, scale: number): Promise<ShotSide> {
+async function picture(
+  page: LoadedPage,
+  box: Box,
+  changes: Change[],
+  heading: Heading,
+  scale: number,
+): Promise<ShotSide> {
   const content = { ...heading, side: page.side, key: keyOf(changes, page.side) };
   return {
     png: await band(await page.shoot(box), content, scale),
@@ -103,7 +129,8 @@ async function picture(page: LoadedPage, box: Box, changes: Change[], heading: H
 function keyOf(changes: Change[], side: Side): Key[] {
   const numbered: (Key & { number: number })[] = [];
   for (const { marker } of changes) {
-    if (marker?.disc) numbered.push({ number: marker.number, disc: marker.disc.image[side], what: marker.what });
+    if (marker?.disc)
+      numbered.push({ number: marker.number, disc: marker.disc.image[side], what: marker.what });
   }
   return numbered.sort((x, y) => x.number - y.number);
 }

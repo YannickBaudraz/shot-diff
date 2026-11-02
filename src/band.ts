@@ -34,7 +34,11 @@ export async function band(shot: Buffer, content: Content, scale: number): Promi
   const height = frame + bandHeight + frame + shotHeight + frame;
   return sharp({ create: { width, height, channels: 4, background: '#d0d7de' } })
     .composite([
-      { input: { create: { width: shotWidth, height: bandHeight, channels: 4, background: '#f6f8fa' } }, left: frame, top: frame },
+      {
+        input: { create: { width: shotWidth, height: bandHeight, channels: 4, background: '#f6f8fa' } },
+        left: frame,
+        top: frame,
+      },
       ...offset(key?.pieces ?? [], frame + padding, frame + rowHeight - Math.round(KEY_RAISE * scale)),
       ...offset(await heading(content, scale), frame + padding, frame),
       ...offset(await colourKey(content.side, scale), width - frame - padding, frame),
@@ -45,7 +49,8 @@ export async function band(shot: Buffer, content: Content, scale: number): Promi
 }
 
 /** `pieces`, moved by `dx` and `dy`. */
-const offset = (pieces: Piece[], dx: number, dy: number) => pieces.map(p => ({ ...p, left: p.left + dx, top: p.top + dy }));
+const offset = (pieces: Piece[], dx: number, dy: number) =>
+  pieces.map(p => ({ ...p, left: p.left + dx, top: p.top + dy }));
 
 /** The top that centres something `height` high in the band's first row. */
 const middleOfRow = (height: number, scale: number) => Math.round((Math.round(ROW * scale) - height) / 2);
@@ -53,16 +58,30 @@ const middleOfRow = (height: number, scale: number) => Math.round((Math.round(RO
 /** The band's left: the side's pill, then the title and which shot of how many; placed from the
  * band's top left corner. */
 async function heading({ side, title, number, total }: Content, scale: number): Promise<Piece[]> {
-  const sideName = await renderText(`<span foreground="#ffffff">${side === 'before' ? 'Before' : 'After'}</span>`, 15, 'Semi-Bold', scale);
+  const sideName = await renderText(
+    `<span foreground="#ffffff">${side === 'before' ? 'Before' : 'After'}</span>`,
+    15,
+    'Semi-Bold',
+    scale,
+  );
   const count = total > 1 ? `<span foreground="#59636e" weight="normal">   ${number} of ${total}</span>` : '';
-  const titleText = await renderText(`<span foreground="#1f2328">${escapePango(title)}</span>${count}`, 18, 'Semi-Bold', scale);
+  const titleText = await renderText(
+    `<span foreground="#1f2328">${escapePango(title)}</span>${count}`,
+    18,
+    'Semi-Bold',
+    scale,
+  );
   const pill = { width: sideName.info.width + Math.round(20 * scale), height: Math.round(26 * scale) };
   const pillSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${pill.width}" height="${pill.height}">
     <rect width="${pill.width}" height="${pill.height}" rx="${pill.height / 2}" fill="${COLOURS[side].color}"/></svg>`;
   return [
     { input: Buffer.from(pillSvg), left: 0, top: middleOfRow(pill.height, scale) },
     { input: sideName.data, left: Math.round(10 * scale), top: middleOfRow(sideName.info.height, scale) },
-    { input: titleText.data, left: pill.width + Math.round(12 * scale), top: middleOfRow(titleText.info.height, scale) },
+    {
+      input: titleText.data,
+      left: pill.width + Math.round(12 * scale),
+      top: middleOfRow(titleText.info.height, scale),
+    },
   ];
 }
 
@@ -70,14 +89,23 @@ async function heading({ side, title, number, total }: Content, scale: number): 
  * right corner, so the lefts are negative. */
 async function colourKey(side: Side, scale: number): Promise<Piece[]> {
   const { color, tint } = COLOURS[side];
-  const meaning = await renderText(`<span foreground="#1f2328">${side === 'before' ? 'removed' : 'added'}</span>`, 15, 'Regular', scale);
+  const meaning = await renderText(
+    `<span foreground="#1f2328">${side === 'before' ? 'removed' : 'added'}</span>`,
+    15,
+    'Regular',
+    scale,
+  );
   const size = Math.round(16 * scale);
   const swatchSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}">
     <rect x="${scale}" y="${scale}" width="${size - 2 * scale}" height="${size - 2 * scale}" rx="${3 * scale}"
       fill="${tint}" stroke="${color}" stroke-width="${2 * scale}"/></svg>`;
   return [
     { input: meaning.data, left: -meaning.info.width, top: middleOfRow(meaning.info.height, scale) },
-    { input: Buffer.from(swatchSvg), left: -meaning.info.width - Math.round(6 * scale) - size, top: middleOfRow(size, scale) },
+    {
+      input: Buffer.from(swatchSvg),
+      left: -meaning.info.width - Math.round(6 * scale) - size,
+      top: middleOfRow(size, scale),
+    },
   ];
 }
 
@@ -88,17 +116,22 @@ async function keyPieces(keys: Key[], width: number, scale: number) {
   const gap = Math.round(6 * scale); // between a disc and its meaning
   const space = Math.round(24 * scale); // between one meaning and the next disc
   const rowGap = Math.round(6 * scale);
-  const items = await Promise.all(keys.map(async ({ disc, what }) => ({
-    disc,
-    what: await renderText(`<span foreground="#1f2328">${escapePango(what)}</span>`, 14, 'Regular', scale),
-  })));
+  const items = await Promise.all(
+    keys.map(async ({ disc, what }) => ({
+      disc,
+      what: await renderText(`<span foreground="#1f2328">${escapePango(what)}</span>`, 14, 'Regular', scale),
+    })),
+  );
   const rowHeight = Math.max(discSize, ...items.map(item => item.what.info.height));
   const pieces: Piece[] = [];
   let x = 0;
   let y = 0;
   for (const { disc, what } of items) {
     const itemWidth = discSize + gap + what.info.width;
-    if (x > 0 && x + itemWidth > width) { x = 0; y += rowHeight + rowGap; }
+    if (x > 0 && x + itemWidth > width) {
+      x = 0;
+      y += rowHeight + rowGap;
+    }
     const middle = (height: number) => y + Math.round((rowHeight - height) / 2);
     pieces.push(
       { input: disc, left: x, top: middle(discSize) },

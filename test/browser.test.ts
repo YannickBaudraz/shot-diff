@@ -3,8 +3,12 @@ import { describe, expect, test, vi } from 'vitest';
 import { launch, type Choice } from '../src/browser.ts';
 
 const BROWSER = {} as Browser;
-const NO_CHROME = new Error("browserType.launch: Chromium distribution 'chrome' is not found at /opt/google/chrome/chrome");
-const NO_SHELL = new Error("browserType.launch: Executable doesn't exist at /cache/chromium_headless_shell-1248/chrome-headless-shell");
+const NO_CHROME = new Error(
+  "browserType.launch: Chromium distribution 'chrome' is not found at /opt/google/chrome/chrome",
+);
+const NO_SHELL = new Error(
+  "browserType.launch: Executable doesn't exist at /cache/chromium_headless_shell-1248/chrome-headless-shell",
+);
 
 /** A chromium whose launches answer, in turn, with `outcomes`: an error is thrown, anything else is the browser. */
 function chromium(...outcomes: (Error | 'ok')[]) {
@@ -20,7 +24,12 @@ function chromium(...outcomes: (Error | 'ok')[]) {
   };
 }
 
-const choice = (more: Partial<Choice> = {}): Choice => ({ download: 'ask', confirm: null, log: () => {}, ...more });
+const choice = (more: Partial<Choice> = {}): Choice => ({
+  download: 'ask',
+  confirm: null,
+  log: () => {},
+  ...more,
+});
 
 describe('launch', () => {
   test('a Chrome named with --chrome is used, and nothing else is tried', async () => {
@@ -54,20 +63,26 @@ describe('launch', () => {
   test('on a no, it stops without downloading', async () => {
     const install = vi.fn();
     const confirm = vi.fn(async () => false);
-    await expect(launch(chromium(NO_CHROME, NO_SHELL), choice({ confirm }), install)).rejects.toThrow(/declined.*--download/);
+    await expect(launch(chromium(NO_CHROME, NO_SHELL), choice({ confirm }), install)).rejects.toThrow(
+      /declined.*--download/,
+    );
     expect(install).not.toHaveBeenCalled();
   });
 
   test('with no terminal to ask, it stops and says how to say yes', async () => {
     const install = vi.fn();
-    await expect(launch(chromium(NO_CHROME, NO_SHELL), choice({ confirm: null }), install)).rejects.toThrow(/no terminal.*--download/);
+    await expect(launch(chromium(NO_CHROME, NO_SHELL), choice({ confirm: null }), install)).rejects.toThrow(
+      /no terminal.*--download/,
+    );
     expect(install).not.toHaveBeenCalled();
   });
 
   test('--download downloads without asking', async () => {
     const install = vi.fn();
     const confirm = vi.fn(async () => false);
-    expect(await launch(chromium(NO_CHROME, NO_SHELL, 'ok'), choice({ download: 'yes', confirm }), install)).toBe(BROWSER);
+    expect(
+      await launch(chromium(NO_CHROME, NO_SHELL, 'ok'), choice({ download: 'yes', confirm }), install),
+    ).toBe(BROWSER);
     expect(confirm).not.toHaveBeenCalled();
     expect(install).toHaveBeenCalledOnce();
   });
@@ -75,7 +90,9 @@ describe('launch', () => {
   test('--no-download stops without asking', async () => {
     const install = vi.fn();
     const confirm = vi.fn(async () => true);
-    await expect(launch(chromium(NO_CHROME, NO_SHELL), choice({ download: 'no', confirm }), install)).rejects.toThrow(/--chrome/);
+    await expect(
+      launch(chromium(NO_CHROME, NO_SHELL), choice({ download: 'no', confirm }), install),
+    ).rejects.toThrow(/--chrome/);
     expect(confirm).not.toHaveBeenCalled();
     expect(install).not.toHaveBeenCalled();
   });
@@ -83,7 +100,9 @@ describe('launch', () => {
   test('a Chrome that is there but fails to start is an error, not a reason to download', async () => {
     const install = vi.fn();
     const confirm = vi.fn(async () => true);
-    await expect(launch(chromium(new Error('crashed')), choice({ download: 'yes', confirm }), install)).rejects.toThrow('crashed');
+    await expect(
+      launch(chromium(new Error('crashed')), choice({ download: 'yes', confirm }), install),
+    ).rejects.toThrow('crashed');
     expect(confirm).not.toHaveBeenCalled();
     expect(install).not.toHaveBeenCalled();
   });

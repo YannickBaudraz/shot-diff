@@ -24,13 +24,18 @@ export type Marker = {
 
 /** The markers of `looks`, numbered in their order. */
 export async function markersFor(looks: Look[], mode: Mode, scale: number): Promise<Marker[]> {
-  return Promise.all(looks.map(async (look, index) => {
-    const number = index + 1;
-    const what = look.what.join(', ');
-    if (mode === 'labels') return { element: look.element, number, what, label: what, disc: null };
-    const image = { before: await disc(number, 'before', scale), after: await disc(number, 'after', scale) };
-    return { element: look.element, number, what, label: null, disc: { image, size: DISC } };
-  }));
+  return Promise.all(
+    looks.map(async (look, index) => {
+      const number = index + 1;
+      const what = look.what.join(', ');
+      if (mode === 'labels') return { element: look.element, number, what, label: what, disc: null };
+      const image = {
+        before: await disc(number, 'before', scale),
+        after: await disc(number, 'after', scale),
+      };
+      return { element: look.element, number, what, label: null, disc: { image, size: DISC } };
+    }),
+  );
 }
 
 /** A numbered disc in a white ring, in `side`'s colour, as a PNG at the shot's `scale`. The number is
@@ -40,13 +45,22 @@ async function disc(number: number, side: Side, scale: number): Promise<Buffer> 
   const size = Math.round(DISC * scale);
   const half = size / 2;
   const digits = await renderText(`<span foreground="#ffffff">${number}</span>`, 12, 'Semi-Bold', scale);
-  const ink = await sharp(digits.data).trim({ background: '#00000000', threshold: 1 }).raw().toBuffer({ resolveWithObject: true });
+  const ink = await sharp(digits.data)
+    .trim({ background: '#00000000', threshold: 1 })
+    .raw()
+    .toBuffer({ resolveWithObject: true });
   const inkPng = await sharp(ink.data, { raw: ink.info }).png().toBuffer();
   const circles = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}">
     <circle cx="${half}" cy="${half}" r="${half}" fill="#ffffff"/>
     <circle cx="${half}" cy="${half}" r="${half - 2 * scale}" fill="${COLOURS[side].color}"/></svg>`;
   return sharp(Buffer.from(circles))
-    .composite([{ input: inkPng, left: Math.round(half - inkCentreX(ink)), top: Math.round((size - ink.info.height) / 2) }])
+    .composite([
+      {
+        input: inkPng,
+        left: Math.round(half - inkCentreX(ink)),
+        top: Math.round((size - ink.info.height) / 2),
+      },
+    ])
     .png()
     .toBuffer();
 }
