@@ -312,6 +312,15 @@ export function runtime() {
     return { top, bottom, changedTop: top, changedBottom: bottom };
   };
 
+  /** Where each line of each token is on the page. */
+  const textLines = (tokens: Token[]): Region[] =>
+    tokens.flatMap(token =>
+      [...rangeOf(token).getClientRects()].filter(rect => rect.height).map(rect => pageRegion([rect])),
+    );
+
+  /** Whether a shot edge at `y` would cut through `line`. */
+  const cuts = (line: Region, y: number) => line.top < y && y < line.bottom;
+
   return {
     /** The page's words and elements, read before anything is drawn over it, and its width. */
     read(properties: string[]): { words: string[]; elements: ElementInfo[]; width: number } {
@@ -350,22 +359,17 @@ export function runtime() {
     /** The region with its edges moved out of any line of text they would cut: the top up, the
      * bottom down. Moving an edge can land it inside another line, so it repeats until neither moves. */
     snap(region: Region): Region {
-      const lines: Region[] = [];
-      for (const token of stored().tokens) {
-        for (const rect of rangeOf(token).getClientRects()) {
-          if (rect.height) lines.push(pageRegion([rect]));
-        }
-      }
+      const lines = textLines(stored().tokens);
       let { top, bottom } = region;
       let moved: boolean;
       do {
         moved = false;
         for (const line of lines) {
-          if (line.top < top && top < line.bottom) {
+          if (cuts(line, top)) {
             top = line.top - SNAP_CLEARANCE;
             moved = true;
           }
-          if (line.top < bottom && bottom < line.bottom) {
+          if (cuts(line, bottom)) {
             bottom = line.bottom + SNAP_CLEARANCE;
             moved = true;
           }
