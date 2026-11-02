@@ -3,29 +3,20 @@
 import type { Browser } from 'playwright-core';
 import { band, type Content, type Key } from './band.ts';
 import { diff, hunks, type Hunk } from './diff.ts';
-import { load, type LoadedPage } from './loaded.ts';
+import { load, type LoadedPage, type LoadOptions } from './loaded.ts';
 import { compareLooks, type Look } from './looks.ts';
 import { markersFor, type Marker, type Mode } from './markers.ts';
 import type { Box } from './page.ts';
-import { plan, type Place } from './plan.ts';
+import { plan, type Place, type PlanOptions } from './plan.ts';
 import type { Side } from './side.ts';
 
-export type Options = {
-  before: string;
-  after: string;
-  title: string;
-  width: number;
-  height: number;
-  scale: number;
-  dark: boolean;
-  storage: [string, string][];
-  click: string[];
-  wait: number;
-  selector: string | null;
-  padding: number;
-  maxHeight: number;
-  markers: Mode; // what a change of look's box says: what changed, or a number the band explains
-};
+export type Options = LoadOptions &
+  PlanOptions & {
+    before: string;
+    after: string;
+    title: string;
+    markers: Mode; // what a change of look's box says: what changed, or a number the band explains
+  };
 
 export type ShotSide = { png: Buffer; changed: string[]; box: Box };
 export type Shot = { before: ShotSide; after: ShotSide };
