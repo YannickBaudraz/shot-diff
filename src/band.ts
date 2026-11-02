@@ -2,7 +2,7 @@
 
 import sharp from 'sharp';
 import { DISC } from './markers.ts';
-import { COLOURS, type Side } from './side.ts';
+import { COLOURS, WORDS, type Side } from './side.ts';
 import { escapePango, renderText } from './text.ts';
 
 /** What a numbered box on a shot means: its disc, the same image as on the page, and what changed. */
@@ -59,7 +59,7 @@ const middleOfRow = (height: number, scale: number) => Math.round((Math.round(RO
  * band's top left corner. */
 async function heading({ side, title, number, total }: Content, scale: number): Promise<Piece[]> {
   const sideName = await renderText(
-    `<span foreground="#ffffff">${side === 'before' ? 'Before' : 'After'}</span>`,
+    `<span foreground="#ffffff">${WORDS[side].name}</span>`,
     15,
     'Semi-Bold',
     scale,
@@ -90,7 +90,7 @@ async function heading({ side, title, number, total }: Content, scale: number): 
 async function colourKey(side: Side, scale: number): Promise<Piece[]> {
   const { color, tint } = COLOURS[side];
   const meaning = await renderText(
-    `<span foreground="#1f2328">${side === 'before' ? 'removed' : 'added'}</span>`,
+    `<span foreground="#1f2328">${WORDS[side].marks}</span>`,
     15,
     'Regular',
     scale,
