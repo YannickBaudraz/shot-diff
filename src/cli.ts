@@ -7,17 +7,23 @@ import { chromium } from 'playwright-core';
 import { launch } from './browser.ts';
 import { run, type Options, type Result } from './shoot.ts';
 
-const number = (value: string) => {
-  const n = Number(value);
-  if (!Number.isFinite(n) || n < 0) throw new InvalidArgumentError('not a number');
-  return n;
-};
-const pair = (value: string, pairs: [string, string][]) => {
-  const at = value.indexOf('=');
-  if (at < 1) throw new InvalidArgumentError('wants key=value');
-  return [...pairs, [value.slice(0, at), value.slice(at + 1)] as [string, string]];
-};
-const each = (value: string, list: string[]) => [...list, value];
+// Option parsers, as commander calls them: the value given, and what the option held so far.
+
+function nonNegativeNumber(value: string): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) throw new InvalidArgumentError('not a number');
+  return parsed;
+}
+
+function appendKeyValue(value: string, pairs: [string, string][]): [string, string][] {
+  const equals = value.indexOf('=');
+  if (equals < 1) throw new InvalidArgumentError('wants key=value');
+  return [...pairs, [value.slice(0, equals), value.slice(equals + 1)]];
+}
+
+function append(value: string, list: string[]): string[] {
+  return [...list, value];
+}
 
 const program = new Command('shot-diff')
   .description(`Writes <name>-before.png, with what the after page no longer has marked red, and
@@ -29,18 +35,18 @@ A local file is a file:// URL.`)
   .requiredOption('--title <text>', "the band's title")
   .option('--out <dir>', 'where to write the images', '.')
   .option('--name <name>', "the files' prefix", 'shot')
-  .option('--width <px>', 'viewport width', number, 1280)
-  .option('--height <px>', "viewport height, and the shot's height when nothing changed", number, 900)
-  .option('--scale <n>', 'device pixel ratio', number, 2)
+  .option('--width <px>', 'viewport width', nonNegativeNumber, 1280)
+  .option('--height <px>', "viewport height, and the shot's height when nothing changed", nonNegativeNumber, 900)
+  .option('--scale <n>', 'device pixel ratio', nonNegativeNumber, 2)
   .option('--dark', 'a dark colour scheme', false)
-  .option('--storage <key=value>', 'set in localStorage before the page runs (repeatable)', pair, [])
-  .option('--click <selector>', 'click after loading, in order (repeatable)', each, [])
-  .option('--wait <ms>', 'wait after loading and clicking', number, 300)
+  .option('--storage <key=value>', 'set in localStorage before the page runs (repeatable)', appendKeyValue, [])
+  .option('--click <selector>', 'click after loading, in order (repeatable)', append, [])
+  .option('--wait <ms>', 'wait after loading and clicking', nonNegativeNumber, 300)
   .option('--selector <css>', 'shoot this element instead of the area around the changes')
-  .option('--padding <px>', 'room around the changes', number, 80)
+  .option('--padding <px>', 'room around the changes', nonNegativeNumber, 80)
   .addOption(new Option('--markers <kind>', 'how a box around a change of look says what changed: a label on it, or a number explained in the band')
     .choices(['labels', 'numbers']).default('labels'))
-  .option('--max-height <px>', 'the tallest a shot gets; changes farther apart get a pair each', number, 2400)
+  .option('--max-height <px>', 'the tallest a shot gets; changes farther apart get a pair each', nonNegativeNumber, 2400)
   .addOption(new Option('--chrome <path>', 'the Chrome or Chromium to use (default: the installed Google Chrome)').env('CHROME'))
   .option('--download', "without Chrome, download Playwright's headless Chromium without asking")
   .option('--no-download', 'without Chrome, stop instead of offering to download it')
@@ -62,8 +68,14 @@ function browserFor(values: OptionValues) {
   const ask = process.stdin.isTTY && process.stderr.isTTY
     ? (message: string) => confirm({ message, default: false }, { output: process.stderr })
     : null;
-  const download = values.download === true ? 'yes' : values.download === false ? 'no' : 'ask';
-  return launch(chromium, { chrome: values.chrome, download, confirm: ask, log: line => console.error(line) });
+  return launch(chromium, { chrome: values.chrome, download: downloadChoice(values.download), confirm: ask, log: line => console.error(line) });
+}
+
+/** --download, --no-download, or neither: commander leaves the value undefined when neither is given. */
+function downloadChoice(download: boolean | undefined): 'yes' | 'no' | 'ask' {
+  if (download === true) return 'yes';
+  if (download === false) return 'no';
+  return 'ask';
 }
 
 function options(before: string, after: string, values: OptionValues): Options {

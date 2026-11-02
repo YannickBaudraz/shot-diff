@@ -25,8 +25,8 @@ const OR_DOWNLOAD = `${OTHER_CHROME}, or run again with --download`;
 const missing = (error: unknown) =>
   error instanceof Error && /distribution '.*' is not found|Executable doesn't exist/.test(error.message);
 
-export async function launch(chromium: Pick<BrowserType, 'launch'>, o: Choice, install: () => void = installShell): Promise<Browser> {
-  if (o.chrome) return chromium.launch({ executablePath: o.chrome });
+export async function launch(chromium: Pick<BrowserType, 'launch'>, choice: Choice, install: () => void = installHeadlessShell): Promise<Browser> {
+  if (choice.chrome) return chromium.launch({ executablePath: choice.chrome });
   const tries: LaunchOptions[] = [{ channel: 'chrome' }, {}]; // the installed Chrome, then Playwright's headless shell
   for (const options of tries) {
     try {
@@ -35,19 +35,19 @@ export async function launch(chromium: Pick<BrowserType, 'launch'>, o: Choice, i
       if (!missing(error)) throw error;
     }
   }
-  if (o.download === 'no') throw new Error(`no Chrome found: ${OTHER_CHROME}`);
-  if (o.download === 'ask') {
-    if (!o.confirm) throw new Error(`no Chrome found, and no terminal to ask before downloading one: ${OR_DOWNLOAD}`);
-    if (!(await o.confirm(QUESTION))) throw new Error(`no Chrome found, and the download was declined: ${OR_DOWNLOAD}`);
+  if (choice.download === 'no') throw new Error(`no Chrome found: ${OTHER_CHROME}`);
+  if (choice.download === 'ask') {
+    if (!choice.confirm) throw new Error(`no Chrome found, and no terminal to ask before downloading one: ${OR_DOWNLOAD}`);
+    if (!(await choice.confirm(QUESTION))) throw new Error(`no Chrome found, and the download was declined: ${OR_DOWNLOAD}`);
   }
-  o.log("shot-diff: downloading Playwright's headless Chromium");
+  choice.log("shot-diff: downloading Playwright's headless Chromium");
   install();
   return chromium.launch();
 }
 
 /** Download Playwright's headless Chromium with playwright-core's own installer. `--no-remove` keeps
  * the other browsers in Playwright's cache, which other projects may use. */
-export function installShell(): void {
+export function installHeadlessShell(): void {
   const root = dirname(createRequire(import.meta.url).resolve('playwright-core/package.json'));
   const done = spawnSync(process.execPath, [join(root, 'cli.js'), 'install', '--no-remove', 'chromium-headless-shell'], {
     stdio: ['ignore', 'inherit', 'inherit'],
