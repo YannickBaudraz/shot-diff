@@ -100,6 +100,12 @@ export function runtime() {
     return layer;
   };
 
+  /** An image as a word: its alt text, or else its file name. */
+  const imageWord = (image: Element) => {
+    const name = image.getAttribute('alt') || (image.getAttribute('src') || '').split('/').pop() || 'image';
+    return `[image ${name}]`;
+  };
+
   /** Every visible word and image, in document order. Text with opacity 0 counts as hidden here. */
   const readWords = (): { words: string[]; tokens: Token[] } => {
     const found: Token[] = [];
@@ -109,10 +115,8 @@ export function runtime() {
       if (node.nodeType === Node.ELEMENT_NODE) {
         const element = node as Element;
         if (element.tagName === 'IMG' && element.checkVisibility()) {
-          const name =
-            element.getAttribute('alt') || (element.getAttribute('src') || '').split('/').pop() || 'image';
           found.push({ image: element });
-          words.push(`[image ${name}]`);
+          words.push(imageWord(element));
         }
         continue;
       }
@@ -165,6 +169,15 @@ export function runtime() {
     };
   };
 
+  /** The index of the nearest ancestor already listed, if any. */
+  const listedAncestor = (element: Element, indexOf: Map<Element, number>) => {
+    for (let ancestor = element.parentElement; ancestor; ancestor = ancestor.parentElement) {
+      const index = indexOf.get(ancestor);
+      if (index !== undefined) return index;
+    }
+    return undefined;
+  };
+
   /** Every visible element, in document order. An element with opacity 0 still counts: its opacity
    * is one of the properties compared. */
   const readElements = (properties: string[]): { elements: ElementInfo[]; domElements: Element[] } => {
@@ -185,18 +198,22 @@ export function runtime() {
         rect.height;
       if (!visible) continue;
       const info = describe(element, rect, properties);
-      for (let ancestor = element.parentElement; ancestor; ancestor = ancestor.parentElement) {
-        const parent = indexOf.get(ancestor);
-        if (parent === undefined) continue;
+      const parent = listedAncestor(element, indexOf);
+      if (parent !== undefined) {
         info.parent = parent;
         elements[parent].leaf = false;
-        break;
       }
       indexOf.set(element, elements.length);
       found.push(element);
       elements.push(info);
     }
     return { elements, domElements: found };
+  };
+
+  /** A changed image's mark: an outline, which takes no room on the page. */
+  const outline = (image: HTMLElement, color: string) => {
+    image.style.outline = `3px solid ${color}`;
+    image.style.outlineOffset = '2px';
   };
 
   /** Tint the changed words, struck through on the before page: one highlight range per run of
@@ -208,8 +225,7 @@ export function runtime() {
       for (const i of change.changed) {
         const token = tokens[i];
         if ('image' in token) {
-          (token.image as HTMLElement).style.outline = `3px solid ${marks.color}`;
-          (token.image as HTMLElement).style.outlineOffset = '2px';
+          outline(token.image as HTMLElement, marks.color);
           run = null;
         } else if (run && run.node === token.node) {
           run.range.setEnd(token.node, token.end);
