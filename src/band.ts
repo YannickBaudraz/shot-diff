@@ -21,6 +21,13 @@ const PADDING = 16; // between the band's edges and what is in it
 const KEY_GAP = 12; // added under the first row when there is a key
 const KEY_RAISE = 4; // the key starts this far up into the first row's bottom
 
+// The band's colours.
+const FRAME = '#d0d7de'; // the line around the band and the shot
+const BACKGROUND = '#f6f8fa';
+const TEXT = '#1f2328';
+const MUTED = '#59636e'; // which shot of how many
+const ON_COLOUR = '#ffffff'; // the side's name on its pill
+
 /** The shot, a PNG at `scale`, with a band on top: its side, the title, which shot of how many, and
  * what its colour means; under them, when the shot has numbered boxes, what each number means. */
 export async function band(shot: Buffer, content: Content, scale: number): Promise<Buffer> {
@@ -32,10 +39,10 @@ export async function band(shot: Buffer, content: Content, scale: number): Promi
   const bandHeight = rowHeight + (key ? key.height + Math.round(KEY_GAP * scale) : 0);
   const width = shotWidth + 2 * frame;
   const height = frame + bandHeight + frame + shotHeight + frame;
-  return sharp({ create: { width, height, channels: 4, background: '#d0d7de' } })
+  return sharp({ create: { width, height, channels: 4, background: FRAME } })
     .composite([
       {
-        input: { create: { width: shotWidth, height: bandHeight, channels: 4, background: '#f6f8fa' } },
+        input: { create: { width: shotWidth, height: bandHeight, channels: 4, background: BACKGROUND } },
         left: frame,
         top: frame,
       },
@@ -59,14 +66,15 @@ const middleOfRow = (height: number, scale: number) => Math.round((Math.round(RO
  * band's top left corner. */
 async function heading({ side, title, number, total }: Content, scale: number): Promise<Piece[]> {
   const sideName = await renderText(
-    `<span foreground="#ffffff">${WORDS[side].name}</span>`,
+    `<span foreground="${ON_COLOUR}">${WORDS[side].name}</span>`,
     15,
     'Semi-Bold',
     scale,
   );
-  const count = total > 1 ? `<span foreground="#59636e" weight="normal">   ${number} of ${total}</span>` : '';
+  const count =
+    total > 1 ? `<span foreground="${MUTED}" weight="normal">   ${number} of ${total}</span>` : '';
   const titleText = await renderText(
-    `<span foreground="#1f2328">${escapePango(title)}</span>${count}`,
+    `<span foreground="${TEXT}">${escapePango(title)}</span>${count}`,
     18,
     'Semi-Bold',
     scale,
@@ -90,7 +98,7 @@ async function heading({ side, title, number, total }: Content, scale: number): 
 async function colourKey(side: Side, scale: number): Promise<Piece[]> {
   const { color, tint } = COLOURS[side];
   const meaning = await renderText(
-    `<span foreground="#1f2328">${WORDS[side].marks}</span>`,
+    `<span foreground="${TEXT}">${WORDS[side].marks}</span>`,
     15,
     'Regular',
     scale,
@@ -119,7 +127,7 @@ async function keyPieces(keys: Key[], width: number, scale: number) {
   const items = await Promise.all(
     keys.map(async ({ disc, what }) => ({
       disc,
-      what: await renderText(`<span foreground="#1f2328">${escapePango(what)}</span>`, 14, 'Regular', scale),
+      what: await renderText(`<span foreground="${TEXT}">${escapePango(what)}</span>`, 14, 'Regular', scale),
     })),
   );
   const rowHeight = Math.max(discSize, ...items.map(item => item.what.info.height));
