@@ -2,10 +2,39 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import confirm from '@inquirer/confirm';
-import { Command, InvalidArgumentError, Option, type OptionValues } from 'commander';
+import { Command, InvalidArgumentError, Option } from 'commander';
 import { chromium } from 'playwright-core';
-import { launch } from './browser.ts';
+import { launch, type Download } from './browser.ts';
+import type { Mode } from './markers.ts';
+import type { Box } from './page.ts';
 import { run, type Options, type Result } from './shoot.ts';
+
+/** The options as commander gives them, by their camel-cased names. */
+type CliValues = {
+  title: string;
+  out: string;
+  name: string;
+  width: number;
+  height: number;
+  scale: number;
+  dark: boolean;
+  storage: [string, string][];
+  click: string[];
+  wait: number;
+  selector?: string;
+  padding: number;
+  markers: Mode;
+  maxHeight: number;
+  chrome?: string;
+  download?: boolean; // undefined when neither --download nor --no-download is given
+  json: boolean;
+};
+
+/** One shot's two files, and what each shows. */
+type WrittenShot = {
+  before: { file: string; removed: string[]; box: Box };
+  after: { file: string; added: string[]; box: Box };
+};
 
 // Option parsers, as commander calls them: the value given, and what the option held so far.
 
@@ -79,11 +108,14 @@ A local file is a file:// URL.`,
   .option('--no-download', 'without Chrome, stop instead of offering to download it')
   .option('--json', 'print what was marked as JSON', false)
   .showHelpAfterError()
-  .action(async (beforeUrl: string, afterUrl: string, values: OptionValues) => {
+  .action(async (beforeUrl: string, afterUrl: string, values: CliValues) => {
     const browser = await browserFor(values);
     try {
       const result = await run(browser, options(beforeUrl, afterUrl, values));
-      report(result, write(result, values.out, values.name), values.json);
+      const shots = write(result, values.out, values.name);
+      if (values.json) printJson(result, shots);
+      else printLines(shots);
+      warn(result);
     } finally {
       await browser.close();
     }
@@ -91,7 +123,7 @@ A local file is a file:// URL.`,
 
 /** The browser to use: --chrome, or the installed Chrome, or a download, asked about on a terminal.
  * The question goes to stderr, so stdout stays the --json output. */
-function browserFor(values: OptionValues) {
+function browserFor(values: CliValues) {
   const ask =
     process.stdin.isTTY && process.stderr.isTTY
       ? (message: string) => confirm({ message, default: false }, { output: process.stderr })
@@ -105,13 +137,13 @@ function browserFor(values: OptionValues) {
 }
 
 /** --download, --no-download, or neither: commander leaves the value undefined when neither is given. */
-function downloadChoice(download: boolean | undefined): 'yes' | 'no' | 'ask' {
+function downloadChoice(download: boolean | undefined): Download {
   if (download === true) return 'yes';
   if (download === false) return 'no';
   return 'ask';
 }
 
-function options(before: string, after: string, values: OptionValues): Options {
+function options(before: string, after: string, values: CliValues): Options {
   const { title, width, height, scale, dark, storage, click, wait, padding, maxHeight, markers } = values;
   return {
     before,
@@ -132,7 +164,7 @@ function options(before: string, after: string, values: OptionValues): Options {
 }
 
 /** Write each shot's two images; a page with several shots numbers them in the file names. */
-function write(result: Result, out: string, name: string) {
+function write(result: Result, out: string, name: string): WrittenShot[] {
   mkdirSync(out, { recursive: true });
   return result.shots.map((shot, n) => {
     const prefix = result.shots.length > 1 ? `${name}-${n + 1}` : name;
@@ -146,28 +178,23 @@ function write(result: Result, out: string, name: string) {
   });
 }
 
-/** Say what was written, as JSON or a line per image; and warn about what the images do not show. */
-function report(result: Result, shots: ReturnType<typeof write>, json: boolean) {
-  if (json) {
-    console.log(
-      JSON.stringify(
-        { hunks: result.hunks, restyled: result.restyled, shots, leftOut: result.leftOut },
-        null,
-        2,
-      ),
-    );
-  } else {
-    for (const shot of shots) {
-      console.log(`${shot.before.file}: ${shot.before.removed.length} part(s) removed`);
-      console.log(`${shot.after.file}: ${shot.after.added.length} part(s) added`);
-    }
+/** What was marked, where, and what was left out, as JSON on stdout. */
+function printJson(result: Result, shots: WrittenShot[]) {
+  const { wordChanges, lookChanges, leftOut } = result;
+  console.log(JSON.stringify({ wordChanges, lookChanges, shots, leftOut }, null, 2));
+}
+
+/** A line per image written, and how many parts it marks. */
+function printLines(shots: WrittenShot[]) {
+  for (const shot of shots) {
+    console.log(`${shot.before.file}: ${shot.before.removed.length} part(s) removed`);
+    console.log(`${shot.after.file}: ${shot.after.added.length} part(s) added`);
   }
-  warn(result);
 }
 
 /** On stderr, so stdout stays the --json output: when nothing changed, or a change is in no image. */
 function warn(result: Result) {
-  if (!result.hunks && !result.restyled)
+  if (!result.wordChanges && !result.lookChanges)
     console.error(
       "shot-diff: no difference in the pages' words, images or looks; the shots show the top of each page",
     );

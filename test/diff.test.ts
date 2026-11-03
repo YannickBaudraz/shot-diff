@@ -46,6 +46,14 @@ test('changes far apart are separate hunks', () => {
   expect(found.length).toBe(2);
 });
 
+test('anchors stop at the nearest change', () => {
+  const a = words('0 x 1 y 2');
+  const b = words('0 X 1 Y 2');
+  const found = hunks(diff(a, b), 4);
+  expect(found.length).toBe(2);
+  expect(found[1].anchors.before.map(i => a[i])).toEqual(['1', '2']);
+});
+
 test('either side empty', () => {
   expect(diff([], ['a']).map(o => o.type)).toEqual(['add']);
   expect(diff(['a'], []).map(o => o.type)).toEqual(['remove']);

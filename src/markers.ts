@@ -4,13 +4,19 @@
 
 import sharp from 'sharp';
 import type { Look } from './looks.ts';
-import { COLOURS, type Side } from './side.ts';
+import { COLORS, ON_SIDE_COLOR, type Side } from './side.ts';
 import { renderText } from './text.ts';
 
 export type Mode = 'labels' | 'numbers';
 
 /** A disc's size, in CSS pixels, its white ring included. */
 export const DISC = 24;
+
+/** The width of a disc's ring, in CSS pixels. */
+const RING = 2;
+
+/** The size of a disc's number, in points: one point to the CSS pixel. */
+const NUMBER_SIZE = 12;
 
 /** How a change of look is marked: its element on each page, its number, what changed, and what goes
  * on its box, either a label or a disc image for each side. */
@@ -44,15 +50,20 @@ export async function markersFor(looks: Look[], mode: Mode, scale: number): Prom
 async function disc(number: number, side: Side, scale: number): Promise<Buffer> {
   const size = Math.round(DISC * scale);
   const half = size / 2;
-  const digits = await renderText(`<span foreground="#ffffff">${number}</span>`, 12, 'Semi-Bold', scale);
+  const digits = await renderText(
+    `<span foreground="${ON_SIDE_COLOR}">${number}</span>`,
+    NUMBER_SIZE,
+    'Semi-Bold',
+    scale,
+  );
   const ink = await sharp(digits.data)
     .trim({ background: '#00000000', threshold: 1 })
     .raw()
     .toBuffer({ resolveWithObject: true });
   const inkPng = await sharp(ink.data, { raw: ink.info }).png().toBuffer();
   const circles = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}">
-    <circle cx="${half}" cy="${half}" r="${half}" fill="#ffffff"/>
-    <circle cx="${half}" cy="${half}" r="${half - 2 * scale}" fill="${COLOURS[side].color}"/></svg>`;
+    <circle cx="${half}" cy="${half}" r="${half}" fill="${ON_SIDE_COLOR}"/>
+    <circle cx="${half}" cy="${half}" r="${half - RING * scale}" fill="${COLORS[side].color}"/></svg>`;
   return sharp(Buffer.from(circles))
     .composite([
       {

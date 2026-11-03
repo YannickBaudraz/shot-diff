@@ -2,12 +2,12 @@
 // once, before anything is drawn over it; gives an element's own pixels until the page is marked;
 // marks the page in its side's colour; and shoots parts of it.
 
-import type { Browser, BrowserContext, Page } from 'playwright-core';
+import { errors, type Browser, type BrowserContext, type Page } from 'playwright-core';
 import type { Hunk } from './diff.ts';
 import { PROPERTIES, type ElementInfo } from './looks.ts';
 import type { Marker } from './markers.ts';
 import { runtime, type Box, type Marks, type Region, type Runtime, type Spans } from './page.ts';
-import { COLOURS, type Side } from './side.ts';
+import { COLORS, type Side } from './side.ts';
 
 declare global {
   interface Window {
@@ -106,13 +106,23 @@ function call<Name extends keyof Runtime>(page: Page, name: Name, arg: Parameter
   return result as Promise<ReturnType<Runtime[Name]>>;
 }
 
+/** The errors Playwright gives when an element cannot be shot: it left the page, it has no box, it
+ * never became visible, or it is too big for one image. */
+const unshootable = (error: unknown) =>
+  error instanceof errors.TimeoutError ||
+  (error instanceof Error &&
+    /not attached to the DOM|Node is either not visible|Node has 0 (width|height)|larger than 32767 pixels/.test(
+      error.message,
+    ));
+
 /** A PNG of element `index`'s own pixels, or null when it is gone or cannot be shot. */
 async function pixels(page: Page, index: number): Promise<Buffer | null> {
   const handle = await page.evaluateHandle(i => window.__shotDiff.element(i), index);
   try {
     return (await handle.asElement()?.screenshot({ animations: 'disabled' })) ?? null;
-  } catch {
-    return null;
+  } catch (error) {
+    if (unshootable(error)) return null;
+    throw error;
   } finally {
     await handle.dispose();
   }
@@ -122,7 +132,7 @@ async function pixels(page: Page, index: number): Promise<Buffer | null> {
  * element there with its label or this side's disc. */
 function marksFor(side: Side, hunks: Hunk[], markers: Marker[]): Marks {
   return {
-    ...COLOURS[side],
+    ...COLORS[side],
     strike: side === 'before',
     words: hunks.map(hunk => ({ changed: hunk.changed[side], anchors: hunk.anchors[side] })),
     looks: markers.map(marker => ({

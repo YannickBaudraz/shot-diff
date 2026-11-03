@@ -30,24 +30,43 @@ export function diff(before: readonly string[], after: readonly string[]): Op[] 
 /** The runs of changes in `ops`, each with up to `context` unchanged tokens before and after it. */
 export function hunks(ops: readonly Op[], context = 3): Hunk[] {
   const found: Hunk[] = [];
-  let i = 0;
-  while (i < ops.length) {
-    if (ops[i].type === 'equal') {
-      i++;
-      continue;
-    }
-    const hunk: Hunk = { changed: { before: [], after: [] }, anchors: { before: [], after: [] } };
-    const anchor = (op: Op) => {
-      hunk.anchors.before.push(op.before);
-      hunk.anchors.after.push(op.after);
-    };
-    for (let j = i - 1; j >= 0 && j >= i - context && ops[j].type === 'equal'; j--) anchor(ops[j]);
-    for (; i < ops.length && ops[i].type !== 'equal'; i++) {
-      if (ops[i].type === 'remove') hunk.changed.before.push(ops[i].before);
-      else hunk.changed.after.push(ops[i].after);
-    }
-    for (let j = i; j < ops.length && j < i + context && ops[j].type === 'equal'; j++) anchor(ops[j]);
-    found.push(hunk);
+  for (let start = skip(ops, 0, isEqual); start < ops.length;) {
+    const end = skip(ops, start, isChange);
+    found.push(hunkOf(ops, start, end, context));
+    start = skip(ops, end, isEqual);
   }
   return found;
+}
+
+const isEqual = (op: Op) => op.type === 'equal';
+const isChange = (op: Op) => op.type !== 'equal';
+
+/** The index of the first op from `from` on that is not `passed`, or the end of `ops`. */
+function skip(ops: readonly Op[], from: number, passed: (op: Op) => boolean): number {
+  let i = from;
+  while (i < ops.length && passed(ops[i])) i++;
+  return i;
+}
+
+/** The ops at the head of `list` that are all `kept`. */
+function leading(list: Op[], kept: (op: Op) => boolean): Op[] {
+  const stop = list.findIndex(op => !kept(op));
+  return stop < 0 ? list : list.slice(0, stop);
+}
+
+/** The hunk of the changes from `start` up to `end`. Its anchors are the unchanged ops around them,
+ * nearest first: up to `context` before, then up to `context` after. */
+function hunkOf(ops: readonly Op[], start: number, end: number, context: number): Hunk {
+  const changes = ops.slice(start, end);
+  const anchors = [
+    ...leading(ops.slice(Math.max(0, start - context), start).reverse(), isEqual),
+    ...leading(ops.slice(end, end + context), isEqual),
+  ];
+  return {
+    changed: {
+      before: changes.filter(op => op.type === 'remove').map(op => op.before),
+      after: changes.filter(op => op.type === 'add').map(op => op.after),
+    },
+    anchors: { before: anchors.map(op => op.before), after: anchors.map(op => op.after) },
+  };
 }

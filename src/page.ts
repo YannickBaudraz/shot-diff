@@ -37,10 +37,14 @@ export function runtime() {
   let domElements: Element[] | null = null;
   let marked = false;
 
-  const LABEL_HEIGHT = 22; // a label above a box, in CSS pixels
-  const BOX_MARGIN = 4; // between an element and its box
+  // Sizes in CSS pixels.
+  const BOX = { margin: 4, border: 2, radius: 4 }; // margin: between an element and its box
+  const LABEL = { height: 22, gap: 2, font: '600 12px/1.4 system-ui,sans-serif', padding: '1px 6px' };
+  const IMAGE_OUTLINE = { width: 3, offset: 2 };
+  const STRIKE_WIDTH = 2;
   const WORD_BOX_MARGIN = { x: 4, y: 3 }; // between a line of changed words and its box
   const SNAP_CLEARANCE = 6; // between a moved shot edge and the line of text it would have cut
+  const ON_COLOR = '#ffffff'; // a label's words: ON_SIDE_COLOR in side.ts, which this code cannot import
 
   const stored = () => {
     if (!tokens || !domElements) throw new Error('read() has not run on this page yet');
@@ -212,8 +216,8 @@ export function runtime() {
 
   /** A changed image's mark: an outline, which takes no room on the page. */
   const outline = (image: HTMLElement, color: string) => {
-    image.style.outline = `3px solid ${color}`;
-    image.style.outlineOffset = '2px';
+    image.style.outline = `${IMAGE_OUTLINE.width}px solid ${color}`;
+    image.style.outlineOffset = `${IMAGE_OUTLINE.offset}px`;
   };
 
   /** Tint the changed words, struck through on the before page: one highlight range per run of
@@ -240,7 +244,7 @@ export function runtime() {
 
   /** Tint `ranges` with a CSS highlight, which changes nothing the page lays out. */
   const paintHighlight = (ranges: Range[], marks: Marks) => {
-    const strike = marks.strike ? `text-decoration:line-through 2px ${marks.color};` : '';
+    const strike = marks.strike ? `text-decoration:line-through ${STRIKE_WIDTH}px ${marks.color};` : '';
     const style = document.createElement('style');
     style.textContent = `::highlight(shot-diff){background-color:${marks.tint};${strike}}`;
     document.head.appendChild(style);
@@ -251,7 +255,7 @@ export function runtime() {
   const drawBox = (layer: HTMLElement, color: string, box: Box) => {
     const element = document.createElement('div');
     element.style.cssText =
-      `position:absolute;box-sizing:border-box;border:2px solid ${color};border-radius:4px;` +
+      `position:absolute;box-sizing:border-box;border:${BOX.border}px solid ${color};border-radius:${BOX.radius}px;` +
       `left:${box.x}px;top:${box.y}px;width:${box.width}px;height:${box.height}px`;
     layer.appendChild(element);
     return element;
@@ -285,29 +289,47 @@ export function runtime() {
     return { ...pageRegion(shown), changedTop: own?.top ?? null, changedBottom: own?.bottom ?? null };
   };
 
-  /** A numbered disc on a box's top left corner, kept inside the page. Returns the disc's top. */
+  /** Where a disc goes: on a box's top left corner, kept inside the page. */
+  const discCorner = (box: Box, size: number) => ({
+    left: Math.max(0, box.x - size / 2),
+    top: Math.max(0, box.y - size / 2),
+  });
+
+  /** Whether a box's label fits above it, or goes below it for lack of room on the page. */
+  const labelFitsAbove = (box: Box) => box.y - LABEL.height >= 0;
+
+  /** A numbered disc on a box's top left corner. */
   const drawDisc = (layer: HTMLElement, disc: { src: string; size: number }, box: Box) => {
-    const left = Math.max(0, box.x - disc.size / 2);
-    const top = Math.max(0, box.y - disc.size / 2);
+    const { left, top } = discCorner(box, disc.size);
     const image = document.createElement('img');
     image.src = disc.src;
     image.style.cssText = `position:absolute;left:${left}px;top:${top}px;width:${disc.size}px;height:${disc.size}px`;
     layer.appendChild(image);
-    return top;
   };
 
-  /** What changed, on a tag above the box, or below it when the page has no room above. Returns
-   * whether it went above. */
+  /** What changed, on a tag above the box, or below it when the page has no room above. */
   const drawLabel = (boxElement: HTMLElement, label: string, color: string, box: Box) => {
-    const above = box.y - LABEL_HEIGHT >= 0;
-    const place = above ? 'bottom:100%;margin-bottom:2px' : 'top:100%;margin-top:2px';
+    const place = labelFitsAbove(box)
+      ? `bottom:100%;margin-bottom:${LABEL.gap}px`
+      : `top:100%;margin-top:${LABEL.gap}px`;
     const tag = document.createElement('div');
     tag.textContent = label;
     tag.style.cssText =
-      `position:absolute;left:-2px;${place};padding:1px 6px;border-radius:4px;white-space:nowrap;` +
-      `background:${color};color:#ffffff;font:600 12px/1.4 system-ui,sans-serif`;
+      `position:absolute;left:-${BOX.border}px;${place};padding:${LABEL.padding};` +
+      `border-radius:${BOX.radius}px;white-space:nowrap;background:${color};color:${ON_COLOR};font:${LABEL.font}`;
     boxElement.appendChild(tag);
-    return above;
+  };
+
+  /** Where a boxed element's mark sits on the page: its box, with its disc or its label. */
+  const lookSpan = (look: Marks['looks'][number], box: Box): Span => {
+    let top = Math.max(0, box.y);
+    let bottom = box.y + box.height;
+    if (look.disc) top = Math.min(top, discCorner(box, look.disc.size).top);
+    if (look.label) {
+      if (labelFitsAbove(box)) top = Math.max(0, box.y - LABEL.height);
+      else bottom += LABEL.height;
+    }
+    return { top, bottom, changedTop: top, changedBottom: bottom };
   };
 
   /** Box an element whose look changed, with its label or its disc, and say where all that is. */
@@ -317,20 +339,11 @@ export function runtime() {
     layer: HTMLElement,
     color: string,
   ): Span => {
-    const box = grow(pageBox(element.getBoundingClientRect()), BOX_MARGIN);
+    const box = grow(pageBox(element.getBoundingClientRect()), BOX.margin);
     const boxElement = drawBox(layer, color, box);
-    let top = Math.max(0, box.y);
-    let bottom = box.y + box.height;
-    if (look.disc) {
-      const discTop = drawDisc(layer, look.disc, box);
-      top = Math.min(top, discTop);
-    }
-    if (look.label) {
-      const labelAbove = drawLabel(boxElement, look.label, color, box);
-      if (labelAbove) top = Math.max(0, box.y - LABEL_HEIGHT);
-      else bottom += LABEL_HEIGHT;
-    }
-    return { top, bottom, changedTop: top, changedBottom: bottom };
+    if (look.disc) drawDisc(layer, look.disc, box);
+    if (look.label) drawLabel(boxElement, look.label, color, box);
+    return lookSpan(look, box);
   };
 
   /** Where each line of each token is on the page. */

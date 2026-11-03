@@ -40,11 +40,13 @@ export async function plan(
   const shots: PlannedShot[] = [];
   const leftOut: Record<Side, number[]> = { before: [], after: [] };
   for (const group of groups) {
-    const shot = { changes: group.changes } as PlannedShot;
-    for (const side of SIDES) {
-      shot[side] = await clip(group[side], pages[side], options);
+    const shot = {
+      changes: group.changes,
+      before: await clip(group.before, pages.before, options),
+      after: await clip(group.after, pages.after, options),
+    };
+    for (const side of SIDES)
       leftOut[side].push(...group.changes.filter(i => outside(places[i][side], shot[side])));
-    }
     shots.push(shot);
   }
   return { shots, leftOut };

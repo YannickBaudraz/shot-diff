@@ -20,10 +20,11 @@ export type Options = LoadOptions &
 
 export type ShotSide = { png: Buffer; changed: string[]; box: Box };
 export type Shot = { before: ShotSide; after: ShotSide };
-/** `left out`: changes found but not in any image (above or below a cut, or outside --selector). */
+/** How many word changes and changes of look were found, the shots, and the changes found but in
+ * no image (above or below a cut, or outside --selector). */
 export type Result = {
-  hunks: number;
-  restyled: number;
+  wordChanges: number;
+  lookChanges: number;
   shots: Shot[];
   leftOut: { removed: string[]; added: string[] };
 };
@@ -46,8 +47,8 @@ export async function run(browser: Browser, options: Options): Promise<Result> {
       pages,
     );
     return {
-      hunks: wordChanges.length,
-      restyled: looks.length,
+      wordChanges: wordChanges.length,
+      lookChanges: looks.length,
       shots: await draw(planned, changes, pages, options),
       leftOut: {
         removed: planned.leftOut.before.map(i => changes[i].text.before),

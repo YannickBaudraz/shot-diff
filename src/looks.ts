@@ -38,7 +38,7 @@ export async function compareLooks(before: ComparedPage, after: ComparedPage): P
   const restyles = restyled(pairs, before.elements, after.elements);
   const pictures = unchangedPictures(pairs, before.elements, after.elements, restyles);
   const changes = [...restyles, ...(await redrawn(pictures.slice(0, MAX_PICTURES), before, after))];
-  const onBefore = (change: Restyle) => before.elements[change.element.before];
+  const onBefore = (change: LookChange) => before.elements[change.element.before];
   return changes
     .sort((x, y) => readingOrder(onBefore(x), onBefore(y)))
     .map(change => ({ ...change, name: `[${onBefore(change).tag}: ${change.what.join(', ')}]` }));
@@ -122,8 +122,8 @@ const INHERITED = new Set([
 /** The same element on both pages: its index on each. */
 type Pair = Record<Side, number>;
 
-/** A paired element whose look changed, and what changed. */
-type Restyle = { element: Pair; what: string[] };
+/** A paired element whose look changed, its style or its pixels, and what changed. */
+type LookChange = { element: Pair; what: string[] };
 
 /** The elements that are the same on both pages: each page's elements, in document order, diffed on
  * their signatures. */
@@ -143,8 +143,12 @@ function pairUp(before: readonly ElementInfo[], after: readonly ElementInfo[]): 
 }
 
 /** The pairs whose look changed, and what changed. */
-function restyled(pairs: Pair[], before: readonly ElementInfo[], after: readonly ElementInfo[]): Restyle[] {
-  const found: Restyle[] = [];
+function restyled(
+  pairs: Pair[],
+  before: readonly ElementInfo[],
+  after: readonly ElementInfo[],
+): LookChange[] {
+  const found: LookChange[] = [];
   for (const pair of pairs) {
     const what = changedProperties(before[pair.before], after[pair.after], before, after);
     if (what.length) found.push({ element: pair, what });
@@ -182,7 +186,7 @@ function unchangedPictures(
   pairs: Pair[],
   before: readonly ElementInfo[],
   after: readonly ElementInfo[],
-  restyles: Restyle[],
+  restyles: LookChange[],
 ): Pair[] {
   const restyledBefore = new Set(restyles.map(r => r.element.before));
   return pairs.filter(
@@ -191,8 +195,8 @@ function unchangedPictures(
 }
 
 /** The pictures among `pairs` whose pixels changed, compared one after the other. */
-async function redrawn(pairs: Pair[], before: ComparedPage, after: ComparedPage): Promise<Restyle[]> {
-  const found: Restyle[] = [];
+async function redrawn(pairs: Pair[], before: ComparedPage, after: ComparedPage): Promise<LookChange[]> {
+  const found: LookChange[] = [];
   for (const pair of pairs) {
     if (await repainted(await before.pixels(pair.before), await after.pixels(pair.after))) {
       found.push({ element: pair, what: ['picture'] });

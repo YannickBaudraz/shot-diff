@@ -67,7 +67,7 @@ test('a change outside --selector is reported as left out', () => {
 test('the same page twice marks nothing and says so', () => {
   const { done, result } = shotDiff(page('before.html'), page('before.html'), '--title', 't');
   expect(done.status, done.stderr).toBe(0);
-  expect(result.hunks).toBe(0);
+  expect(result.wordChanges).toBe(0);
   expect(done.stderr).toMatch(/no difference/);
 });
 
@@ -87,7 +87,7 @@ test('changes with no words in them are marked: a restyled button, a picture red
     't',
   );
   expect(done.status, done.stderr).toBe(0);
-  expect(result.restyled).toBe(2);
+  expect(result.lookChanges).toBe(2);
   const removed = result.shots.flatMap((s: { before: { removed: string[] } }) => s.before.removed);
   const added = result.shots.flatMap((s: { after: { added: string[] } }) => s.after.added);
   expect(removed).toEqual(

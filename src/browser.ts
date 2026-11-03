@@ -7,11 +7,13 @@ import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import type { Browser, BrowserType, LaunchOptions } from 'playwright-core';
 
+/** Whether to fetch Playwright's headless Chromium when no Chrome is found: yes (--download), no
+ * (--no-download), or ask. */
+export type Download = 'yes' | 'no' | 'ask';
+
 export type Choice = {
   chrome?: string; // a Chrome or Chromium to use, and nothing else
-  /** Whether to fetch Playwright's headless Chromium when no Chrome is found: yes (--download), no
-   * (--no-download), or ask. */
-  download: 'yes' | 'no' | 'ask';
+  download: Download;
   /** Asks the question and gives the answer; null when there is no one to ask (no terminal). */
   confirm: ((question: string) => Promise<boolean>) | null;
   log: (line: string) => void;
@@ -40,16 +42,20 @@ export async function launch(
       if (!missing(error)) throw error;
     }
   }
-  if (choice.download === 'no') throw new Error(`no Chrome found: ${OTHER_CHROME}`);
-  if (choice.download === 'ask') {
-    if (!choice.confirm)
-      throw new Error(`no Chrome found, and no terminal to ask before downloading one: ${OR_DOWNLOAD}`);
-    if (!(await choice.confirm(QUESTION)))
-      throw new Error(`no Chrome found, and the download was declined: ${OR_DOWNLOAD}`);
-  }
+  await assertDownloadAllowed(choice);
   choice.log("shot-diff: downloading Playwright's headless Chromium");
   install();
   return chromium.launch();
+}
+
+/** Throws unless the choice allows downloading Playwright's headless Chromium, asking when it says to. */
+async function assertDownloadAllowed({ download, confirm }: Choice): Promise<void> {
+  if (download === 'yes') return;
+  if (download === 'no') throw new Error(`no Chrome found: ${OTHER_CHROME}`);
+  if (!confirm)
+    throw new Error(`no Chrome found, and no terminal to ask before downloading one: ${OR_DOWNLOAD}`);
+  if (!(await confirm(QUESTION)))
+    throw new Error(`no Chrome found, and the download was declined: ${OR_DOWNLOAD}`);
 }
 
 /** Download Playwright's headless Chromium with playwright-core's own installer. `--no-remove` keeps
