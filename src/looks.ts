@@ -35,23 +35,18 @@ export const MAX_PICTURES = 300;
  * anything is drawn over them. */
 export async function compareLooks(before: ComparedPage, after: ComparedPage): Promise<Look[]> {
   const pairs = pairUp(before.elements, after.elements);
-  const changes = restyled(pairs, before.elements, after.elements);
-  for (const pair of unchangedPictures(pairs, before.elements, after.elements, changes).slice(
-    0,
-    MAX_PICTURES,
-  )) {
-    if (await repainted(await before.pixels(pair.before), await after.pixels(pair.after))) {
-      changes.push({ element: pair, what: ['picture'] });
-    }
-  }
+  const restyles = restyled(pairs, before.elements, after.elements);
+  const pictures = unchangedPictures(pairs, before.elements, after.elements, restyles);
+  const changes = [...restyles, ...(await redrawn(pictures.slice(0, MAX_PICTURES), before, after))];
   const onBefore = (change: Restyle) => before.elements[change.element.before];
   return changes
-    .sort(
-      (x, y) =>
-        onBefore(x).top - onBefore(y).top || onBefore(x).signature.localeCompare(onBefore(y).signature),
-    )
+    .sort((x, y) => readingOrder(onBefore(x), onBefore(y)))
     .map(change => ({ ...change, name: `[${onBefore(change).tag}: ${change.what.join(', ')}]` }));
 }
+
+/** Top to bottom; elements level with each other in a fixed order, by signature. */
+const readingOrder = (x: ElementInfo, y: ElementInfo) =>
+  x.top - y.top || x.signature.localeCompare(y.signature);
 
 /** The computed properties compared, and what to call each in a label. */
 export const PROPERTIES: Record<string, string> = {
@@ -193,6 +188,17 @@ function unchangedPictures(
   return pairs.filter(
     pair => before[pair.before].paints && after[pair.after].paints && !restyledBefore.has(pair.before),
   );
+}
+
+/** The pictures among `pairs` whose pixels changed, compared one after the other. */
+async function redrawn(pairs: Pair[], before: ComparedPage, after: ComparedPage): Promise<Restyle[]> {
+  const found: Restyle[] = [];
+  for (const pair of pairs) {
+    if (await repainted(await before.pixels(pair.before), await after.pixels(pair.after))) {
+      found.push({ element: pair, what: ['picture'] });
+    }
+  }
+  return found;
 }
 
 /** Whether two shots of an element differ. One that could not be shot is no change; a size that
