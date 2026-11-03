@@ -2,9 +2,9 @@
 // a size set in CSS), found by pairing the elements of the two pages and comparing what the browser
 // computed for them; and a picture redrawn, found by comparing its pixels.
 
-import { diffArrays } from 'diff';
 import pixelmatch from 'pixelmatch';
 import sharp from 'sharp';
+import { diff } from './diff.ts';
 import type { Side } from './side.ts';
 
 /** One visible element, as the page's runtime reads it. */
@@ -35,8 +35,7 @@ export const MAX_PICTURES = 300;
  * anything is drawn over them. */
 export async function compareLooks(before: ComparedPage, after: ComparedPage): Promise<Look[]> {
   const pairs = pairUp(before.elements, after.elements);
-  const restyles = restyled(pairs, before.elements, after.elements);
-  const pictures = unchangedPictures(pairs, before.elements, after.elements, restyles);
+  const { restyles, pictures } = sortPairs(pairs, before.elements, after.elements);
   const changes = [...restyles, ...(await redrawn(pictures.slice(0, MAX_PICTURES), before, after))];
   const onBefore = (change: LookChange) => before.elements[change.element.before];
   return changes
@@ -126,34 +125,31 @@ type Pair = Record<Side, number>;
 type LookChange = { element: Pair; what: string[] };
 
 /** The elements that are the same on both pages: each page's elements, in document order, diffed on
- * their signatures. */
+ * their signatures as the words are, and the ones the diff keeps. */
 function pairUp(before: readonly ElementInfo[], after: readonly ElementInfo[]): Pair[] {
-  const pairs: Pair[] = [];
-  let beforeAt = 0;
-  let afterAt = 0;
-  for (const change of diffArrays(
+  return diff(
     before.map(e => e.signature),
     after.map(e => e.signature),
-  )) {
-    if (change.removed) beforeAt += change.count;
-    else if (change.added) afterAt += change.count;
-    else for (let i = 0; i < change.count; i++) pairs.push({ before: beforeAt++, after: afterAt++ });
-  }
-  return pairs;
+  )
+    .filter(op => op.type === 'equal')
+    .map(({ before, after }) => ({ before, after }));
 }
 
-/** The pairs whose look changed, and what changed. */
-function restyled(
+/** The pairs whose style changed, and what changed; and the pairs that draw their own pixels and
+ * whose style did not change, the ones to compare pixel by pixel. */
+function sortPairs(
   pairs: Pair[],
   before: readonly ElementInfo[],
   after: readonly ElementInfo[],
-): LookChange[] {
-  const found: LookChange[] = [];
+): { restyles: LookChange[]; pictures: Pair[] } {
+  const restyles: LookChange[] = [];
+  const pictures: Pair[] = [];
   for (const pair of pairs) {
     const what = changedProperties(before[pair.before], after[pair.after], before, after);
-    if (what.length) found.push({ element: pair, what });
+    if (what.length) restyles.push({ element: pair, what });
+    else if (before[pair.before].paints && after[pair.after].paints) pictures.push(pair);
   }
-  return found;
+  return { restyles, pictures };
 }
 
 /** What changed between an element on the before page and its pair on the after page, one label per
@@ -178,20 +174,6 @@ function changedProperties(
     if (!fromParent) what.add(label);
   }
   return [...what];
-}
-
-/** The pairs that draw their own pixels and whose style did not change: the ones to compare pixel
- * by pixel. */
-function unchangedPictures(
-  pairs: Pair[],
-  before: readonly ElementInfo[],
-  after: readonly ElementInfo[],
-  restyles: LookChange[],
-): Pair[] {
-  const restyledBefore = new Set(restyles.map(r => r.element.before));
-  return pairs.filter(
-    pair => before[pair.before].paints && after[pair.after].paints && !restyledBefore.has(pair.before),
-  );
 }
 
 /** The pictures among `pairs` whose pixels changed, compared one after the other. */
