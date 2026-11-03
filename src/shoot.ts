@@ -7,7 +7,7 @@ import { load, type LoadedPage, type LoadOptions } from './loaded.ts';
 import { compareLooks, type Look } from './looks.ts';
 import { markersFor, type Marker, type Mode } from './markers.ts';
 import type { Box } from './page.ts';
-import { plan, type Place, type PlanOptions } from './plan.ts';
+import { plan, type Place, type Plan, type PlanOptions } from './plan.ts';
 import type { Side } from './side.ts';
 
 export type Options = LoadOptions &
@@ -45,20 +45,15 @@ export async function run(browser: Browser, options: Options): Promise<Result> {
       options,
       pages,
     );
-    const shots: Shot[] = [];
-    for (const [index, shot] of planned.shots.entries()) {
-      const shown = shot.changes.map(i => changes[i]);
-      const heading = { title: options.title, number: index + 1, total: planned.shots.length };
-      shots.push({
-        before: await picture(before, shot.before, shown, heading, options.scale),
-        after: await picture(after, shot.after, shown, heading, options.scale),
-      });
-    }
-    const leftOut = {
-      removed: planned.leftOut.before.map(i => changes[i].text.before),
-      added: planned.leftOut.after.map(i => changes[i].text.after),
+    return {
+      hunks: wordChanges.length,
+      restyled: looks.length,
+      shots: await draw(planned, changes, pages, options),
+      leftOut: {
+        removed: planned.leftOut.before.map(i => changes[i].text.before),
+        added: planned.leftOut.after.map(i => changes[i].text.after),
+      },
     };
-    return { hunks: wordChanges.length, restyled: looks.length, shots, leftOut };
   } finally {
     await before.close();
     await after.close();
@@ -98,6 +93,25 @@ async function markPages(
       marker: markers[i],
     })),
   ];
+}
+
+/** Each planned shot's two sides, numbered in the band when there are several. */
+async function draw(
+  planned: Plan,
+  changes: Change[],
+  pages: Record<Side, LoadedPage>,
+  options: Options,
+): Promise<Shot[]> {
+  const shots: Shot[] = [];
+  for (const [index, shot] of planned.shots.entries()) {
+    const shown = shot.changes.map(i => changes[i]);
+    const heading = { title: options.title, number: index + 1, total: planned.shots.length };
+    shots.push({
+      before: await picture(pages.before, shot.before, shown, heading, options.scale),
+      after: await picture(pages.after, shot.after, shown, heading, options.scale),
+    });
+  }
+  return shots;
 }
 
 /** One side of a shot: the part `box` of its page with the band on top, and what it shows changed. */
