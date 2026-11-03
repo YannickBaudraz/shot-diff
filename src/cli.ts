@@ -146,8 +146,7 @@ function write(result: Result, out: string, name: string) {
   });
 }
 
-/** Say what was written, as JSON or a line per image; and on stderr, when nothing changed or a change
- * is in no image. */
+/** Say what was written, as JSON or a line per image; and warn about what the images do not show. */
 function report(result: Result, shots: ReturnType<typeof write>, json: boolean) {
   if (json) {
     console.log(
@@ -163,6 +162,11 @@ function report(result: Result, shots: ReturnType<typeof write>, json: boolean) 
       console.log(`${shot.after.file}: ${shot.after.added.length} part(s) added`);
     }
   }
+  warn(result);
+}
+
+/** On stderr, so stdout stays the --json output: when nothing changed, or a change is in no image. */
+function warn(result: Result) {
   if (!result.hunks && !result.restyled)
     console.error(
       "shot-diff: no difference in the pages' words, images or looks; the shots show the top of each page",
