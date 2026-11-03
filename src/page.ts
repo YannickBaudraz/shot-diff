@@ -235,6 +235,11 @@ export function runtime() {
         }
       }
     }
+    paintHighlight(ranges, marks);
+  };
+
+  /** Tint `ranges` with a CSS highlight, which changes nothing the page lays out. */
+  const paintHighlight = (ranges: Range[], marks: Marks) => {
     const strike = marks.strike ? `text-decoration:line-through 2px ${marks.color};` : '';
     const style = document.createElement('style');
     style.textContent = `::highlight(shot-diff){background-color:${marks.tint};${strike}}`;
