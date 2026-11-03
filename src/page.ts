@@ -10,9 +10,9 @@ export type Box = { x: number; y: number; width: number; height: number };
 export type Region = { top: number; bottom: number };
 
 /** Where one change sits on the page, in page pixels. `top` and `bottom` take in what is shown around
- * it: the unchanged words next to a word change, the label of a box. `changedTop` and `changedBottom`
- * are the change alone, null when this page has nothing of a word change. */
-export type Span = { top: number; bottom: number; changedTop: number | null; changedBottom: number | null };
+ * it: the unchanged words next to a word change, the label of a box. `changed` is the change alone,
+ * null when this page has nothing of a word change. */
+export type Span = Region & { changed: Region | null };
 
 /** What to draw on a page. */
 export type Marks = {
@@ -285,8 +285,7 @@ export function runtime() {
     if (!shown.length) return null;
     for (const line of linesOf(changed))
       drawBox(layer, color, grow(pageBox(around(line)), WORD_BOX_MARGIN.x, WORD_BOX_MARGIN.y));
-    const own = changed.length ? pageRegion(changed) : null;
-    return { ...pageRegion(shown), changedTop: own?.top ?? null, changedBottom: own?.bottom ?? null };
+    return { ...pageRegion(shown), changed: changed.length ? pageRegion(changed) : null };
   };
 
   /** Where a disc goes: on a box's top left corner, kept inside the page. */
@@ -329,7 +328,7 @@ export function runtime() {
       if (labelFitsAbove(box)) top = Math.max(0, box.y - LABEL.height);
       else bottom += LABEL.height;
     }
-    return { top, bottom, changedTop: top, changedBottom: bottom };
+    return { top, bottom, changed: { top, bottom } };
   };
 
   /** Box an element whose look changed, with its label or its disc, and say where all that is. */

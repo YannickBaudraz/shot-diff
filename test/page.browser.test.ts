@@ -88,7 +88,8 @@ describe('mark', () => {
     const boxes = drawn();
     expect(boxes.length).toBeGreaterThan(1);
     for (const box of boxes) expect(box.getBoundingClientRect().height).toBeLessThan(36); // one 24px line each
-    expect(marked.words[0]!.changedTop).toBeLessThan(marked.words[0]!.changedBottom!);
+    const { changed } = marked.words[0]!;
+    expect(changed!.top).toBeLessThan(changed!.bottom);
   });
 
   const twoButtons =

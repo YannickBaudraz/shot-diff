@@ -3,12 +3,7 @@ import { plan, type Place, type PlanOptions, type PlanPage } from '../src/plan.t
 import type { Region, Span } from '../src/page.ts';
 
 /** A change from `top` to `bottom`, the unchanged words around it included. */
-const at = (top: number, bottom = top + 20): Span => ({
-  top,
-  bottom,
-  changedTop: top,
-  changedBottom: bottom,
-});
+const at = (top: number, bottom = top + 20): Span => ({ top, bottom, changed: { top, bottom } });
 const both = (s: Span | null): Place => ({ before: s, after: s });
 const OPTIONS: PlanOptions = { padding: 80, maxHeight: 2400, height: 900, selector: null };
 
@@ -121,7 +116,7 @@ describe('what is left out', () => {
   });
 
   test('a side with no changed words has nothing to leave out', async () => {
-    const empty: Span = { top: 3000, bottom: 3020, changedTop: null, changedBottom: null };
+    const empty: Span = { top: 3000, bottom: 3020, changed: null };
     const p = await plan(
       [{ before: empty, after: at(100) }],
       { ...OPTIONS, selector: '#top' },

@@ -103,8 +103,8 @@ async function clip(region: Region | null, page: PlanPage, options: PlanOptions)
 
 /** Whether a change's changed part falls outside the shot's box; a page with none of it never does. */
 function outside(span: Span | null, box: Box): boolean {
-  if (!span || span.changedTop === null || span.changedBottom === null) return false;
-  return span.changedTop < box.y || span.changedBottom > box.y + box.height;
+  if (!span?.changed) return false;
+  return span.changed.top < box.y || span.changed.bottom > box.y + box.height;
 }
 
 /** `region` grown to take in `span`; a region of its own when there is none yet. */
