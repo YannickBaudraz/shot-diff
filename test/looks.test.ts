@@ -82,6 +82,18 @@ describe('compareLooks', () => {
     ]);
   });
 
+  test('a style a child does not inherit is marked on both, though it changed alike', async () => {
+    const page = (c: string) =>
+      seen([
+        el('NAV', { 'background-color': c }, { leaf: false }),
+        el('A Home', { 'background-color': c }, { parent: 0, top: 10 }),
+      ]);
+    expect((await compareLooks(page('white'), page('navy'))).map(l => [l.element.before, l.what])).toEqual([
+      [0, ['background']],
+      [1, ['background']],
+    ]);
+  });
+
   test('a size set in CSS is a change, a size layout gives is not', async () => {
     const before = seen([
       el('MAIN', { width: 'auto' }, { leaf: false, height: 300 }),

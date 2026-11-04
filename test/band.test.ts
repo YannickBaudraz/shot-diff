@@ -1,6 +1,6 @@
 import sharp from 'sharp';
 import { describe, expect, test } from 'vitest';
-import { band, type Content } from '../src/band.ts';
+import { band, intoRows, type Content } from '../src/band.ts';
 import { markersFor } from '../src/markers.ts';
 
 const SCALE = 2;
@@ -54,5 +54,24 @@ describe('band', () => {
     await expect(
       band(await shot, content({ title: 'a <b> & "c"', side: 'after', number: 2, total: 3 }), SCALE),
     ).resolves.toBeInstanceOf(Buffer);
+  });
+});
+
+describe('intoRows', () => {
+  const gaps = { itemGap: 10, rowStep: 30 };
+
+  test('starts a new row when the next item would not fit', () => {
+    expect(intoRows([40, 40, 40], 100, gaps)).toEqual([
+      { left: 0, top: 0 },
+      { left: 50, top: 0 },
+      { left: 0, top: 30 },
+    ]);
+  });
+
+  test('an item wider than a row takes one of its own, not an empty one before it', () => {
+    expect(intoRows([150, 40], 100, gaps)).toEqual([
+      { left: 0, top: 0 },
+      { left: 0, top: 30 },
+    ]);
   });
 });

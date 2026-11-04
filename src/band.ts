@@ -167,7 +167,7 @@ async function keyPieces(keys: Key[], width: number, scale: number) {
 /** Where items `widths` wide go, left to right, `itemGap` apart, starting a new row `rowStep` lower
  * when the next one would make the row wider than `maxWidth`. An item wider than that gets a row of
  * its own. */
-function intoRows(
+export function intoRows(
   widths: number[],
   maxWidth: number,
   { itemGap, rowStep }: { itemGap: number; rowStep: number },

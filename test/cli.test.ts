@@ -20,6 +20,7 @@ test('marks what was removed and what was added, and writes two titled images', 
   expect(shot.before.box.height).toBeLessThan(900);
   expect(shot.after.box.height).toBeLessThan(900);
   expect(result.leftOut).toEqual({ removed: [], added: [] });
+  expect(done.stderr).not.toMatch(/no difference/);
 });
 
 test('hidden text is not compared', () => {
