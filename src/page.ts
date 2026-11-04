@@ -161,8 +161,6 @@ export function runtime(properties: string[]) {
       leaf: true,
       paints: PAINTERS.has(element.tagName) || style.backgroundImage !== 'none',
       top: pageBox(rect).y,
-      width: rect.width,
-      height: rect.height,
       // The computed value, as the CSS gave it: `auto` stays `auto`, where getComputedStyle would give
       // the pixels layout made of it, which change with whatever else changed on the page.
       style: Object.fromEntries(

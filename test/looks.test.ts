@@ -13,8 +13,6 @@ const el = (
   leaf: true,
   paints: false,
   top: 0,
-  width: 100,
-  height: 20,
   style,
   ...more,
 });
@@ -96,11 +94,11 @@ describe('compareLooks', () => {
 
   test('a size set in CSS is a change, a size layout gives is not', async () => {
     const before = seen([
-      el('MAIN', { width: 'auto' }, { leaf: false, height: 300 }),
+      el('MAIN', { width: 'auto' }, { leaf: false }),
       el('IMG logo.png', { width: '32px' }),
     ]);
     const after = seen([
-      el('MAIN', { width: 'auto' }, { leaf: false, height: 400 }),
+      el('MAIN', { width: 'auto' }, { leaf: false }),
       el('IMG logo.png', { width: '48px' }),
     ]);
     expect((await compareLooks(before, after)).map(l => [l.element.before, l.what])).toEqual([[1, ['size']]]);
