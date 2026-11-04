@@ -70,6 +70,9 @@ export function runtime(properties: string[]) {
     bottom: Math.max(...rects.map(r => r.bottom)) + window.scrollY,
   });
 
+  /** `region`, its top kept inside the page. */
+  const inPage = (region: Region): Region => ({ top: Math.max(0, region.top), bottom: region.bottom });
+
   /** The smallest rectangle around `rects`, on screen. */
   const around = (rects: DOMRect[]) => {
     const left = Math.min(...rects.map(r => r.left));
@@ -275,12 +278,16 @@ export function runtime(properties: string[]) {
     layer: HTMLElement,
     color: string,
   ): Span | null => {
-    const changed = change.changed.flatMap(i => rectsOf(tokens[i]));
-    const shown = [...changed, ...change.anchors.flatMap(i => rectsOf(tokens[i]))];
+    const boxes = linesOf(change.changed.flatMap(i => rectsOf(tokens[i]))).map(line =>
+      drawBox(
+        layer,
+        color,
+        grow(pageBox(around(line)), WORD_BOX_MARGIN.x, WORD_BOX_MARGIN.y),
+      ).getBoundingClientRect(),
+    );
+    const shown = [...boxes, ...change.anchors.flatMap(i => rectsOf(tokens[i]))];
     if (!shown.length) return null;
-    for (const line of linesOf(changed))
-      drawBox(layer, color, grow(pageBox(around(line)), WORD_BOX_MARGIN.x, WORD_BOX_MARGIN.y));
-    return { ...pageRegion(shown), changed: changed.length ? pageRegion(changed) : null };
+    return { ...inPage(pageRegion(shown)), changed: boxes.length ? inPage(pageRegion(boxes)) : null };
   };
 
   /** Where a disc goes: on a box's top left corner, kept inside the page. */
@@ -299,6 +306,7 @@ export function runtime(properties: string[]) {
     image.src = disc.src;
     image.style.cssText = `position:absolute;left:${left}px;top:${top}px;width:${disc.size}px;height:${disc.size}px`;
     layer.appendChild(image);
+    return image;
   };
 
   /** What changed, on a tag above the box, or below it when the page has no room above. */
@@ -312,16 +320,7 @@ export function runtime(properties: string[]) {
       `position:absolute;left:-${BOX.border}px;${place};padding:${LABEL.padding};` +
       `border-radius:${BOX.radius}px;white-space:nowrap;background:${color};color:${ON_COLOR};font:${LABEL.font}`;
     boxElement.appendChild(tag);
-  };
-
-  /** Where a boxed element's mark sits on the page: its box, with its disc or its label. */
-  const lookSpan = (badge: Marks['looks'][number]['badge'], box: Box): Span => {
-    let top = Math.max(0, box.y);
-    let bottom = box.y + box.height;
-    if ('disc' in badge) top = Math.min(top, discCorner(box, badge.disc.size).top);
-    else if (labelFitsAbove(box)) top = Math.max(0, box.y - LABEL.height);
-    else bottom += LABEL.height;
-    return { top, bottom, changed: { top, bottom } };
+    return tag;
   };
 
   /** Box an element whose look changed, with its label or its disc, and say where all that is. */
@@ -333,9 +332,12 @@ export function runtime(properties: string[]) {
   ): Span => {
     const box = grow(pageBox(element.getBoundingClientRect()), BOX.margin);
     const boxElement = drawBox(layer, color, box);
-    if ('disc' in look.badge) drawDisc(layer, look.badge.disc, box);
-    else drawLabel(boxElement, look.badge.label, color, box);
-    return lookSpan(look.badge, box);
+    const badge =
+      'disc' in look.badge
+        ? drawDisc(layer, look.badge.disc, box)
+        : drawLabel(boxElement, look.badge.label, color, box);
+    const drawn = inPage(pageRegion([boxElement, badge].map(drawn => drawn.getBoundingClientRect())));
+    return { ...drawn, changed: drawn };
   };
 
   /** Where each line of each token is on the page. */
