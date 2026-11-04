@@ -8,7 +8,7 @@ import { compareLooks, type Look } from './looks.ts';
 import { markersFor, type Marker, type Mode } from './markers.ts';
 import type { Box } from './page.ts';
 import { plan, type Place, type Plan, type PlanOptions } from './plan.ts';
-import type { Side } from './side.ts';
+import { bothSides, SIDES, type Side } from './side.ts';
 
 export type Options = LoadOptions &
   PlanOptions & {
@@ -30,15 +30,10 @@ export type Result = {
 };
 
 export async function run(browser: Browser, options: Options): Promise<Result> {
-  const before = await load(browser, options.before, 'before', options);
-  const after = await load(browser, options.after, 'after', options).catch(async error => {
-    await before.close();
-    throw error;
-  });
-  const pages = { before, after };
+  const pages = await loadBoth(browser, options);
   try {
-    const wordChanges = hunks(diff(before.words, after.words));
-    const looks = await compareLooks(before, after); // before anything is drawn over the pages
+    const wordChanges = hunks(diff(pages.before.words, pages.after.words));
+    const looks = await compareLooks(pages.before, pages.after); // before anything is drawn over the pages
     const markers = await markersFor(looks, options.markers, options.scale);
     const changes = await markPages(pages, wordChanges, looks, markers);
     const planned = await plan(
@@ -56,9 +51,20 @@ export async function run(browser: Browser, options: Options): Promise<Result> {
       },
     };
   } finally {
-    await before.close();
-    await after.close();
+    await bothSides(side => pages[side].close());
   }
+}
+
+/** Both pages, loaded at once. When one fails to load, the other is closed and the error is thrown. */
+async function loadBoth(browser: Browser, options: Options): Promise<Record<Side, LoadedPage>> {
+  const urls = { before: options.before, after: options.after };
+  const loads = await Promise.allSettled(SIDES.map(side => load(browser, urls[side], side, options)));
+  const [before, after] = loads;
+  if (before.status === 'fulfilled' && after.status === 'fulfilled')
+    return { before: before.value, after: after.value };
+  for (const result of loads) if (result.status === 'fulfilled') await result.value.close();
+  const [failed] = loads.filter(result => result.status === 'rejected');
+  throw failed.reason;
 }
 
 /** A change, of words or of look: where it is on each page, what it is called in each page's list
@@ -77,10 +83,7 @@ async function markPages(
   looks: Look[],
   markers: Marker[],
 ): Promise<Change[]> {
-  const spans = {
-    before: await pages.before.mark(wordChanges, markers),
-    after: await pages.after.mark(wordChanges, markers),
-  };
+  const spans = await bothSides(side => pages[side].mark(wordChanges, markers));
   const wordsOf = (side: Side, tokens: number[]) => tokens.map(token => pages[side].words[token]).join(' ');
   return [
     ...wordChanges.map((hunk, i) => ({
@@ -107,10 +110,7 @@ async function draw(
   for (const [index, shot] of planned.shots.entries()) {
     const shown = shot.changes.map(i => changes[i]);
     const heading = { title: options.title, number: index + 1, total: planned.shots.length };
-    shots.push({
-      before: await picture(pages.before, shot.before, shown, heading, options.scale),
-      after: await picture(pages.after, shot.after, shown, heading, options.scale),
-    });
+    shots.push(await bothSides(side => picture(pages[side], shot[side], shown, heading, options.scale)));
   }
   return shots;
 }

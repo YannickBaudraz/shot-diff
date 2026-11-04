@@ -4,6 +4,12 @@ export type Side = 'before' | 'after';
 
 export const SIDES: Side[] = ['before', 'after'];
 
+/** `work` for each side, the two at once. */
+export async function bothSides<T>(work: (side: Side) => Promise<T>): Promise<Record<Side, T>> {
+  const [before, after] = await Promise.all(SIDES.map(work));
+  return { before, after };
+}
+
 /** What the after page no longer has is red on the before shot; what it adds is green on the after shot. */
 export const COLORS: Record<Side, { color: string; tint: string }> = {
   before: { color: '#cf222e', tint: 'rgba(255, 129, 130, 0.45)' },

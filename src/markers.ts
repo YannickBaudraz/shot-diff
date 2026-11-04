@@ -4,7 +4,7 @@
 
 import sharp from 'sharp';
 import type { Look } from './looks.ts';
-import { COLORS, ON_SIDE_COLOR, type Side } from './side.ts';
+import { bothSides, COLORS, ON_SIDE_COLOR, type Side } from './side.ts';
 import { renderText } from './text.ts';
 
 export type Mode = 'labels' | 'numbers';
@@ -35,10 +35,7 @@ export async function markersFor(looks: Look[], mode: Mode, scale: number): Prom
       const number = index + 1;
       const what = look.what.join(', ');
       if (mode === 'labels') return { element: look.element, number, what, label: what, disc: null };
-      const image = {
-        before: await disc(number, 'before', scale),
-        after: await disc(number, 'after', scale),
-      };
+      const image = await bothSides(side => disc(number, side, scale));
       return { element: look.element, number, what, label: null, disc: { image, size: DISC } };
     }),
   );

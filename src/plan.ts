@@ -3,7 +3,7 @@
 // to the maximum height. What still falls outside every shot is said, not dropped.
 
 import type { Box, Region, Span } from './page.ts';
-import { SIDES, type Side } from './side.ts';
+import { bothSides, SIDES, type Side } from './side.ts';
 
 /** Where a change sits on each page; null on a page it has no place on. */
 export type Place = Record<Side, Span | null>;
@@ -42,8 +42,7 @@ export async function plan(
   for (const group of groups) {
     const shot = {
       changes: group.changes,
-      before: await clip(group.before, pages.before, options),
-      after: await clip(group.after, pages.after, options),
+      ...(await bothSides(side => clip(group[side], pages[side], options))),
     };
     for (const side of SIDES)
       leftOut[side].push(...group.changes.filter(i => outside(places[i][side], shot[side])));
@@ -86,8 +85,7 @@ async function aroundSelector(
   selector: string,
   pages: Record<Side, PlanPage>,
 ): Promise<Group> {
-  const before = await pages.before.region(selector);
-  const after = await pages.after.region(selector);
+  const { before, after } = await bothSides(side => pages[side].region(selector));
   if (!before) throw new Error(`--selector ${selector} matches nothing on the before page`);
   if (!after) throw new Error(`--selector ${selector} matches nothing on the after page`);
   return { changes: order, before, after };

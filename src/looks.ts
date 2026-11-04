@@ -5,7 +5,7 @@
 import pixelmatch from 'pixelmatch';
 import sharp from 'sharp';
 import { diff } from './diff.ts';
-import type { Side } from './side.ts';
+import { bothSides, type Side } from './side.ts';
 
 /** One visible element, as the page's runtime reads it. */
 export type ElementInfo = {
@@ -179,8 +179,10 @@ function changedProperties(
 /** The pictures among `pairs` whose pixels changed, compared one after the other. */
 async function redrawn(pairs: Pair[], before: ComparedPage, after: ComparedPage): Promise<LookChange[]> {
   const found: LookChange[] = [];
+  const pages = { before, after };
   for (const pair of pairs) {
-    if (await repainted(await before.pixels(pair.before), await after.pixels(pair.after))) {
+    const { before: was, after: now } = await bothSides(side => pages[side].pixels(pair[side]));
+    if (await repainted(was, now)) {
       found.push({ element: pair, what: ['picture'] });
     }
   }
