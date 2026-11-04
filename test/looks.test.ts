@@ -127,15 +127,21 @@ describe('pictures', () => {
     expect(await compareLooks(seen([picture()], { 0: red }), seen([picture()], { 0: red }))).toEqual([]);
   });
 
-  test('a picture whose size changed is a change; one that cannot be shot is not', async () => {
+  test('a picture layout scaled is no change, one redrawn at another size is; one not shot is not', async () => {
     const red = await square('#ff0000');
-    expect(
-      await compareLooks(
-        seen([picture()], { 0: red }),
-        seen([picture()], { 0: await square('#ff0000', 12) }),
-      ),
-    ).toHaveLength(1);
+    const scaled = seen([picture()], { 0: await square('#ff0000', 12) });
+    expect(await compareLooks(seen([picture()], { 0: red }), scaled)).toEqual([]);
+    const redrawn = seen([picture()], { 0: await square('#ff8800', 12) });
+    expect(await compareLooks(seen([picture()], { 0: red }), redrawn)).toHaveLength(1);
     expect(await compareLooks(seen([picture()], { 0: red }), seen([picture()], { 0: null }))).toEqual([]);
+  });
+
+  test('a background with elements inside it is not shot: its shot holds theirs too', async () => {
+    const section = () => el('SECTION', {}, { paints: true, leaf: false });
+    const before = seen([section()], { 0: await square('#ff0000') });
+    const after = seen([section()], { 0: await square('#ff8800') });
+    expect(await compareLooks(before, after)).toEqual([]);
+    expect(before.pixels).not.toHaveBeenCalled();
   });
 
   test('a picture whose style changed is not shot as well', async () => {

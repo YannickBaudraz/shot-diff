@@ -50,8 +50,10 @@ with the same stored settings and clicks, so the only difference is the change.
    CSS Custom Highlight API and an overlay), so nothing on it moves.
 4. It pairs the elements of the two pages the same way, by tag, id, role, own words and image file,
    and compares what the browser computed for each pair: colours, borders, corners, shadow, font,
-   spacing, alignment, and the size of elements with nothing inside them. Images, canvases and SVGs
-   that kept their style are compared pixel by pixel ([pixelmatch](https://github.com/mapbox/pixelmatch)).
+   spacing, alignment, and the size of elements with nothing inside them. Images, canvases, SVGs and
+   backgrounds with no element inside them that kept their style are compared pixel by pixel
+   ([pixelmatch](https://github.com/mapbox/pixelmatch)), at the smaller of their two sizes when the
+   layout scaled one.
    Each change gets a box with what changed written on it, or a number explained in the band with
    `--markers numbers`: red on the before shot, green on the after.
 5. It shoots the area around the changes, unchanged words next to each change included, so both
@@ -66,6 +68,9 @@ with the same stored settings and clicks, so the only difference is the change.
 - Pseudo-elements (`::before`, `::after`) and position on the page are not compared: an element
   pushed down by text added above it is not a change.
 - Moved text shows as removed in one place and added in another.
+- A background image redrawn under the same file name is marked only on an element with no other
+  element inside it: a shot of a banner with a heading on it holds the heading too, so its pixels
+  are not compared. A background whose file name changed is marked, as a change of style.
 - It runs Chrome headless, so it needs no screen. Without Google Chrome on the machine, it offers to
   download Playwright's headless Chromium into Playwright's cache (about 100 MB, once) and waits for
   a yes. With no terminal to ask, as on CI, it stops instead, unless `--download` says yes up front.

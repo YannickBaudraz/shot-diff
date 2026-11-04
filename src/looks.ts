@@ -12,7 +12,7 @@ export type ElementInfo = {
   signature: string; // what pairs it with its match on the other page: tag, id, role, label, own words, file
   tag: string; // in lower case, to name it in a list of changes
   parent: number; // the index of its nearest listed ancestor, or -1
-  leaf: boolean; // no listed element inside it
+  leaf: boolean; // no listed element inside it: its pixels are its own, not its children's too
   paints: boolean; // draws pixels its style does not describe: an image, a canvas, an SVG, a background image
   top: number; // in page pixels, to number the changes in reading order
   width: number;
@@ -30,6 +30,11 @@ export type Look = { element: Record<Side, number>; what: string[]; name: string
 
 /** The most pictures compared pixel by pixel, so a page of thumbnails stays quick. */
 export const MAX_PICTURES = 300;
+
+/** The share of a picture's pixels that may differ when layout drew it at another size on the other
+ * page: scaled to the same size, the same picture differs at its edges, by 0.05% at most on the
+ * fixtures' pictures, where a picture redrawn differs by far more. */
+const RESCALED_TOLERANCE = 0.005;
 
 /** The changes of look between two pages, top to bottom on the before page. Read the pages before
  * anything is drawn over them. */
@@ -135,8 +140,10 @@ function pairUp(before: readonly ElementInfo[], after: readonly ElementInfo[]): 
     .map(({ before, after }) => ({ before, after }));
 }
 
-/** The pairs whose style changed, and what changed; and the pairs that draw their own pixels and
- * whose style did not change, the ones to compare pixel by pixel. */
+/** The pairs whose style changed, and what changed; and the pairs that draw their own pixels, with
+ * no listed element inside them, and whose style did not change: the ones to compare pixel by pixel.
+ * An element with others inside it is left out, as its shot holds theirs too: words changed in a
+ * section with a background image are a change of words, not a picture redrawn. */
 function sortPairs(
   pairs: Pair[],
   before: readonly ElementInfo[],
@@ -147,10 +154,12 @@ function sortPairs(
   for (const pair of pairs) {
     const what = changedProperties(before[pair.before], after[pair.after], before, after);
     if (what.length) restyles.push({ element: pair, what });
-    else if (before[pair.before].paints && after[pair.after].paints) pictures.push(pair);
+    else if (isPicture(before[pair.before]) && isPicture(after[pair.after])) pictures.push(pair);
   }
   return { restyles, pictures };
 }
+
+const isPicture = (element: ElementInfo) => element.paints && element.leaf;
 
 /** What changed between an element on the before page and its pair on the after page, one label per
  * kind of change. A change a child only inherits from its parent is left to the parent. Sizes are
@@ -189,14 +198,21 @@ async function redrawn(pairs: Pair[], before: ComparedPage, after: ComparedPage)
   return found;
 }
 
-/** Whether two shots of an element differ. One that could not be shot is no change; a size that
- * differs is one. */
+/** Whether two shots of an element differ. One that could not be shot is no change. Shots of two
+ * sizes are compared at the smaller, so a picture layout only scaled is no change, as a box that
+ * grows or shrinks with the page around it is none; a size set in CSS is a change of style. */
 async function repainted(beforePng: Buffer | null, afterPng: Buffer | null): Promise<boolean> {
   if (!beforePng || !afterPng) return false;
   const pixelsOf = (png: Buffer) => sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
   const was = await pixelsOf(beforePng);
   const now = await pixelsOf(afterPng);
-  const { width, height } = was.info;
-  if (now.info.width !== width || now.info.height !== height) return true;
-  return pixelmatch(was.data, now.data, null, width, height, { threshold: 0.1 }) > 0;
+  const width = Math.min(was.info.width, now.info.width);
+  const height = Math.min(was.info.height, now.info.height);
+  const rescaled = [was, now].some(({ info }) => info.width !== width || info.height !== height);
+  const atSize = ({ data, info }: typeof was) =>
+    info.width === width && info.height === height
+      ? data
+      : sharp(data, { raw: info }).resize(width, height, { fit: 'fill' }).raw().toBuffer();
+  const differ = pixelmatch(await atSize(was), await atSize(now), null, width, height, { threshold: 0.1 });
+  return differ > (rescaled ? RESCALED_TOLERANCE * width * height : 0);
 }
