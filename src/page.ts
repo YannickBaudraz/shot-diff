@@ -1,6 +1,6 @@
 // The code that runs inside each page. Playwright sends a function's source to the page, not its
 // closure, so runtime() stands alone: no imports at run time, nothing from outside its body. It
-// returns the page's interface; loaded.ts installs it once per page and calls it.
+// reads the page and returns the page's interface; loaded.ts installs it once per page and calls it.
 
 import type { ElementInfo } from './looks.ts';
 
@@ -19,22 +19,22 @@ export type Marks = {
   color: string; // the boxes, the strike and the labels
   tint: string; // the background behind changed words
   strike: boolean; // strike the changed words through (the before page)
-  /** Word changes: the changed tokens and the unchanged ones around them, as indexes into read()'s words. */
+  /** Word changes: the changed tokens and the unchanged ones around them, as indexes into the reading's words. */
   words: { changed: number[]; anchors: number[] }[];
-  /** Changes of look: an element, as an index into read()'s elements, and what to put on its box. */
-  looks: { index: number; label: string | null; disc: { src: string; size: number } | null }[];
+  /** Changes of look: an element, as an index into the reading's elements, and what to put on its
+   * box: a label, or a disc. */
+  looks: { index: number; badge: { label: string } | { disc: { src: string; size: number } } }[];
 };
 
 /** Where each word change and each change of look sits, in the order mark() was given them. */
 export type Spans = { words: (Span | null)[]; looks: Span[] };
 
-export function runtime() {
+/** The page's runtime, reading the page's words and the `properties` of its elements before anything
+ * is drawn over it. */
+export function runtime(properties: string[]) {
   /** A word, as a stretch of a text node, or an image. */
   type Token = { node: Text; start: number; end: number } | { image: Element };
 
-  // What read() found, kept for mark() and snap().
-  let tokens: Token[] | null = null;
-  let domElements: Element[] | null = null;
   let marked = false;
 
   // Sizes in CSS pixels.
@@ -45,11 +45,6 @@ export function runtime() {
   const WORD_BOX_MARGIN = { x: 4, y: 3 }; // between a line of changed words and its box
   const SNAP_CLEARANCE = 6; // between a moved shot edge and the line of text it would have cut
   const ON_COLOR = '#ffffff'; // a label's words: ON_SIDE_COLOR in side.ts, which this code cannot import
-
-  const stored = () => {
-    if (!tokens || !domElements) throw new Error('read() has not run on this page yet');
-    return { tokens, domElements };
-  };
 
   const rangeOf = (token: Token) => {
     const range = document.createRange();
@@ -320,14 +315,12 @@ export function runtime() {
   };
 
   /** Where a boxed element's mark sits on the page: its box, with its disc or its label. */
-  const lookSpan = (look: Marks['looks'][number], box: Box): Span => {
+  const lookSpan = (badge: Marks['looks'][number]['badge'], box: Box): Span => {
     let top = Math.max(0, box.y);
     let bottom = box.y + box.height;
-    if (look.disc) top = Math.min(top, discCorner(box, look.disc.size).top);
-    if (look.label) {
-      if (labelFitsAbove(box)) top = Math.max(0, box.y - LABEL.height);
-      else bottom += LABEL.height;
-    }
+    if ('disc' in badge) top = Math.min(top, discCorner(box, badge.disc.size).top);
+    else if (labelFitsAbove(box)) top = Math.max(0, box.y - LABEL.height);
+    else bottom += LABEL.height;
     return { top, bottom, changed: { top, bottom } };
   };
 
@@ -340,9 +333,9 @@ export function runtime() {
   ): Span => {
     const box = grow(pageBox(element.getBoundingClientRect()), BOX.margin);
     const boxElement = drawBox(layer, color, box);
-    if (look.disc) drawDisc(layer, look.disc, box);
-    if (look.label) drawLabel(boxElement, look.label, color, box);
-    return lookSpan(look, box);
+    if ('disc' in look.badge) drawDisc(layer, look.badge.disc, box);
+    else drawLabel(boxElement, look.badge.label, color, box);
+    return lookSpan(look.badge, box);
   };
 
   /** Where each line of each token is on the page. */
@@ -354,26 +347,22 @@ export function runtime() {
   /** Whether a shot edge at `y` would cut through `line`. */
   const cuts = (line: Region, y: number) => line.top < y && y < line.bottom;
 
-  return {
-    /** The page's words and elements, read before anything is drawn over it, and its width. */
-    read(properties: string[]): { words: string[]; elements: ElementInfo[]; width: number } {
-      const words = readWords();
-      const elements = readElements(properties);
-      tokens = words.tokens;
-      domElements = elements.domElements;
-      return { words: words.words, elements: elements.elements, width: document.documentElement.clientWidth };
-    },
+  const { words, tokens } = readWords();
+  const { elements, domElements } = readElements(properties);
 
-    /** Element `index` of read(), for a shot of its own pixels; only before the page is marked. */
+  return {
+    /** The page's words and elements, read before anything was drawn over it, and its width. */
+    reading: { words, elements, width: document.documentElement.clientWidth },
+
+    /** Element `index` of the reading, for a shot of its own pixels; only before the page is marked. */
     element(index: number): Element {
       if (marked)
         throw new Error("an element's pixels are only given before anything is drawn over the page");
-      return stored().domElements[index];
+      return domElements[index];
     },
 
     /** Tint and box the changed words, box the elements whose look changed, and say where each is. */
     mark(marks: Marks): Spans {
-      const { tokens, domElements } = stored();
       marked = true;
       highlight(marks, tokens);
       const layer = overlay();
@@ -392,7 +381,7 @@ export function runtime() {
     /** The region with its edges moved out of any line of text they would cut: the top up, the
      * bottom down. Moving an edge can land it inside another line, so it repeats until neither moves. */
     snap(region: Region): Region {
-      const lines = textLines(stored().tokens);
+      const lines = textLines(tokens);
       let { top, bottom } = region;
       let moved: boolean;
       do {

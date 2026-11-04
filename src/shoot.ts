@@ -4,7 +4,7 @@ import type { Browser } from 'playwright-core';
 import { band, type Content, type Key } from './band.ts';
 import { diff, hunks, type Hunk } from './diff.ts';
 import { load, type LoadedPage, type LoadOptions } from './loaded.ts';
-import { compareLooks, type Look } from './looks.ts';
+import { compareLooks } from './looks.ts';
 import { markersFor, type Marker, type Mode } from './markers.ts';
 import type { Box } from './page.ts';
 import { plan, type Place, type Plan, type PlanOptions } from './plan.ts';
@@ -35,7 +35,7 @@ export async function run(browser: Browser, options: Options): Promise<Result> {
     const wordChanges = hunks(diff(pages.before.words, pages.after.words));
     const looks = await compareLooks(pages.before, pages.after); // before anything is drawn over the pages
     const markers = await markersFor(looks, options.markers, options.scale);
-    const changes = await markPages(pages, wordChanges, looks, markers);
+    const changes = await markPages(pages, wordChanges, markers);
     const planned = await plan(
       changes.map(change => change.place),
       options,
@@ -80,7 +80,6 @@ type Heading = Pick<Content, 'title' | 'number' | 'total'>;
 async function markPages(
   pages: Record<Side, LoadedPage>,
   wordChanges: Hunk[],
-  looks: Look[],
   markers: Marker[],
 ): Promise<Change[]> {
   const spans = await bothSides(side => pages[side].mark(wordChanges, markers));
@@ -91,10 +90,10 @@ async function markPages(
       text: { before: wordsOf('before', hunk.changed.before), after: wordsOf('after', hunk.changed.after) },
       marker: null,
     })),
-    ...looks.map((look, i) => ({
+    ...markers.map((marker, i) => ({
       place: { before: spans.before.looks[i], after: spans.after.looks[i] },
-      text: { before: look.name, after: look.name },
-      marker: markers[i],
+      text: { before: marker.name, after: marker.name },
+      marker,
     })),
   ];
 }
@@ -135,8 +134,8 @@ async function picture(
 function keyOf(changes: Change[], side: Side): Key[] {
   const numbered: (Key & { number: number })[] = [];
   for (const { marker } of changes) {
-    if (marker?.disc)
-      numbered.push({ number: marker.number, disc: marker.disc.image[side], what: marker.what });
+    if (marker && 'disc' in marker.badge)
+      numbered.push({ number: marker.number, disc: marker.badge.disc[side], what: marker.what.join(', ') });
   }
   return numbered.sort((x, y) => x.number - y.number);
 }

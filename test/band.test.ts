@@ -31,7 +31,9 @@ const key = async (count: number) =>
       'numbers',
       SCALE,
     )
-  ).map(m => ({ disc: m.disc!.image.before, what: m.what }));
+  ).flatMap(({ badge, what }) =>
+    'disc' in badge ? [{ disc: badge.disc.before, what: what.join(', ') }] : [],
+  );
 
 describe('band', () => {
   test('puts a band on top of the shot, and a 1px frame around both', async () => {

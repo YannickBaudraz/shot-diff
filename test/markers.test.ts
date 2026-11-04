@@ -1,6 +1,12 @@
 import sharp from 'sharp';
 import { describe, expect, test } from 'vitest';
-import { DISC, markersFor } from '../src/markers.ts';
+import { DISC, markersFor, type Marker } from '../src/markers.ts';
+
+/** A numbered marker's discs. */
+const discOf = ({ badge }: Marker) => {
+  if (!('disc' in badge)) throw new Error('not a numbered marker');
+  return badge.disc;
+};
 
 const looks = [
   { element: { before: 3, after: 4 }, what: ['background', 'weight'], name: '[a: background, weight]' },
@@ -8,29 +14,29 @@ const looks = [
 ];
 
 describe('markersFor', () => {
-  test('labels: what changed goes on the box, and there is no disc', async () => {
+  test('labels: what changed goes on the box', async () => {
     const m = await markersFor(looks, 'labels', 2);
-    expect(m.map(x => [x.number, x.element, x.label, x.disc])).toEqual([
-      [1, { before: 3, after: 4 }, 'background, weight', null],
-      [2, { before: 7, after: 9 }, 'picture', null],
+    expect(m.map(x => [x.number, x.element, x.badge])).toEqual([
+      [1, { before: 3, after: 4 }, { label: 'background, weight' }],
+      [2, { before: 7, after: 9 }, { label: 'picture' }],
     ]);
   });
 
-  test('numbers: a disc per side, in order, and no label', async () => {
+  test('numbers: a disc per side, in order', async () => {
     const m = await markersFor(looks, 'numbers', 2);
-    expect(m.map(x => [x.number, x.what, x.label])).toEqual([
-      [1, 'background, weight', null],
-      [2, 'picture', null],
+    expect(m.map(x => [x.number, 'disc' in x.badge])).toEqual([
+      [1, true],
+      [2, true],
     ]);
-    const { width, height } = await sharp(m[0].disc!.image.before).metadata();
+    const { before, after } = discOf(m[0]);
+    const { width, height } = await sharp(before).metadata();
     expect([width, height]).toEqual([DISC * 2, DISC * 2]);
-    expect(m[0].disc!.size).toBe(DISC);
-    expect(m[0].disc!.image.before.equals(m[0].disc!.image.after)).toBe(false); // red and green
+    expect(before.equals(after)).toBe(false); // red and green
   });
 
   test('a 1 sits on the middle of its disc, by its ink, not by its box', async () => {
     const [m] = await markersFor(looks.slice(0, 1), 'numbers', 4);
-    const { data, info } = await sharp(m.disc!.image.before).raw().toBuffer({ resolveWithObject: true });
+    const { data, info } = await sharp(discOf(m).before).raw().toBuffer({ resolveWithObject: true });
     // The number is the white inside the ring: the middle 60% of the disc.
     let mass = 0,
       sumX = 0;

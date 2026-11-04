@@ -6,7 +6,7 @@ import { runtime, type Marks, type Runtime } from '../src/page.ts';
 
 const STYLE = '<style>body { margin: 0; font: 16px/24px sans-serif } p { margin: 0 0 24px }</style>';
 const PROPS = ['margin-top', 'color']; // read as looks.ts reads them; the full list lives there, with Node-only code
-const install = () => new Function(`return (${runtime.toString()})()`)() as Runtime;
+const install = () => new Function(`return (${runtime.toString()})(${JSON.stringify(PROPS)})`)() as Runtime;
 const page = (html: string) => {
   document.body.innerHTML = STYLE + html;
   return install();
@@ -39,14 +39,14 @@ describe('read', () => {
     const p = page(
       '<p>One two</p><p style="display:none">hidden</p><img src="pics/logo.png" width="10" height="10"><p>three</p>',
     );
-    expect(p.read(PROPS).words).toEqual(['One', 'two', '[image logo.png]', 'three']);
+    expect(p.reading.words).toEqual(['One', 'two', '[image logo.png]', 'three']);
   });
 
   test('reads the CSS value, so a margin set to auto stays auto', () => {
     const p = page(
       '<div style="display:flex;flex-direction:column;height:300px"><p>a</p><p style="margin-top:auto">b</p></div>',
     );
-    const { elements } = p.read(PROPS);
+    const { elements } = p.reading;
     const b = elements.find(e => e.signature === 'P b')!;
     expect(b.style['margin-top']).toBe('auto');
     expect(elements[b.parent].signature).toBe('DIV');
@@ -57,7 +57,7 @@ describe('read', () => {
     const p = page(
       '<svg width="40" height="40" aria-label="chart"><rect width="40" height="40" fill="blue"/></svg>',
     );
-    const { elements } = p.read(PROPS);
+    const { elements } = p.reading;
     expect(elements.map(e => e.signature)).toEqual(['svg chart']);
     expect(elements[0].paints).toBe(true);
   });
@@ -72,7 +72,6 @@ describe('the order', () => {
 
   test("an element's pixels are not given once the page is marked", () => {
     const p = page('<p>a</p>');
-    p.read(PROPS);
     expect(p.element(0).tagName).toBe('P');
     p.mark(marks({}));
     expect(() => p.element(0)).toThrow(/only given before anything is drawn/);
@@ -82,7 +81,6 @@ describe('the order', () => {
 describe('mark', () => {
   test('tints the changed words and boxes a wrapped change line by line', () => {
     const p = page('<p style="width:120px">aa bb cc dd ee ff gg hh</p>');
-    p.read(PROPS);
     const marked = p.mark(marks({ words: [{ changed: [2, 3, 4, 5, 6], anchors: [1, 7] }] }));
     expect(CSS.highlights.get('shot-diff')?.size).toBeGreaterThan(0);
     const boxes = drawn();
@@ -97,12 +95,11 @@ describe('mark', () => {
 
   test('a label sits above its box, or below it at the top of the page', () => {
     const p = page(twoButtons);
-    p.read(PROPS);
     const { looks } = p.mark(
       marks({
         looks: [
-          { index: 0, label: 'background', disc: null },
-          { index: 1, label: 'border', disc: null },
+          { index: 0, badge: { label: 'background' } },
+          { index: 1, badge: { label: 'border' } },
         ],
       }),
     );
@@ -116,9 +113,8 @@ describe('mark', () => {
 
   test('a disc is the image it is given, on the box, with no label', () => {
     const p = page(twoButtons);
-    p.read(PROPS);
     const src = 'data:image/png;base64,iVBORw0KGgo=';
-    p.mark(marks({ looks: [{ index: 1, label: null, disc: { src, size: 24 } }] }));
+    p.mark(marks({ looks: [{ index: 1, badge: { disc: { src, size: 24 } } }] }));
     const [box, disc] = drawn();
     expect(box.children).toHaveLength(0);
     expect((disc as HTMLImageElement).src).toBe(src);
@@ -129,7 +125,6 @@ describe('mark', () => {
 describe('snap', () => {
   test('moves an edge that would cut a line of text off it', () => {
     const p = page('<p>first line</p><p>second line</p>');
-    p.read(PROPS);
     // The second line runs from 48px to 72px; edges inside it move to its outside.
     expect(p.snap({ top: 60, bottom: 200 }).top).toBeLessThanOrEqual(48);
     expect(p.snap({ top: 0, bottom: 60 }).bottom).toBeGreaterThanOrEqual(72);

@@ -18,25 +18,23 @@ const RING = 2;
 /** The size of a disc's number, in points: one point to the CSS pixel. */
 const NUMBER_SIZE = 12;
 
-/** How a change of look is marked: its element on each page, its number, what changed, and what goes
- * on its box, either a label or a disc image for each side. */
-export type Marker = {
-  element: Record<Side, number>;
-  number: number;
-  what: string;
-  label: string | null;
-  disc: { image: Record<Side, Buffer>; size: number } | null; // size in CSS pixels
-};
+/** What goes on a change of look's box: a label saying what changed, or a disc image for each side,
+ * DISC wide. */
+export type Badge = { label: string } | { disc: Record<Side, Buffer> };
+
+/** A change of look, numbered, with what goes on its box. */
+export type Marker = Look & { number: number; badge: Badge };
 
 /** The markers of `looks`, numbered in their order. */
 export async function markersFor(looks: Look[], mode: Mode, scale: number): Promise<Marker[]> {
   return Promise.all(
     looks.map(async (look, index) => {
       const number = index + 1;
-      const what = look.what.join(', ');
-      if (mode === 'labels') return { element: look.element, number, what, label: what, disc: null };
-      const image = await bothSides(side => disc(number, side, scale));
-      return { element: look.element, number, what, label: null, disc: { image, size: DISC } };
+      const badge: Badge =
+        mode === 'labels'
+          ? { label: look.what.join(', ') }
+          : { disc: await bothSides(side => disc(number, side, scale)) };
+      return { ...look, number, badge };
     }),
   );
 }

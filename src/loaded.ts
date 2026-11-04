@@ -5,7 +5,7 @@
 import { errors, type Browser, type BrowserContext, type Page } from 'playwright-core';
 import type { Hunk } from './diff.ts';
 import { PROPERTIES, type ElementInfo } from './looks.ts';
-import type { Marker } from './markers.ts';
+import { DISC, type Marker } from './markers.ts';
 import { runtime, type Box, type Marks, type Region, type Runtime, type Spans } from './page.ts';
 import { COLORS, type Side } from './side.ts';
 
@@ -58,7 +58,7 @@ export async function load(
   });
   try {
     const page = await open(context, url, options);
-    const { words, elements, width } = await call(page, 'read', Object.keys(PROPERTIES));
+    const { words, elements, width } = await page.evaluate(() => window.__shotDiff.reading);
     return {
       side,
       words,
@@ -78,7 +78,7 @@ export async function load(
 }
 
 /** The page at `url`: stored settings set before it runs, loaded, clicked, waited for, and with the
- * runtime installed. */
+ * runtime installed, which reads it. */
 async function open(context: BrowserContext, url: string, options: LoadOptions): Promise<Page> {
   if (options.storage.length) {
     await context.addInitScript(pairs => {
@@ -92,13 +92,18 @@ async function open(context: BrowserContext, url: string, options: LoadOptions):
     await page.waitForTimeout(AFTER_CLICK_MS);
   }
   await page.waitForTimeout(options.wait);
-  await page.evaluate(`window.__shotDiff = (${runtime.toString()})()`);
+  await page.evaluate(
+    `window.__shotDiff = (${runtime.toString()})(${JSON.stringify(Object.keys(PROPERTIES))})`,
+  );
   return page;
 }
 
+/** The runtime's functions, called from here; the rest of it is read where it is. */
+type Method = 'mark' | 'region' | 'snap';
+
 /** Call one of the runtime's functions in the page. What is sent to the page names nothing outside
  * itself; its result comes back untyped, so it is typed here from the runtime's own signature. */
-function call<Name extends keyof Runtime>(page: Page, name: Name, arg: Parameters<Runtime[Name]>[0]) {
+function call<Name extends Method>(page: Page, name: Name, arg: Parameters<Runtime[Name]>[0]) {
   const result = page.evaluate(
     ({ name, arg }) => (window.__shotDiff[name] as (arg: unknown) => unknown)(arg),
     { name, arg },
@@ -135,13 +140,12 @@ function marksFor(side: Side, hunks: Hunk[], markers: Marker[]): Marks {
     ...COLORS[side],
     strike: side === 'before',
     words: hunks.map(hunk => ({ changed: hunk.changed[side], anchors: hunk.anchors[side] })),
-    looks: markers.map(marker => ({
-      index: marker.element[side],
-      label: marker.label,
-      disc: marker.disc && {
-        src: `data:image/png;base64,${marker.disc.image[side].toString('base64')}`,
-        size: marker.disc.size,
-      },
+    looks: markers.map(({ element, badge }) => ({
+      index: element[side],
+      badge:
+        'label' in badge
+          ? badge
+          : { disc: { src: `data:image/png;base64,${badge.disc[side].toString('base64')}`, size: DISC } },
     })),
   };
 }
