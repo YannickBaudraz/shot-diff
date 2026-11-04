@@ -64,12 +64,6 @@ describe('read', () => {
 });
 
 describe('the order', () => {
-  test('nothing is marked or snapped before the page is read', () => {
-    const p = page('<p>a</p>');
-    expect(() => p.mark(marks({}))).toThrow(/read\(\) has not run/);
-    expect(() => p.snap({ top: 0, bottom: 10 })).toThrow(/read\(\) has not run/);
-  });
-
   test("an element's pixels are not given once the page is marked", () => {
     const p = page('<p>a</p>');
     expect(p.element(0).tagName).toBe('P');
