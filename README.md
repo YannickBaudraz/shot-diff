@@ -7,7 +7,7 @@ Changes with no words in them are marked too: an element whose look changed (a c
 size) gets a box saying what changed, and so does a picture redrawn under the same file name.
 
 ```sh
-npx github:YannickBaudraz/shot-diff http://localhost:3000/cart http://localhost:3001/cart --title "Cart: the empty state"
+npx shot-diff http://localhost:3000/cart http://localhost:3001/cart --title "Cart: the empty state"
 # shot-before.png  shot-after.png
 ```
 
