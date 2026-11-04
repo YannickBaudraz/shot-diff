@@ -9,22 +9,11 @@ import type { Mode } from './markers.ts';
 import type { Box } from './page.ts';
 import { run, type Options, type Result } from './shoot.ts';
 
-/** The options as commander gives them, by their camel-cased names. */
-type CliValues = {
-  title: string;
+/** The options as commander gives them, by their camel-cased names: the run's, and the command's own. */
+type CliValues = Omit<Options, 'before' | 'after' | 'selector'> & {
+  selector?: string;
   out: string;
   name: string;
-  width: number;
-  height: number;
-  scale: number;
-  dark: boolean;
-  storage: [string, string][];
-  click: string[];
-  wait: number;
-  selector?: string;
-  padding: number;
-  markers: Mode;
-  maxHeight: number;
   chrome?: string;
   download?: boolean; // undefined when neither --download nor --no-download is given
   json: boolean;
@@ -143,24 +132,10 @@ function downloadChoice(download: boolean | undefined): Download {
   return 'ask';
 }
 
+/** The run's options: the command's own left out, and no --selector as null. */
 function options(before: string, after: string, values: CliValues): Options {
-  const { title, width, height, scale, dark, storage, click, wait, padding, maxHeight, markers } = values;
-  return {
-    before,
-    after,
-    title,
-    width,
-    height,
-    scale,
-    dark,
-    storage,
-    click,
-    wait,
-    selector: values.selector ?? null,
-    padding,
-    maxHeight,
-    markers,
-  };
+  const { out, name, chrome, download, json, selector, ...run } = values;
+  return { ...run, before, after, selector: selector ?? null };
 }
 
 /** Write each shot's two images; a page with several shots numbers them in the file names. */
