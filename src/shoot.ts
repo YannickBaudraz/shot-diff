@@ -21,12 +21,14 @@ export type Options = LoadOptions &
 export type ShotSide = { png: Buffer; changed: string[]; box: Box };
 export type Shot = { before: ShotSide; after: ShotSide };
 /** How many word changes and changes of look were found, the shots, the changes found but cut from
- * every image, and the changes outside --selector's element, which no shot looks for. */
+ * every image, the changes a scroll area cuts off on the page itself, and the changes outside
+ * --selector's element, which no shot looks for. */
 export type Result = {
   wordChanges: number;
   lookChanges: number;
   shots: Shot[];
   leftOut: { removed: string[]; added: string[] };
+  hidden: { removed: string[]; added: string[] };
   ignored: { removed: string[]; added: string[] };
 };
 
@@ -50,6 +52,10 @@ export async function run(browser: Browser, options: Options): Promise<Result> {
       leftOut: {
         removed: planned.leftOut.before.map(i => changes[i].text.before),
         added: planned.leftOut.after.map(i => changes[i].text.after),
+      },
+      hidden: {
+        removed: planned.hidden.before.map(i => changes[i].text.before),
+        added: planned.hidden.after.map(i => changes[i].text.after),
       },
       ignored: {
         removed: planned.outside.map(i => changes[i].text.before).filter(Boolean),
@@ -115,7 +121,7 @@ async function unmarkIgnored(pages: Record<Side, LoadedPage>, outside: number[],
 }
 
 /** Each planned shot's two sides, numbered in the band when there are several. A side lists, and
- * keys, only the changes it shows: one cut from it is left out, not shown. */
+ * keys, only the changes it shows: one cut from it, or cut off on the page, is not shown. */
 async function draw(
   planned: Plan,
   changes: Change[],
@@ -126,7 +132,9 @@ async function draw(
   for (const [index, shot] of planned.shots.entries()) {
     const heading = { title: options.title, number: index + 1, total: planned.shots.length };
     const shown = (side: Side) =>
-      shot.changes.filter(i => !planned.leftOut[side].includes(i)).map(i => changes[i]);
+      shot.changes
+        .filter(i => !planned.leftOut[side].includes(i) && !planned.hidden[side].includes(i))
+        .map(i => changes[i]);
     shots.push(
       await bothSides(side => picture(pages[side], shot[side], shown(side), heading, options.scale)),
     );

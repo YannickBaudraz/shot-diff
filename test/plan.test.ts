@@ -8,7 +8,10 @@ const at = (top: number, bottom = top + 20): Span => ({
   bottom,
   changed: { top, bottom },
   inside: true,
+  clipped: false,
 });
+/** A change at `top` that a scroll area cuts off: the page drew no box for it. */
+const clippedAt = (top: number): Span => ({ ...at(top), changed: null, clipped: true });
 /** The same change, outside --selector's element as the page said when it marked it. */
 const outsideAt = (top: number, bottom = top + 20): Span => ({ ...at(top, bottom), inside: false });
 /** Where an element is. */
@@ -162,6 +165,7 @@ describe('what is left out', () => {
       bottom: 5120,
       changed: { top: 100, bottom: 120 },
       inside: true,
+      clipped: false,
     };
     const p = await plan([both(reaching)], options, pages(fakePage(undefined, { '#top': el(0, 200) })));
     expect(p.shots[0].before).toEqual({ x: 0, y: 20, width: 1000, height: 260 });
@@ -195,12 +199,38 @@ describe('what is left out', () => {
   });
 
   test('a side with no changed words has nothing to leave out', async () => {
-    const empty: Span = { top: 3000, bottom: 3020, changed: null, inside: false };
+    const empty: Span = { top: 3000, bottom: 3020, changed: null, inside: false, clipped: false };
     const p = await plan(
       [{ before: empty, after: at(100) }],
       { ...OPTIONS, selector: '#top' },
       pages(fakePage(undefined, { '#top': el(0, 200) })),
     );
     expect(p.leftOut).toEqual({ before: [], after: [] });
+  });
+});
+
+describe('what a scroll area cuts off', () => {
+  test('a change cut off on one page is shot where it is, and listed as hidden on that page', async () => {
+    const p = await plan([{ before: clippedAt(300), after: at(300) }], OPTIONS, pages());
+    expect(p.shots.map(s => s.changes)).toEqual([[0]]);
+    expect(p.shots[0].before).toEqual({ x: 0, y: 220, width: 1000, height: 180 });
+    expect(p.hidden).toEqual({ before: [0], after: [] });
+    expect(p.leftOut).toEqual({ before: [], after: [] });
+  });
+
+  test('a change cut off on both pages gets no shot of its own', async () => {
+    const p = await plan([both(clippedAt(100)), both(at(5000))], OPTIONS, pages());
+    expect(p.shots.map(s => s.changes)).toEqual([[1]]);
+    expect(p.hidden).toEqual({ before: [0], after: [0] });
+  });
+
+  test('--selector: a change cut off inside the element is hidden, not ignored', async () => {
+    const p = await plan(
+      [both(clippedAt(100))],
+      { ...OPTIONS, selector: 'main' },
+      pages(fakePage(undefined, { main: el(0, 2000) })),
+    );
+    expect(p.outside).toEqual([]);
+    expect(p.hidden).toEqual({ before: [0], after: [0] });
   });
 });

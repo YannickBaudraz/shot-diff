@@ -155,8 +155,8 @@ function write(result: Result, out: string, name: string): WrittenShot[] {
 
 /** What was marked, where, and what was left out, as JSON on stdout. */
 function printJson(result: Result, shots: WrittenShot[]) {
-  const { wordChanges, lookChanges, leftOut, ignored } = result;
-  console.log(JSON.stringify({ wordChanges, lookChanges, shots, leftOut, ignored }, null, 2));
+  const { wordChanges, lookChanges, leftOut, hidden, ignored } = result;
+  console.log(JSON.stringify({ wordChanges, lookChanges, shots, leftOut, hidden, ignored }, null, 2));
 }
 
 /** A line per image written, and how many parts it marks. */
@@ -168,16 +168,18 @@ function printLines(shots: WrittenShot[]) {
 }
 
 /** On stderr, so stdout stays the --json output: when nothing changed, when changes were outside
- * --selector, or when a change is in no image. */
+ * --selector, when a change is cut from every image, or cut off on the page itself. */
 function warn(result: Result) {
   if (!result.wordChanges && !result.lookChanges)
     console.error(
       "shot-diff: no difference in the pages' words, images or looks; the shots show the top of each page",
     );
-  const missed = [
-    ...result.leftOut.removed.map(s => `removed: ${s}`),
-    ...result.leftOut.added.map(s => `added: ${s}`),
+  const listed = ({ removed, added }: Result['leftOut']) => [
+    ...removed.map(s => `removed: ${s}`),
+    ...added.map(s => `added: ${s}`),
   ];
+  const missed = listed(result.leftOut);
+  const hidden = listed(result.hidden);
   const ignored = result.ignored.removed.length + result.ignored.added.length;
   if (ignored)
     console.error(
@@ -188,6 +190,12 @@ function warn(result: Result) {
       `shot-diff: ${missed.length} change(s) are cut from every image; raise --max-height to fit them:`,
     );
     for (const line of missed) console.error(`  ${line}`);
+  }
+  if (hidden.length) {
+    console.error(
+      `shot-diff: ${hidden.length} change(s) are in a part of the page a scroll area cuts off, so no image can show them:`,
+    );
+    for (const line of hidden) console.error(`  ${line}`);
   }
 }
 

@@ -88,6 +88,17 @@ test('a change cut from its shot is listed as left out, not as in the shot', () 
   expect(done.stderr).toMatch(/cut from every image; raise --max-height/);
 });
 
+test('a change a scroll area cuts off is listed as hidden, and no box is drawn for it', () => {
+  const { done, result } = shotDiff(page('clipped-before.html'), page('clipped-after.html'), '--title', 't');
+  expect(done.status, done.stderr).toBe(0);
+  expect(result.shots).toHaveLength(1);
+  expect(result.shots[0].before.removed).toEqual(['as it was.']); // the line shown on the page
+  expect(result.shots[0].after.added).toEqual(['changed.']);
+  expect(result.hidden).toEqual({ removed: ['as it was.'], added: ['changed.'] });
+  expect(result.leftOut).toEqual({ removed: [], added: [] });
+  expect(done.stderr).toMatch(/2 change\(s\) are in a part of the page a scroll area cuts off/);
+});
+
 test('the same page twice marks nothing and says so', () => {
   const { done, result } = shotDiff(page('before.html'), page('before.html'), '--title', 't');
   expect(done.status, done.stderr).toBe(0);

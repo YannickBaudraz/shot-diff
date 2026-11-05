@@ -26,9 +26,15 @@ export type PlanPage = {
 /** A shot: its changes (indexes into the places, top to bottom), and the part of each page it shows. */
 export type PlannedShot = { changes: number[] } & Record<Side, Box>;
 
-/** The shots; the changes whose changed part is in no shot, on each page; and the changes outside
- * --selector's element on both pages, which no shot looks for. */
-export type Plan = { shots: PlannedShot[]; leftOut: Record<Side, number[]>; outside: number[] };
+/** The shots; the changes whose changed part is in no shot, on each page; the changes a scroll area
+ * cuts off, on each page, which no shot can show there; and the changes outside --selector's element
+ * on both pages, which no shot looks for. */
+export type Plan = {
+  shots: PlannedShot[];
+  leftOut: Record<Side, number[]>;
+  hidden: Record<Side, number[]>;
+  outside: number[];
+};
 
 export async function plan(
   places: Place[],
@@ -38,10 +44,13 @@ export async function plan(
   const { kept, outside, regions } = options.selector
     ? await within(places, options.selector, pages)
     : { kept: places, outside: [] as number[], regions: null };
-  const order = kept
-    .map((_, i) => i)
-    .filter(i => !outside.includes(i))
-    .sort((i, j) => startOf(kept[i]) - startOf(kept[j]));
+  const counted = kept.map((_, i) => i).filter(i => !outside.includes(i));
+  const hiddenOn = (side: Side) => counted.filter(i => kept[i][side]?.clipped);
+  const hidden = { before: hiddenOn('before'), after: hiddenOn('after') };
+  // A change cut off wherever it shows gets no shot: there would be nothing marked in it.
+  const shown = (i: number) =>
+    SIDES.some(side => kept[i][side]?.changed) || !SIDES.some(side => kept[i][side]?.clipped);
+  const order = counted.filter(shown).sort((i, j) => startOf(kept[i]) - startOf(kept[j]));
   const shots: PlannedShot[] = [];
   const leftOut: Record<Side, number[]> = { before: [], after: [] };
   const groups = byDistance(order, kept, options);
@@ -60,7 +69,7 @@ export async function plan(
       leftOut[side].push(...group.changes.filter(i => isOutside(kept[i][side], shot[side])));
     shots.push(shot);
   }
-  return { shots, leftOut, outside };
+  return { shots, leftOut, hidden, outside };
 }
 
 /** The places cut to `selector`'s element on each page, and the changes inside it on neither page,
@@ -75,7 +84,7 @@ async function within(
   const kept: Place[] = [];
   const outside: number[] = [];
   for (const [i, place] of places.entries()) {
-    const counts = SIDES.some(side => place[side]?.changed && place[side].inside);
+    const counts = SIDES.some(side => has(place[side]) && place[side]?.inside);
     if (!counts) outside.push(i);
     kept.push(
       counts ? { before: cut(place.before, regions.before), after: cut(place.after, regions.after) } : place,
@@ -94,11 +103,14 @@ function bothFound(found: Record<Side, Region | null>, selector: string): Record
 /** A change's place on one page, cut to the element's height: null when its changed part is outside
  * the element, or when nothing of it is in the element's height. */
 function cut(span: Span | null, region: Region): Span | null {
-  if (!span || (span.changed && !span.inside)) return null;
+  if (!span || (has(span) && !span.inside)) return null;
   const top = Math.max(span.top, region.top);
   const bottom = Math.min(span.bottom, region.bottom);
   return top < bottom ? { ...span, top, bottom } : null;
 }
+
+/** Whether a page has the change itself, shown or cut off, not only the unchanged words around it. */
+const has = (span: Span | null) => !!span && (span.changed !== null || span.clipped);
 
 /** Changes that share a shot, and the region they span on each page (null where they have none). */
 type Group = { changes: number[] } & Record<Side, Region | null>;

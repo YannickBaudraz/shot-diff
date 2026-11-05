@@ -91,11 +91,15 @@ To find a selector, open the page in your browser, right-click the part you want
   be. Raise `--max-height`, or narrow the shot with `--selector`.
 - **"N change(s) outside --selector ignored"**: changes it found outside the element you named. That
   is expected; `--json` lists them under `ignored` if you want to check.
+- **"N change(s) are in a part of the page a scroll area cuts off"**: the change is on the page, but
+  inside a scroll area (a sidebar, a code block, a panel) past what it shows, so no screenshot can
+  show it. The list tells you what to look at in the browser.
 - **"no difference"**: both pages look the same to it. Check the two addresses are really the two
   versions.
 
 `--json` prints all of this as JSON: for each image, its file, what it marks and where; then
-`leftOut` (cut from every image) and `ignored` (outside `--selector`).
+`leftOut` (cut from every image), `hidden` (cut off by a scroll area) and `ignored` (outside
+`--selector`).
 
 ## Get the page in the right state
 
@@ -155,8 +159,9 @@ to use another Chrome or Chromium.
    `--markers numbers`: red on the before shot, green on the after.
 5. It shoots the area around the changes, unchanged words next to each change included, so both
    shots show the same place even when one side of a change is empty. With `--selector`, it first
-   drops the changes outside the element's tree, and takes their marks off. Changes far apart are
-   shot apart, and an edge of a shot never cuts a line of text in half.
+   drops the changes outside the element's tree, and takes their marks off. A box goes around what
+   a scroll area shows of a change; a change it shows none of gets no box and is listed instead.
+   Changes far apart are shot apart, and an edge of a shot never cuts a line of text in half.
 6. It draws the band on each shot with [sharp](https://sharp.pixelplumbing.com).
 
 ## Limits

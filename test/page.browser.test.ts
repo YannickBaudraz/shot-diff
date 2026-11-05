@@ -154,6 +154,44 @@ describe('inside --selector', () => {
   });
 });
 
+describe('cut off', () => {
+  test("a change past a scroll area's edge gets no box and says it is clipped; one in view is boxed", () => {
+    // The scroll area shows one 24px line: "aa bb" is in view, "cc dd" 48px down is not.
+    const p = page(
+      '<div style="height:24px;overflow:auto"><p>aa bb</p><p>cc dd</p></div>' +
+        '<div style="height:10px;overflow:hidden"><button style="position:fixed;top:200px">fixed</button></div>',
+    );
+    const index = (signature: string) => p.reading.elements.findIndex(e => e.signature === signature);
+    const { words, looks } = p.mark(
+      marks({
+        words: [
+          { changed: [0], anchors: [1] },
+          { changed: [2], anchors: [3] },
+        ],
+        looks: [
+          { index: index('P cc dd'), badge: { label: 'colour' } },
+          { index: index('BUTTON fixed'), badge: { label: 'colour' } }, // fixed: the box around it does not clip it
+        ],
+      }),
+    );
+    expect(words.map(w => w!.clipped)).toEqual([false, true]);
+    expect(words[1]!.changed).toBeNull();
+    expect(looks.map(l => l.clipped)).toEqual([true, false]);
+    expect(drawn()).toHaveLength(2); // the box on "aa", and the button's
+  });
+
+  test('a box goes around what shows of an element a scroll area cuts in part', () => {
+    const p = page(
+      '<div style="height:30px;overflow:hidden"><section style="height:300px">tall</section></div>',
+    );
+    const index = p.reading.elements.findIndex(e => e.tag === 'section');
+    const { looks } = p.mark(marks({ looks: [{ index, badge: { disc: { src: 'data:,', size: 10 } } }] }));
+    const [box] = drawn();
+    expect(box.getBoundingClientRect().height).toBe(30 + 2 * 4); // the 30px shown, and the box's margin
+    expect(looks[0].clipped).toBe(false);
+  });
+});
+
 describe('unmark', () => {
   test("takes back only the given changes' tints, boxes, outlines and discs", () => {
     const p = page(

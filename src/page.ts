@@ -11,9 +11,10 @@ export type Region = { top: number; bottom: number };
 
 /** Where one change sits on the page, in page pixels. `top` and `bottom` take in what is shown around
  * it: the unchanged words next to a word change, the label of a box. `changed` is the change alone,
- * null when this page has nothing of a word change. `inside` says whether the change is inside the
- * marks' `within` element: always, with none; never, when this page has nothing of it. */
-export type Span = Region & { changed: Region | null; inside: boolean };
+ * null when this page has nothing of a word change, or when the change is `clipped`: on the page,
+ * but where a scroll area or another clipping element shows none of it, so no box is drawn. `inside`
+ * says whether the change is inside the marks' `within` element: always, with none. */
+export type Span = Region & { changed: Region | null; inside: boolean; clipped: boolean };
 
 /** What to draw on a page. */
 export type Marks = {
@@ -96,6 +97,41 @@ export function runtime(properties: string[]) {
 
   /** The token's rectangles on screen, one per line it is on. */
   const rectsOf = (token: Token) => [...rangeOf(token).getClientRects()].filter(r => r.width || r.height);
+
+  /** The part of `rect`, on screen, that the clipping elements from `clipper` up show, or null when
+   * they show none of it: a scroll area's edge, or any overflow that is not visible, cuts the rest
+   * off. The page itself scrolls into the shots, so html and body do not count; nor does anything
+   * around a fixed element, which they do not clip. */
+  const shownPart = (rect: DOMRect, clipper: Element | null): DOMRect | null => {
+    let { left, top, right, bottom } = rect;
+    for (
+      let node = clipper;
+      node && node !== document.body && node !== document.documentElement;
+      node = node.parentElement
+    ) {
+      const style = getComputedStyle(node);
+      const box = node.getBoundingClientRect();
+      const x = box.left + node.clientLeft;
+      const y = box.top + node.clientTop;
+      if (style.overflowX !== 'visible') {
+        left = Math.max(left, x);
+        right = Math.min(right, x + node.clientWidth);
+      }
+      if (style.overflowY !== 'visible') {
+        top = Math.max(top, y);
+        bottom = Math.min(bottom, y + node.clientHeight);
+      }
+      if (style.position === 'fixed') break;
+    }
+    return right > left && bottom > top ? new DOMRect(left, top, right - left, bottom - top) : null;
+  };
+
+  /** What shows of a token, a rectangle per line it is on: its text is clipped by its own element
+   * and those around it, an image by those around it. */
+  const shownRectsOf = (token: Token) => {
+    const clipper = 'image' in token ? token.image.parentElement : token.node.parentElement;
+    return rectsOf(token).flatMap(rect => shownPart(rect, clipper) ?? []);
+  };
 
   /** A layer over the page for the boxes, so nothing the page lays out moves. */
   const overlay = () => {
@@ -287,7 +323,8 @@ export function runtime(properties: string[]) {
   };
 
   /** Box a word change, one box per line, so a change that wraps gets no box through the words
-   * between; and say where it is, with the unchanged words around it. Each box drawn goes in `drawn`. */
+   * between; and say where it is, with the unchanged words around it. Each box drawn goes in `drawn`.
+   * A changed word that a scroll area cuts off gets no box; with none shown, the change is clipped. */
   const boxWords = (
     change: Marks['words'][number],
     tokens: Token[],
@@ -295,7 +332,7 @@ export function runtime(properties: string[]) {
     color: string,
     drawn: HTMLElement[],
   ): Span | null => {
-    const elements = linesOf(change.changed.flatMap(i => rectsOf(tokens[i]))).map(line =>
+    const elements = linesOf(change.changed.flatMap(i => shownRectsOf(tokens[i]))).map(line =>
       drawBox(layer, color, grow(pageBox(around(line)), WORD_BOX_MARGIN.x, WORD_BOX_MARGIN.y)),
     );
     drawn.push(...elements);
@@ -306,6 +343,7 @@ export function runtime(properties: string[]) {
       ...inPage(pageRegion(shown)),
       changed: boxes.length ? inPage(pageRegion(boxes)) : null,
       inside: true,
+      clipped: change.changed.length > 0 && !boxes.length,
     };
   };
 
@@ -343,7 +381,8 @@ export function runtime(properties: string[]) {
   };
 
   /** Box an element whose look changed, with its label or its disc, and say where all that is. The
-   * box and the disc go in `drawn`; a label is inside its box. */
+   * box and the disc go in `drawn`; a label is inside its box. The box is around what shows of the
+   * element: an element a scroll area cuts off is not boxed at all, it is clipped. */
   const boxLook = (
     look: Marks['looks'][number],
     element: Element,
@@ -351,7 +390,11 @@ export function runtime(properties: string[]) {
     color: string,
     drawn: HTMLElement[],
   ): Span => {
-    const box = grow(pageBox(element.getBoundingClientRect()), BOX.margin);
+    const rect = element.getBoundingClientRect();
+    const clipper = getComputedStyle(element).position === 'fixed' ? null : element.parentElement;
+    const shown = shownPart(rect, clipper);
+    if (!shown) return { ...inPage(pageRegion([rect])), changed: null, inside: true, clipped: true };
+    const box = grow(pageBox(shown), BOX.margin);
     const boxElement = drawBox(layer, color, box);
     const badge =
       'disc' in look.badge
@@ -360,7 +403,7 @@ export function runtime(properties: string[]) {
     drawn.push(boxElement);
     if (badge.parentElement !== boxElement) drawn.push(badge);
     const region = inPage(pageRegion([boxElement, badge].map(drawn => drawn.getBoundingClientRect())));
-    return { ...region, changed: region, inside: true };
+    return { ...region, changed: region, inside: true, clipped: false };
   };
 
   /** Where each line of each token is on the page. */
