@@ -75,20 +75,36 @@ describe('band', () => {
 });
 
 describe('intoRows', () => {
-  const gaps = { itemGap: 10, rowStep: 30 };
+  const gaps = { itemGap: 10, rowGap: 5 };
+  const item = (width: number, height = 20) => ({ width, height });
 
   test('starts a new row when the next item would not fit', () => {
-    expect(intoRows([40, 40, 40], 100, gaps)).toEqual([
-      { left: 0, top: 0 },
-      { left: 50, top: 0 },
-      { left: 0, top: 30 },
-    ]);
+    expect(intoRows([item(40), item(40), item(40)], 100, gaps)).toEqual({
+      spots: [
+        { left: 0, top: 0, rowHeight: 20 },
+        { left: 50, top: 0, rowHeight: 20 },
+        { left: 0, top: 25, rowHeight: 20 },
+      ],
+      height: 45,
+    });
   });
 
   test('an item wider than a row takes one of its own, not an empty one before it', () => {
-    expect(intoRows([150, 40], 100, gaps)).toEqual([
-      { left: 0, top: 0 },
-      { left: 0, top: 30 },
+    expect(intoRows([item(150), item(40)], 100, gaps).spots).toEqual([
+      { left: 0, top: 0, rowHeight: 20 },
+      { left: 0, top: 25, rowHeight: 20 },
     ]);
+  });
+
+  test('each row is as tall as its tallest item, and no taller', () => {
+    expect(intoRows([item(40), item(40, 60), item(40), item(40)], 100, gaps)).toEqual({
+      spots: [
+        { left: 0, top: 0, rowHeight: 60 },
+        { left: 50, top: 0, rowHeight: 60 },
+        { left: 0, top: 65, rowHeight: 20 },
+        { left: 50, top: 65, rowHeight: 20 },
+      ],
+      height: 85,
+    });
   });
 });

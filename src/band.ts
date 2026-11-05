@@ -167,40 +167,52 @@ async function keyPieces(keys: Key[], width: number, scale: number) {
       ),
     })),
   );
-  const rowHeight = Math.max(discSize, ...items.map(item => item.what.info.height));
-  const spots = intoRows(
-    items.map(item => discSize + discGap + item.what.info.width),
+  const rows = intoRows(
+    items.map(({ what }) => ({
+      width: discSize + discGap + what.info.width,
+      height: Math.max(discSize, what.info.height),
+    })),
     width,
-    { itemGap: Math.round(KEY.itemGap * scale), rowStep: rowHeight + Math.round(KEY.rowGap * scale) },
+    { itemGap: Math.round(KEY.itemGap * scale), rowGap: Math.round(KEY.rowGap * scale) },
   );
   const pieces = items.flatMap(({ disc, what }, i): Piece[] => {
-    const { left, top } = spots[i];
+    const { left, top, rowHeight } = rows.spots[i];
     const middle = (height: number) => top + Math.round((rowHeight - height) / 2);
     return [
       { input: disc, left, top: middle(discSize) },
       { input: what.data, left: left + discSize + discGap, top: middle(what.info.height) },
     ];
   });
-  return { pieces, height: spots[spots.length - 1].top + rowHeight };
+  return { pieces, height: rows.height };
 }
 
-/** Where items `widths` wide go, left to right, `itemGap` apart, starting a new row `rowStep` lower
- * when the next one would make the row wider than `maxWidth`. An item wider than that gets a row of
- * its own. */
+type Size = { width: number; height: number };
+
+/** Where items of `sizes` go, left to right, `itemGap` apart, starting a new row when the next one
+ * would make the row wider than `maxWidth`; an item wider than that gets a row of its own. Each row
+ * is as tall as its tallest item, `rowGap` under the one before. Gives each item's spot and its row's
+ * height, to centre it in its row, and the height of all the rows. */
 export function intoRows(
-  widths: number[],
+  sizes: Size[],
   maxWidth: number,
-  { itemGap, rowStep }: { itemGap: number; rowStep: number },
-): { left: number; top: number }[] {
+  { itemGap, rowGap }: { itemGap: number; rowGap: number },
+): { spots: { left: number; top: number; rowHeight: number }[]; height: number } {
+  const rows: { left: number; size: Size }[][] = [];
   let left = 0;
-  let top = 0;
-  return widths.map(width => {
-    if (left > 0 && left + width > maxWidth) {
+  for (const size of sizes) {
+    if (!rows.length || (left > 0 && left + size.width > maxWidth)) {
+      rows.push([]);
       left = 0;
-      top += rowStep;
     }
-    const spot = { left, top };
-    left += width + itemGap;
-    return spot;
-  });
+    rows[rows.length - 1].push({ left, size });
+    left += size.width + itemGap;
+  }
+  const spots: { left: number; top: number; rowHeight: number }[] = [];
+  let top = 0;
+  for (const row of rows) {
+    const rowHeight = Math.max(...row.map(item => item.size.height));
+    for (const item of row) spots.push({ left: item.left, top, rowHeight });
+    top += rowHeight + rowGap;
+  }
+  return { spots, height: rows.length ? top - rowGap : 0 };
 }
