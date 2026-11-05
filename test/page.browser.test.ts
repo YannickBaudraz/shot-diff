@@ -62,6 +62,18 @@ describe('read', () => {
     expect(elements.map(e => e.signature)).toEqual(['svg chart']);
     expect(elements[0].paints).toBe(true);
   });
+
+  test('a background image file paints, a gradient does not: its CSS value says it all', () => {
+    const size = 'width:20px;height:20px';
+    const p = page(
+      `<div id="file" style="${size};background-image:url(pics/x.png)"></div>` +
+        `<div id="gradient" style="${size};background-image:linear-gradient(red, transparent)"></div>`,
+    );
+    expect(p.reading.elements.map(e => [e.signature, e.paints])).toEqual([
+      ['DIV #file', true],
+      ['DIV #gradient', false],
+    ]);
+  });
 });
 
 describe('the order', () => {

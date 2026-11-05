@@ -163,7 +163,9 @@ export function runtime(properties: string[]) {
       tag: element.tagName.toLowerCase(),
       parent: -1,
       leaf: true,
-      paints: PAINTERS.has(element.tagName) || style.backgroundImage !== 'none',
+      // A gradient is all in its CSS value, compared as style; and a shot of it holds whatever shows
+      // through it, which may be another element passing under it.
+      paints: PAINTERS.has(element.tagName) || style.backgroundImage.includes('url('),
       seen: element.checkVisibility({ checkOpacity: true }),
       top: pageBox(rect).y,
       // The computed value, as the CSS gave it: `auto` stays `auto`, where getComputedStyle would give
