@@ -16,8 +16,9 @@ export type Content = { side: Side; title: string; number: number; total: number
 type Piece = { input: Buffer; left: number; top: number };
 
 // Sizes in CSS pixels, multiplied by the shot's scale.
-const FIRST_ROW_HEIGHT = 52; // the side, the title and what the colour means
+const FIRST_ROW_HEIGHT = 52; // the side, the title and what the colour means; taller when the title wraps
 const PADDING = 16; // between the band's edges and what is in it
+const TITLE = { margin: 12, gapToColorKey: 24, minWidth: 120 }; // margin: above and below a title that wraps
 const KEY_GAP = 12; // added under the first row when there is a key
 const KEY_RAISE = 4; // the key starts this far up into the first row's bottom
 const PILL = { height: 26, inset: 10, gapToTitle: 12 }; // inset: between its ends and the side's name
@@ -34,12 +35,17 @@ const TEXT = '#1f2328';
 const SHOT_COUNT_TEXT = '#59636e';
 
 /** The shot, a PNG at `scale`, with a band on top: its side, the title, which shot of how many, and
- * what its colour means; under them, when the shot has numbered boxes, what each number means. */
+ * what its colour means; under them, when the shot has numbered boxes, what each number means. Text
+ * too long for the shot's width wraps, and the band grows to hold it. */
 export async function band(shot: Buffer, content: Content, scale: number): Promise<Buffer> {
   const { width: shotWidth = 0, height: shotHeight = 0 } = await sharp(shot).metadata();
   const frame = Math.max(1, Math.round(scale)); // the width of the frame line
   const padding = Math.round(PADDING * scale);
-  const rowHeight = Math.round(FIRST_ROW_HEIGHT * scale);
+  const colors = await colorKey(content.side, scale);
+  const colorsWidth = -Math.min(...colors.map(piece => piece.left));
+  const titleRoom = shotWidth - 2 * padding - colorsWidth - Math.round(TITLE.gapToColorKey * scale);
+  const head = await heading(content, titleRoom, scale);
+  const rowHeight = head.height;
   const key = content.key.length ? await keyPieces(content.key, shotWidth - 2 * padding, scale) : null;
   const bandHeight = rowHeight + (key ? key.height + Math.round(KEY_GAP * scale) : 0);
   const width = shotWidth + 2 * frame;
@@ -52,8 +58,8 @@ export async function band(shot: Buffer, content: Content, scale: number): Promi
         top: frame,
       },
       ...offset(key?.pieces ?? [], frame + padding, frame + rowHeight - Math.round(KEY_RAISE * scale)),
-      ...offset(await heading(content, scale), frame + padding, frame),
-      ...offset(await colorKey(content.side, scale), width - frame - padding, frame),
+      ...offset(head.pieces, frame + padding, frame),
+      ...offset(colors, width - frame - padding, frame),
       { input: shot, left: frame, top: frame + bandHeight + frame },
     ])
     .png()
@@ -68,9 +74,14 @@ const offset = (pieces: Piece[], dx: number, dy: number) =>
 const middleOfRow = (height: number, scale: number) =>
   Math.round((Math.round(FIRST_ROW_HEIGHT * scale) - height) / 2);
 
-/** The band's left: the side's pill, then the title and which shot of how many; placed from the
- * band's top left corner. */
-async function heading({ side, title, number, total }: Content, scale: number): Promise<Piece[]> {
+/** The band's left: the side's pill, then the title and which shot of how many, wrapped to what is
+ * left of `room` after the pill. Returns the pieces, placed from the band's top left corner, and the
+ * height of the first row: the usual one, or taller to hold a title that wraps. */
+async function heading(
+  { side, title, number, total }: Content,
+  room: number,
+  scale: number,
+): Promise<{ pieces: Piece[]; height: number }> {
   const sideName = await renderText(
     `<span foreground="${ON_SIDE_COLOR}">${WORDS[side].name}</span>`,
     FONT_SIZE.sideName,
@@ -79,31 +90,37 @@ async function heading({ side, title, number, total }: Content, scale: number): 
   );
   const count =
     total > 1 ? `<span foreground="${SHOT_COUNT_TEXT}" weight="normal">   ${number} of ${total}</span>` : '';
+  const pill = {
+    width: sideName.info.width + Math.round(2 * PILL.inset * scale),
+    height: Math.round(PILL.height * scale),
+  };
+  const titleLeft = pill.width + Math.round(PILL.gapToTitle * scale);
   const titleText = await renderText(
     `<span foreground="${TEXT}">${escapePango(title)}</span>${count}`,
     FONT_SIZE.title,
     'Semi-Bold',
     scale,
+    Math.max(room - titleLeft, Math.round(TITLE.minWidth * scale)),
   );
-  const pill = {
-    width: sideName.info.width + Math.round(2 * PILL.inset * scale),
-    height: Math.round(PILL.height * scale),
-  };
+  const margin = Math.round(TITLE.margin * scale);
   const pillSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${pill.width}" height="${pill.height}">
     <rect width="${pill.width}" height="${pill.height}" rx="${pill.height / 2}" fill="${COLORS[side].color}"/></svg>`;
-  return [
-    { input: Buffer.from(pillSvg), left: 0, top: middleOfRow(pill.height, scale) },
-    {
-      input: sideName.data,
-      left: Math.round(PILL.inset * scale),
-      top: middleOfRow(sideName.info.height, scale),
-    },
-    {
-      input: titleText.data,
-      left: pill.width + Math.round(PILL.gapToTitle * scale),
-      top: middleOfRow(titleText.info.height, scale),
-    },
-  ];
+  return {
+    pieces: [
+      { input: Buffer.from(pillSvg), left: 0, top: middleOfRow(pill.height, scale) },
+      {
+        input: sideName.data,
+        left: Math.round(PILL.inset * scale),
+        top: middleOfRow(sideName.info.height, scale),
+      },
+      {
+        input: titleText.data,
+        left: titleLeft,
+        top: Math.max(margin, middleOfRow(titleText.info.height, scale)),
+      },
+    ],
+    height: Math.max(Math.round(FIRST_ROW_HEIGHT * scale), titleText.info.height + 2 * margin),
+  };
 }
 
 /** The band's right: a swatch of the side's colour and what it means; placed from the band's top
@@ -131,11 +148,13 @@ async function colorKey(side: Side, scale: number): Promise<Piece[]> {
   ];
 }
 
-/** The key of numbered boxes: each disc and what it means beside it, in rows no wider than `width`.
- * Returns the pieces, placed from the key's top left corner, and the key's height. */
+/** The key of numbered boxes: each disc and what it means beside it, in rows no wider than `width`,
+ * a meaning too long for a row wrapped to it. Returns the pieces, placed from the key's top left
+ * corner, and the key's height. */
 async function keyPieces(keys: Key[], width: number, scale: number) {
   const discSize = Math.round(DISC * scale);
   const discGap = Math.round(KEY.discGap * scale);
+  const meaningWidth = Math.max(width - discSize - discGap, discSize);
   const items = await Promise.all(
     keys.map(async ({ disc, what }) => ({
       disc,
@@ -144,6 +163,7 @@ async function keyPieces(keys: Key[], width: number, scale: number) {
         FONT_SIZE.key,
         'Regular',
         scale,
+        meaningWidth,
       ),
     })),
   );

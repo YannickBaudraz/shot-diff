@@ -6,10 +6,18 @@ import sharp from 'sharp';
 export const escapePango = (text: string) => text.replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
 
 /** Pango markup drawn as a PNG at the shot's `scale`. `size` is in points, at 72 dpi per device pixel
- * ratio, so one point is one CSS pixel. */
-export function renderText(markup: string, size: number, weight: 'Regular' | 'Semi-Bold', scale: number) {
+ * ratio, so one point is one CSS pixel. With a `width`, in device pixels, the text wraps to it: at
+ * words, or inside a word too long for a line of its own. */
+export function renderText(
+  markup: string,
+  size: number,
+  weight: 'Regular' | 'Semi-Bold',
+  scale: number,
+  width?: number,
+) {
   const font = `sans-serif ${weight} ${size}`;
-  return sharp({ text: { text: markup, font, dpi: 72 * scale, rgba: true, spacing: 6 * scale } })
+  const wrap = width ? { width, wrap: 'word-char' as const } : {};
+  return sharp({ text: { text: markup, font, dpi: 72 * scale, rgba: true, spacing: 6 * scale, ...wrap } })
     .png()
     .toBuffer({ resolveWithObject: true });
 }

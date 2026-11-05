@@ -50,6 +50,23 @@ describe('band', () => {
     expect(many).toBeGreaterThan(few);
   });
 
+  test('a title too long for the band wraps, and the band grows to hold it', async () => {
+    const phone = await sharp({ create: { width: 750, height: 300, channels: 4, background: '#ffffff' } })
+      .png()
+      .toBuffer();
+    const height = async (title: string) => (await size(await band(phone, content({ title }), SCALE))).height;
+    const long = 'Cart: the empty state on a phone, after the redesign of the checkout';
+    expect(await height(long)).toBeGreaterThan(await height('Cart'));
+    expect(await height('Cart: ' + 'checkout'.repeat(30))).toBeGreaterThan(await height('Cart'));
+  });
+
+  test("a number's meaning too long for the band wraps", async () => {
+    const [disc] = await key(1);
+    const height = async (what: string) =>
+      (await size(await band(await shot, content({ key: [{ ...disc, what }] }), SCALE))).height;
+    expect(await height('background, '.repeat(40))).toBeGreaterThan(await height('background'));
+  });
+
   test('a title with markup characters is drawn as written', async () => {
     await expect(
       band(await shot, content({ title: 'a <b> & "c"', side: 'after', number: 2, total: 3 }), SCALE),
