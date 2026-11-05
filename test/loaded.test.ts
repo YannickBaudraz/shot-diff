@@ -62,6 +62,28 @@ describe('pixels', () => {
     }
   });
 
+  test('leave the scroll areas around the element where they were scrolled', async () => {
+    const page = await load(
+      browser,
+      pageOf(
+        '<div style="height:100px;overflow:auto">' +
+          '<div style="height:100px;background:#ff0000"></div><div style="height:3000px"></div>' +
+          '<div style="width:40px;height:40px;background:blue"></div></div>',
+      ),
+      'before',
+      OPTIONS,
+    );
+    try {
+      const far = page.elements.findIndex(e => e.style.width === '40px' && e.tag === 'div');
+      await page.pixels(far); // scrolls the area 3100px down to shoot it
+      const top = await page.shoot({ x: 20, y: 20, width: 40, height: 40 }); // inside the area, past the body's margin
+      const { data } = await sharp(top).raw().toBuffer({ resolveWithObject: true });
+      expect([...data.subarray(0, 3)]).toEqual([255, 0, 0]); // the area's top, not its bottom
+    } finally {
+      await page.close();
+    }
+  });
+
   test('are null for an element that left the page', async () => {
     const page = await load(
       browser,
