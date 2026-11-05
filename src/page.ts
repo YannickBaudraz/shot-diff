@@ -11,14 +11,16 @@ export type Region = { top: number; bottom: number };
 
 /** Where one change sits on the page, in page pixels. `top` and `bottom` take in what is shown around
  * it: the unchanged words next to a word change, the label of a box. `changed` is the change alone,
- * null when this page has nothing of a word change. */
-export type Span = Region & { changed: Region | null };
+ * null when this page has nothing of a word change. `inside` says whether the change is inside the
+ * marks' `within` element: always, with none; never, when this page has nothing of it. */
+export type Span = Region & { changed: Region | null; inside: boolean };
 
 /** What to draw on a page. */
 export type Marks = {
   color: string; // the boxes, the strike and the labels
   tint: string; // the background behind changed words
   strike: boolean; // strike the changed words through (the before page)
+  within: string | null; // a selector: say of each change whether it is inside the element it matches
   /** Word changes: the changed tokens and the unchanged ones around them, as indexes into the reading's words. */
   words: { changed: number[]; anchors: number[] }[];
   /** Changes of look: an element, as an index into the reading's elements, and what to put on its
@@ -36,6 +38,8 @@ export function runtime(properties: string[]) {
   type Token = { node: Text; start: number; end: number } | { image: Element };
 
   let marked = false;
+  /** How to take back what mark() drew for each change, so unmark() can. */
+  const undo: { words: (() => void)[][]; looks: (() => void)[][] } = { words: [], looks: [] };
 
   // Sizes in CSS pixels.
   const BOX = { margin: 4, border: 2, radius: 4 }; // margin: between an element and its box
@@ -210,32 +214,43 @@ export function runtime(properties: string[]) {
     return { elements, domElements: found };
   };
 
-  /** A changed image's mark: an outline, which takes no room on the page. */
+  /** A changed image's mark: an outline, which takes no room on the page. Gives how to take it off. */
   const outline = (image: HTMLElement, color: string) => {
+    const { outline: was, outlineOffset: wasOffset } = image.style;
     image.style.outline = `${IMAGE_OUTLINE.width}px solid ${color}`;
     image.style.outlineOffset = `${IMAGE_OUTLINE.offset}px`;
+    return () => {
+      image.style.outline = was;
+      image.style.outlineOffset = wasOffset;
+    };
   };
 
   /** Tint the changed words, struck through on the before page: one highlight range per run of
-   * tokens in the same text node. A changed image gets an outline instead. */
-  const highlight = (marks: Marks, tokens: Token[]) => {
+   * tokens in the same text node. A changed image gets an outline instead. Gives, for each change,
+   * how to take its tint and outlines off. */
+  const highlight = (marks: Marks, tokens: Token[]): (() => void)[][] => {
     const ranges: Range[] = [];
-    for (const change of marks.words) {
+    const undos = marks.words.map(change => {
+      const undoChange: (() => void)[] = [];
       let run: { node: Text; range: Range } | null = null;
       for (const i of change.changed) {
         const token = tokens[i];
         if ('image' in token) {
-          outline(token.image as HTMLElement, marks.color);
+          undoChange.push(outline(token.image as HTMLElement, marks.color));
           run = null;
         } else if (run && run.node === token.node) {
           run.range.setEnd(token.node, token.end);
         } else {
-          run = { node: token.node, range: rangeOf(token) };
-          ranges.push(run.range);
+          const range = rangeOf(token);
+          run = { node: token.node, range };
+          ranges.push(range);
+          undoChange.push(() => CSS.highlights.get('shot-diff')?.delete(range));
         }
       }
-    }
+      return undoChange;
+    });
     paintHighlight(ranges, marks);
+    return undos;
   };
 
   /** Tint `ranges` with a CSS highlight, which changes nothing the page lays out. */
@@ -269,23 +284,26 @@ export function runtime(properties: string[]) {
   };
 
   /** Box a word change, one box per line, so a change that wraps gets no box through the words
-   * between; and say where it is, with the unchanged words around it. */
+   * between; and say where it is, with the unchanged words around it. Each box drawn goes in `drawn`. */
   const boxWords = (
     change: Marks['words'][number],
     tokens: Token[],
     layer: HTMLElement,
     color: string,
+    drawn: HTMLElement[],
   ): Span | null => {
-    const boxes = linesOf(change.changed.flatMap(i => rectsOf(tokens[i]))).map(line =>
-      drawBox(
-        layer,
-        color,
-        grow(pageBox(around(line)), WORD_BOX_MARGIN.x, WORD_BOX_MARGIN.y),
-      ).getBoundingClientRect(),
+    const elements = linesOf(change.changed.flatMap(i => rectsOf(tokens[i]))).map(line =>
+      drawBox(layer, color, grow(pageBox(around(line)), WORD_BOX_MARGIN.x, WORD_BOX_MARGIN.y)),
     );
+    drawn.push(...elements);
+    const boxes = elements.map(element => element.getBoundingClientRect());
     const shown = [...boxes, ...change.anchors.flatMap(i => rectsOf(tokens[i]))];
     if (!shown.length) return null;
-    return { ...inPage(pageRegion(shown)), changed: boxes.length ? inPage(pageRegion(boxes)) : null };
+    return {
+      ...inPage(pageRegion(shown)),
+      changed: boxes.length ? inPage(pageRegion(boxes)) : null,
+      inside: true,
+    };
   };
 
   /** Where a disc goes: on a box's top left corner, kept inside the page. */
@@ -321,12 +339,14 @@ export function runtime(properties: string[]) {
     return tag;
   };
 
-  /** Box an element whose look changed, with its label or its disc, and say where all that is. */
+  /** Box an element whose look changed, with its label or its disc, and say where all that is. The
+   * box and the disc go in `drawn`; a label is inside its box. */
   const boxLook = (
     look: Marks['looks'][number],
     element: Element,
     layer: HTMLElement,
     color: string,
+    drawn: HTMLElement[],
   ): Span => {
     const box = grow(pageBox(element.getBoundingClientRect()), BOX.margin);
     const boxElement = drawBox(layer, color, box);
@@ -334,8 +354,10 @@ export function runtime(properties: string[]) {
       'disc' in look.badge
         ? drawDisc(layer, look.badge.disc, box)
         : drawLabel(boxElement, look.badge.label, color, box);
-    const drawn = inPage(pageRegion([boxElement, badge].map(drawn => drawn.getBoundingClientRect())));
-    return { ...drawn, changed: drawn };
+    drawn.push(boxElement);
+    if (badge.parentElement !== boxElement) drawn.push(badge);
+    const region = inPage(pageRegion([boxElement, badge].map(drawn => drawn.getBoundingClientRect())));
+    return { ...region, changed: region, inside: true };
   };
 
   /** Where each line of each token is on the page. */
@@ -364,12 +386,37 @@ export function runtime(properties: string[]) {
     /** Tint and box the changed words, box the elements whose look changed, and say where each is. */
     mark(marks: Marks): Spans {
       marked = true;
-      highlight(marks, tokens);
+      const tints = highlight(marks, tokens);
       const layer = overlay();
-      return {
-        words: marks.words.map(change => boxWords(change, tokens, layer, marks.color)),
-        looks: marks.looks.map(look => boxLook(look, domElements[look.index], layer, marks.color)),
-      };
+      const removing = (drawn: HTMLElement[]) => drawn.map(element => () => element.remove());
+      // In the element's tree, wherever layout puts it: an ancestor around it, or a column beside
+      // it, is outside.
+      const scope = marks.within ? document.querySelector(marks.within) : null;
+      const inside = (nodes: Node[]) => !marks.within || nodes.some(node => !!scope?.contains(node));
+      const words = marks.words.map((change, i) => {
+        const drawn: HTMLElement[] = [];
+        const span = boxWords(change, tokens, layer, marks.color, drawn);
+        undo.words.push([...tints[i], ...removing(drawn)]);
+        const nodes = change.changed
+          .map(t => tokens[t])
+          .map(token => ('image' in token ? token.image : token.node));
+        return span && { ...span, inside: inside(nodes) };
+      });
+      const looks = marks.looks.map(look => {
+        const drawn: HTMLElement[] = [];
+        const element = domElements[look.index];
+        const span = boxLook(look, element, layer, marks.color, drawn);
+        undo.looks.push(removing(drawn));
+        return { ...span, inside: inside([element]) };
+      });
+      return { words, looks };
+    },
+
+    /** Take back what mark() drew for these changes, indexes into its marks' words and looks: for
+     * the changes no shot is about, which a shot of another change could otherwise show. */
+    unmark(changes: { words: number[]; looks: number[] }) {
+      for (const i of changes.words) for (const take of undo.words[i] ?? []) take();
+      for (const i of changes.looks) for (const take of undo.looks[i] ?? []) take();
     },
 
     /** Where `selector`'s element is, or null when it is not there. */

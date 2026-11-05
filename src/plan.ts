@@ -1,6 +1,7 @@
 // Shot planning: which changes share a shot, and the part of each page each shot shows. Changes close
 // enough on both pages share one; changes far apart get one each, so no change falls off a shot cut
-// to the maximum height. What still falls outside every shot is said, not dropped.
+// to the maximum height. With --selector, only the changes inside that element count. What still
+// falls outside every shot is said, not dropped.
 
 import type { Box, Region, Span } from './page.ts';
 import { bothSides, SIDES, type Side } from './side.ts';
@@ -12,7 +13,7 @@ export type PlanOptions = {
   padding: number; // room around the changes
   maxHeight: number; // the tallest a shot gets
   height: number; // the shot's height when there is nothing to show
-  selector: string | null; // shoot this element instead of the area around the changes
+  selector: string | null; // only the changes inside this element count
 };
 
 /** What planning needs from a loaded page; loaded.ts gives the real one. */
@@ -25,30 +26,78 @@ export type PlanPage = {
 /** A shot: its changes (indexes into the places, top to bottom), and the part of each page it shows. */
 export type PlannedShot = { changes: number[] } & Record<Side, Box>;
 
-/** The shots, and the changes whose changed part is in no shot, on each page. */
-export type Plan = { shots: PlannedShot[]; leftOut: Record<Side, number[]> };
+/** The shots; the changes whose changed part is in no shot, on each page; and the changes outside
+ * --selector's element on both pages, which no shot looks for. */
+export type Plan = { shots: PlannedShot[]; leftOut: Record<Side, number[]>; outside: number[] };
 
 export async function plan(
   places: Place[],
   options: PlanOptions,
   pages: Record<Side, PlanPage>,
 ): Promise<Plan> {
-  const order = places.map((_, i) => i).sort((i, j) => startOf(places[i]) - startOf(places[j]));
-  const groups = options.selector
-    ? [await aroundSelector(order, options.selector, pages)]
-    : byDistance(order, places, options);
+  const { kept, outside, regions } = options.selector
+    ? await within(places, options.selector, pages)
+    : { kept: places, outside: [] as number[], regions: null };
+  const order = kept
+    .map((_, i) => i)
+    .filter(i => !outside.includes(i))
+    .sort((i, j) => startOf(kept[i]) - startOf(kept[j]));
   const shots: PlannedShot[] = [];
   const leftOut: Record<Side, number[]> = { before: [], after: [] };
+  const groups = byDistance(order, kept, options);
+  // Nothing changed inside --selector's element: one shot of the element, from its top.
+  if (regions && !order.length)
+    Object.assign(groups[0], {
+      before: { top: regions.before.top, bottom: regions.before.bottom },
+      after: { top: regions.after.top, bottom: regions.after.bottom },
+    });
   for (const group of groups) {
     const shot = {
       changes: group.changes,
       ...(await bothSides(side => clip(group[side], pages[side], options))),
     };
     for (const side of SIDES)
-      leftOut[side].push(...group.changes.filter(i => outside(places[i][side], shot[side])));
+      leftOut[side].push(...group.changes.filter(i => isOutside(kept[i][side], shot[side])));
     shots.push(shot);
   }
-  return { shots, leftOut };
+  return { shots, leftOut, outside };
+}
+
+/** The places cut to `selector`'s element on each page, and the changes inside it on neither page,
+ * as the page said when it marked them. A kept change's place on each page is cut to the element's
+ * height, so the unchanged words around it do not stretch its shot past the element. */
+async function within(
+  places: Place[],
+  selector: string,
+  pages: Record<Side, PlanPage>,
+): Promise<{ kept: Place[]; outside: number[]; regions: Record<Side, Region> }> {
+  const regions = bothFound(await bothSides(side => pages[side].region(selector)), selector);
+  const kept: Place[] = [];
+  const outside: number[] = [];
+  for (const [i, place] of places.entries()) {
+    const counts = SIDES.some(side => place[side]?.changed && place[side].inside);
+    if (!counts) outside.push(i);
+    kept.push(
+      counts ? { before: cut(place.before, regions.before), after: cut(place.after, regions.after) } : place,
+    );
+  }
+  return { kept, outside, regions };
+}
+
+function bothFound(found: Record<Side, Region | null>, selector: string): Record<Side, Region> {
+  const { before, after } = found;
+  if (!before) throw new Error(`--selector ${selector} matches nothing on the before page`);
+  if (!after) throw new Error(`--selector ${selector} matches nothing on the after page`);
+  return { before, after };
+}
+
+/** A change's place on one page, cut to the element's height: null when its changed part is outside
+ * the element, or when nothing of it is in the element's height. */
+function cut(span: Span | null, region: Region): Span | null {
+  if (!span || (span.changed && !span.inside)) return null;
+  const top = Math.max(span.top, region.top);
+  const bottom = Math.min(span.bottom, region.bottom);
+  return top < bottom ? { ...span, top, bottom } : null;
 }
 
 /** Changes that share a shot, and the region they span on each page (null where they have none). */
@@ -79,18 +128,6 @@ function byDistance(order: number[], places: Place[], options: PlanOptions): Gro
   return groups.length ? groups : [{ changes: [], before: null, after: null }];
 }
 
-/** All the changes in one shot, around the element `selector` matches on each page. */
-async function aroundSelector(
-  order: number[],
-  selector: string,
-  pages: Record<Side, PlanPage>,
-): Promise<Group> {
-  const { before, after } = await bothSides(side => pages[side].region(selector));
-  if (!before) throw new Error(`--selector ${selector} matches nothing on the before page`);
-  if (!after) throw new Error(`--selector ${selector} matches nothing on the after page`);
-  return { changes: order, before, after };
-}
-
 /** The part of a page a shot shows around `region`: padded, its edges off any line of text, cut to
  * the maximum height. With no region, the top of the page, the viewport high. */
 async function clip(region: Region | null, page: PlanPage, options: PlanOptions): Promise<Box> {
@@ -100,7 +137,7 @@ async function clip(region: Region | null, page: PlanPage, options: PlanOptions)
 }
 
 /** Whether a change's changed part falls outside the shot's box; a page with none of it never does. */
-function outside(span: Span | null, box: Box): boolean {
+function isOutside(span: Span | null, box: Box): boolean {
   if (!span?.changed) return false;
   return span.changed.top < box.y || span.changed.bottom > box.y + box.height;
 }

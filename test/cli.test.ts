@@ -47,10 +47,10 @@ test('changes far apart get a numbered pair each, and none is left out', () => {
   expect(result.shots[0].before.removed).toEqual(['as it was.']);
   expect(result.shots[1].after.added).toEqual(['changed.']);
   expect(result.leftOut).toEqual({ removed: [], added: [] });
-  expect(done.stderr).not.toMatch(/not in any image/);
+  expect(done.stderr).not.toMatch(/cut from every image/);
 });
 
-test('a change outside --selector is reported as left out', () => {
+test('--selector: only the changes inside the element are shot, the others ignored', () => {
   const { done, result } = shotDiff(
     page('tall-before.html'),
     page('tall-after.html'),
@@ -61,8 +61,31 @@ test('a change outside --selector is reported as left out', () => {
   );
   expect(done.status, done.stderr).toBe(0);
   expect(result.shots).toHaveLength(1);
-  expect(result.leftOut).toEqual({ removed: ['as it was.'], added: ['changed.'] });
-  expect(done.stderr).toMatch(/2 change\(s\) are not in any image/);
+  expect(result.shots[0].after.added).toEqual(['changed.']);
+  expect(result.shots[0].after.box.height).toBeLessThan(900); // around the change, not the page
+  expect(result.ignored).toEqual({ removed: ['as it was.'], added: ['changed.'] });
+  expect(result.leftOut).toEqual({ removed: [], added: [] });
+  expect(done.stderr).toMatch(/2 change\(s\) outside --selector ignored/);
+});
+
+test('a change cut from its shot is listed as left out, not as in the shot', () => {
+  const { done, result } = shotDiff(
+    page('before.html'),
+    page('after.html'),
+    '--title',
+    't',
+    '--padding',
+    '0',
+    '--max-height',
+    '20',
+  );
+  expect(done.status, done.stderr).toBe(0);
+  for (const shot of result.shots) {
+    expect(shot.before.removed).toEqual([]);
+    expect(shot.after.added).toEqual([]);
+  }
+  expect(result.leftOut.removed).toEqual(['approve them before they are published.']);
+  expect(done.stderr).toMatch(/cut from every image; raise --max-height/);
 });
 
 test('the same page twice marks nothing and says so', () => {
@@ -166,5 +189,5 @@ test('--max-height cuts a change too tall for it, and says so', () => {
   );
   expect(done.status, done.stderr).toBe(0);
   expect(result.leftOut.removed).toContain('[section: spacing]');
-  expect(done.stderr).toMatch(/not in any image/);
+  expect(done.stderr).toMatch(/cut from every image/);
 });

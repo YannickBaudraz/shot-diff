@@ -3,7 +3,16 @@ import { plan, type Place, type PlanOptions, type PlanPage } from '../src/plan.t
 import type { Region, Span } from '../src/page.ts';
 
 /** A change from `top` to `bottom`, the unchanged words around it included. */
-const at = (top: number, bottom = top + 20): Span => ({ top, bottom, changed: { top, bottom } });
+const at = (top: number, bottom = top + 20): Span => ({
+  top,
+  bottom,
+  changed: { top, bottom },
+  inside: true,
+});
+/** The same change, outside --selector's element as the page said when it marked it. */
+const outsideAt = (top: number, bottom = top + 20): Span => ({ ...at(top, bottom), inside: false });
+/** Where an element is. */
+const el = (top: number, bottom: number): Region => ({ top, bottom });
 const both = (s: Span | null): Place => ({ before: s, after: s });
 const OPTIONS: PlanOptions = { padding: 80, maxHeight: 2400, height: 900, selector: null };
 
@@ -93,34 +102,104 @@ describe('what is left out', () => {
     expect(p.leftOut).toEqual({ before: [1], after: [1] });
   });
 
-  test('--selector: one shot around the element, and the changes outside it left out', async () => {
+  test('--selector: the changes outside the element are ignored, those inside shot around them', async () => {
     const options = { ...OPTIONS, selector: '#end' };
+    const p = await plan(
+      [both(outsideAt(100)), both(at(5000))],
+      options,
+      pages(fakePage(undefined, { '#end': el(4000, 9000) })),
+    );
+    expect(p.shots).toEqual([
+      {
+        changes: [1],
+        before: { x: 0, y: 4920, width: 1000, height: 180 },
+        after: { x: 0, y: 4920, width: 1000, height: 180 },
+      },
+    ]);
+    expect(p.outside).toEqual([0]);
+    expect(p.leftOut).toEqual({ before: [], after: [] });
+  });
+
+  test('--selector: changes far apart inside the element still get a shot each', async () => {
+    const options = { ...OPTIONS, selector: 'main' };
     const p = await plan(
       [both(at(100)), both(at(5000))],
       options,
-      pages(fakePage(undefined, { '#end': { top: 4900, bottom: 5100 } })),
+      pages(fakePage(undefined, { main: el(0, 9000) })),
     );
-    expect(p.shots).toHaveLength(1);
-    expect(p.shots[0].before).toEqual({ x: 0, y: 4820, width: 1000, height: 360 });
-    expect(p.leftOut).toEqual({ before: [0], after: [0] });
+    expect(p.shots.map(s => s.changes)).toEqual([[0], [1]]);
+    expect(p.outside).toEqual([]);
+  });
+
+  test('--selector: a change inside the element on one page only is kept, placed on that page', async () => {
+    const options = { ...OPTIONS, selector: '#end' };
+    const p = await plan([{ before: outsideAt(100), after: at(5000) }], options, {
+      before: fakePage(undefined, { '#end': el(4000, 6000) }),
+      after: fakePage(undefined, { '#end': el(4000, 6000) }),
+    });
+    expect(p.outside).toEqual([]);
+    expect(p.shots[0].after).toEqual({ x: 0, y: 4920, width: 1000, height: 180 });
+    expect(p.leftOut).toEqual({ before: [], after: [] });
+  });
+
+  test('--selector: a change the page says is outside the element is ignored, at any height', async () => {
+    const options = { ...OPTIONS, selector: 'article' };
+    const sidebarAd = both(outsideAt(500)); // beside the article, at the same height
+    const p = await plan(
+      [both(at(500)), sidebarAd],
+      options,
+      pages(fakePage(undefined, { article: el(0, 2000) })),
+    );
+    expect(p.shots.map(s => s.changes)).toEqual([[0]]);
+    expect(p.outside).toEqual([1]);
+  });
+
+  test('--selector: the unchanged words around a change do not stretch its shot past the element', async () => {
+    const options = { ...OPTIONS, selector: '#top' };
+    // The change is at 100, but its next unchanged word is 5000px further down.
+    const reaching: Span = {
+      top: 100,
+      bottom: 5120,
+      changed: { top: 100, bottom: 120 },
+      inside: true,
+    };
+    const p = await plan([both(reaching)], options, pages(fakePage(undefined, { '#top': el(0, 200) })));
+    expect(p.shots[0].before).toEqual({ x: 0, y: 20, width: 1000, height: 260 });
+  });
+
+  test('--selector with no change inside: one shot of the element, from its top', async () => {
+    const options = { ...OPTIONS, selector: '#end' };
+    const p = await plan(
+      [both(outsideAt(100))],
+      options,
+      pages(fakePage(undefined, { '#end': el(4000, 4300) })),
+    );
+    expect(p.shots).toEqual([
+      {
+        changes: [],
+        before: { x: 0, y: 3920, width: 1000, height: 460 },
+        after: { x: 0, y: 3920, width: 1000, height: 460 },
+      },
+    ]);
+    expect(p.outside).toEqual([0]);
   });
 
   test('--selector that matches nothing names the page', async () => {
     const options = { ...OPTIONS, selector: '#gone' };
     await expect(
       plan([], options, {
-        before: fakePage(undefined, { '#gone': { top: 0, bottom: 10 } }),
+        before: fakePage(undefined, { '#gone': el(0, 10) }),
         after: fakePage(),
       }),
     ).rejects.toThrow('--selector #gone matches nothing on the after page');
   });
 
   test('a side with no changed words has nothing to leave out', async () => {
-    const empty: Span = { top: 3000, bottom: 3020, changed: null };
+    const empty: Span = { top: 3000, bottom: 3020, changed: null, inside: false };
     const p = await plan(
       [{ before: empty, after: at(100) }],
       { ...OPTIONS, selector: '#top' },
-      pages(fakePage(undefined, { '#top': { top: 0, bottom: 200 } })),
+      pages(fakePage(undefined, { '#top': el(0, 200) })),
     );
     expect(p.leftOut).toEqual({ before: [], after: [] });
   });

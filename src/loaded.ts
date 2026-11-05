@@ -33,8 +33,11 @@ export type LoadedPage = {
   width: number;
   /** A PNG of element `index`'s own pixels, or null when it cannot be shot. Only before mark(). */
   pixels(index: number): Promise<Buffer | null>;
-  /** Mark this side's part of the word changes and the changes of look; once. */
-  mark(hunks: Hunk[], markers: Marker[]): Promise<Spans>;
+  /** Mark this side's part of the word changes and the changes of look, saying of each whether it is
+   * inside the element `within` matches; once. */
+  mark(hunks: Hunk[], markers: Marker[], within: string | null): Promise<Spans>;
+  /** Take back the marks of these word changes and changes of look, indexes into what mark() got. */
+  unmark(changes: { words: number[]; looks: number[] }): Promise<void>;
   region(selector: string): Promise<Region | null>;
   snap(region: Region): Promise<Region>;
   shoot(clip: Box): Promise<Buffer>;
@@ -65,9 +68,10 @@ export async function load(
       elements,
       width,
       pixels: index => pixels(page, index),
-      mark: (hunks, markers) => call(page, 'mark', marksFor(side, hunks, markers)),
+      mark: (hunks, markers, within) => call(page, 'mark', marksFor(side, hunks, markers, within)),
       region: selector => call(page, 'region', selector),
       snap: region => call(page, 'snap', region),
+      unmark: changes => call(page, 'unmark', changes),
       shoot: clip => page.screenshot({ clip, fullPage: true, animations: 'disabled' }),
       close: () => context.close(),
     };
@@ -99,7 +103,7 @@ async function open(context: BrowserContext, url: string, options: LoadOptions):
 }
 
 /** The runtime's functions, called from here; the rest of it is read where it is. */
-type Method = 'mark' | 'region' | 'snap';
+type Method = 'mark' | 'unmark' | 'region' | 'snap';
 
 /** Call one of the runtime's functions in the page. What is sent to the page names nothing outside
  * itself; its result comes back untyped, so it is typed here from the runtime's own signature. */
@@ -135,10 +139,11 @@ async function pixels(page: Page, index: number): Promise<Buffer | null> {
 
 /** What to draw on `side`'s page: its colour, its half of each word change, and each change of look's
  * element there with its label or this side's disc. */
-function marksFor(side: Side, hunks: Hunk[], markers: Marker[]): Marks {
+function marksFor(side: Side, hunks: Hunk[], markers: Marker[], within: string | null): Marks {
   return {
     ...COLORS[side],
     strike: side === 'before',
+    within,
     words: hunks.map(hunk => ({ changed: hunk.changed[side], anchors: hunk.anchors[side] })),
     looks: markers.map(({ element, badge }) => ({
       index: element[side],

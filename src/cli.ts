@@ -72,7 +72,7 @@ A local file is a file:// URL.`,
   )
   .option('--click <selector>', 'click after loading, in order (repeatable)', append, [])
   .option('--wait <ms>', 'wait after loading and clicking', nonNegativeNumber, 300)
-  .option('--selector <css>', 'shoot this element instead of the area around the changes')
+  .option('--selector <css>', 'only look at changes inside this element; the rest are ignored')
   .option('--padding <px>', 'room around the changes', nonNegativeNumber, 80)
   .addOption(
     new Option(
@@ -155,8 +155,8 @@ function write(result: Result, out: string, name: string): WrittenShot[] {
 
 /** What was marked, where, and what was left out, as JSON on stdout. */
 function printJson(result: Result, shots: WrittenShot[]) {
-  const { wordChanges, lookChanges, leftOut } = result;
-  console.log(JSON.stringify({ wordChanges, lookChanges, shots, leftOut }, null, 2));
+  const { wordChanges, lookChanges, leftOut, ignored } = result;
+  console.log(JSON.stringify({ wordChanges, lookChanges, shots, leftOut, ignored }, null, 2));
 }
 
 /** A line per image written, and how many parts it marks. */
@@ -167,7 +167,8 @@ function printLines(shots: WrittenShot[]) {
   }
 }
 
-/** On stderr, so stdout stays the --json output: when nothing changed, or a change is in no image. */
+/** On stderr, so stdout stays the --json output: when nothing changed, when changes were outside
+ * --selector, or when a change is in no image. */
 function warn(result: Result) {
   if (!result.wordChanges && !result.lookChanges)
     console.error(
@@ -177,9 +178,14 @@ function warn(result: Result) {
     ...result.leftOut.removed.map(s => `removed: ${s}`),
     ...result.leftOut.added.map(s => `added: ${s}`),
   ];
+  const ignored = result.ignored.removed.length + result.ignored.added.length;
+  if (ignored)
+    console.error(
+      `shot-diff: ${ignored} change(s) outside --selector ignored (listed under "ignored" in --json)`,
+    );
   if (missed.length) {
     console.error(
-      `shot-diff: ${missed.length} change(s) are not in any image (cut by --max-height, or outside --selector):`,
+      `shot-diff: ${missed.length} change(s) are cut from every image; raise --max-height to fit them:`,
     );
     for (const line of missed) console.error(`  ${line}`);
   }

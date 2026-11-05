@@ -20,6 +20,7 @@ const marks = (more: Partial<Marks>): Marks => ({
   color: 'red',
   tint: 'pink',
   strike: true,
+  within: null,
   words: [],
   looks: [],
   ...more,
@@ -113,6 +114,64 @@ describe('mark', () => {
     expect(box.children).toHaveLength(0);
     expect((disc as HTMLImageElement).src).toBe(src);
     expect(disc.style.width).toBe('24px');
+  });
+});
+
+describe('inside --selector', () => {
+  test("is the element's tree, not where layout puts it: its ancestor and a column beside it are outside", () => {
+    const p = page(
+      '<div id="wrap" style="padding:8px"><main style="width:300px">in here</main>' +
+        '<aside style="position:absolute;top:8px;left:320px">beside</aside></div>',
+    );
+    const index = (tag: string) => p.reading.elements.findIndex(e => e.tag === tag);
+    const { words, looks } = p.mark(
+      marks({
+        within: 'main',
+        words: [
+          { changed: [0], anchors: [1] }, // "in", in main
+          { changed: [2], anchors: [] }, // "beside", in the aside, at main's height
+        ],
+        looks: [
+          { index: index('main'), badge: { label: 'colour' } },
+          { index: index('div'), badge: { label: 'spacing' } }, // the wrapper around main
+        ],
+      }),
+    );
+    expect(words.map(w => w!.inside)).toEqual([true, false]);
+    expect(looks.map(l => l.inside)).toEqual([true, false]);
+  });
+});
+
+describe('unmark', () => {
+  test("takes back only the given changes' tints, boxes, outlines and discs", () => {
+    const p = page(
+      '<p>aa bb</p><p>cc <img src="pics/x.png" width="10" height="10" style="outline:1px dotted blue"> dd</p>' +
+        '<button style="position:absolute;top:200px;left:20px">b</button>',
+    );
+    const image = document.querySelector('img')!;
+    const pageOutline = image.style.outline;
+    const button = p.reading.elements.findIndex(e => e.tag === 'button');
+    const src = 'data:image/png;base64,iVBORw0KGgo=';
+    p.mark(
+      marks({
+        words: [
+          { changed: [0], anchors: [1] },
+          { changed: [3], anchors: [2, 4] }, // the image
+        ],
+        looks: [{ index: button, badge: { disc: { src, size: 24 } } }],
+      }),
+    );
+    expect(drawn()).toHaveLength(4); // a box per word change, the look's box and its disc
+    expect(image.style.outlineStyle).toBe('solid');
+
+    p.unmark({ words: [1], looks: [0] });
+    expect(drawn()).toHaveLength(1); // the first word change's box
+    expect(image.style.outline).toBe(pageOutline); // as the page had it
+    expect(CSS.highlights.get('shot-diff')?.size).toBe(1);
+
+    p.unmark({ words: [0], looks: [] });
+    expect(drawn()).toHaveLength(0);
+    expect(CSS.highlights.get('shot-diff')?.size).toBe(0);
   });
 });
 

@@ -20,13 +20,14 @@ export type Options = LoadOptions &
 
 export type ShotSide = { png: Buffer; changed: string[]; box: Box };
 export type Shot = { before: ShotSide; after: ShotSide };
-/** How many word changes and changes of look were found, the shots, and the changes found but in
- * no image (above or below a cut, or outside --selector). */
+/** How many word changes and changes of look were found, the shots, the changes found but cut from
+ * every image, and the changes outside --selector's element, which no shot looks for. */
 export type Result = {
   wordChanges: number;
   lookChanges: number;
   shots: Shot[];
   leftOut: { removed: string[]; added: string[] };
+  ignored: { removed: string[]; added: string[] };
 };
 
 export async function run(browser: Browser, options: Options): Promise<Result> {
@@ -35,12 +36,13 @@ export async function run(browser: Browser, options: Options): Promise<Result> {
     const wordChanges = hunks(diff(pages.before.words, pages.after.words));
     const looks = await compareLooks(pages.before, pages.after); // before anything is drawn over the pages
     const markers = await markersFor(looks, options.markers, options.scale);
-    const changes = await markPages(pages, wordChanges, markers);
+    const changes = await markPages(pages, wordChanges, markers, options.selector);
     const planned = await plan(
       changes.map(change => change.place),
       options,
       pages,
     );
+    await unmarkIgnored(pages, planned.outside, wordChanges.length);
     return {
       wordChanges: wordChanges.length,
       lookChanges: looks.length,
@@ -48,6 +50,10 @@ export async function run(browser: Browser, options: Options): Promise<Result> {
       leftOut: {
         removed: planned.leftOut.before.map(i => changes[i].text.before),
         added: planned.leftOut.after.map(i => changes[i].text.after),
+      },
+      ignored: {
+        removed: planned.outside.map(i => changes[i].text.before).filter(Boolean),
+        added: planned.outside.map(i => changes[i].text.after).filter(Boolean),
       },
     };
   } finally {
@@ -81,8 +87,9 @@ async function markPages(
   pages: Record<Side, LoadedPage>,
   wordChanges: Hunk[],
   markers: Marker[],
+  within: string | null,
 ): Promise<Change[]> {
-  const spans = await bothSides(side => pages[side].mark(wordChanges, markers));
+  const spans = await bothSides(side => pages[side].mark(wordChanges, markers, within));
   const wordsOf = (side: Side, tokens: number[]) => tokens.map(token => pages[side].words[token]).join(' ');
   return [
     ...wordChanges.map((hunk, i) => ({
@@ -98,7 +105,17 @@ async function markPages(
   ];
 }
 
-/** Each planned shot's two sides, numbered in the band when there are several. */
+/** Take the marks off the changes outside --selector's element: a shot of a change inside it could
+ * otherwise show their boxes, beside or under it. Changes are listed words first, then looks. */
+async function unmarkIgnored(pages: Record<Side, LoadedPage>, outside: number[], wordCount: number) {
+  if (!outside.length) return;
+  const words = outside.filter(i => i < wordCount);
+  const looks = outside.filter(i => i >= wordCount).map(i => i - wordCount);
+  await bothSides(side => pages[side].unmark({ words, looks }));
+}
+
+/** Each planned shot's two sides, numbered in the band when there are several. A side lists, and
+ * keys, only the changes it shows: one cut from it is left out, not shown. */
 async function draw(
   planned: Plan,
   changes: Change[],
@@ -107,9 +124,12 @@ async function draw(
 ): Promise<Shot[]> {
   const shots: Shot[] = [];
   for (const [index, shot] of planned.shots.entries()) {
-    const shown = shot.changes.map(i => changes[i]);
     const heading = { title: options.title, number: index + 1, total: planned.shots.length };
-    shots.push(await bothSides(side => picture(pages[side], shot[side], shown, heading, options.scale)));
+    const shown = (side: Side) =>
+      shot.changes.filter(i => !planned.leftOut[side].includes(i)).map(i => changes[i]);
+    shots.push(
+      await bothSides(side => picture(pages[side], shot[side], shown(side), heading, options.scale)),
+    );
   }
   return shots;
 }
