@@ -32,10 +32,13 @@ preview as after. Nothing to install or start:
 
 ```sh
 npx @yannickbaudraz/shot-diff \
-  https://vite.dev/config/server-options \
-  https://deploy-preview-23845--vite-docs-main.netlify.app/config/server-options \
-  --title "Server options: grammar fixes" --selector .vp-doc
+  'https://www.example.com/pricing' \
+  'https://deploy-preview-<pr-number>--<site-name>.netlify.app/pricing' \
+  --title "Pricing: the new plans" --selector main
 ```
+
+Replace the parts in angle brackets with the ones from the preview link. A preview usually lasts
+only while its pull request is open: take the shots before it is merged or closed.
 
 The live site may have moved on since the pull request started; those changes show up too. Compare
 with a preview of the base branch instead when the project has one.
