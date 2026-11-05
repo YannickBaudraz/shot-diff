@@ -124,8 +124,12 @@ const unshootable = (error: unknown) =>
       error.message,
     ));
 
-/** A PNG of element `index`'s own pixels, or null when it is gone or cannot be shot. */
+/** A PNG of element `index`'s own pixels, or null when it is gone or cannot be shot. Shooting an
+ * element scrolls it into view; the page is scrolled back after, as the marks and the shots are
+ * placed with the page where it was, and a fixed header or sidebar is drawn where the page is
+ * scrolled to. */
 async function pixels(page: Page, index: number): Promise<Buffer | null> {
+  const scroll = await page.evaluate(() => ({ x: window.scrollX, y: window.scrollY }));
   const handle = await page.evaluateHandle(i => window.__shotDiff.element(i), index);
   try {
     return (await handle.asElement()?.screenshot({ animations: 'disabled' })) ?? null;
@@ -134,6 +138,7 @@ async function pixels(page: Page, index: number): Promise<Buffer | null> {
     throw error;
   } finally {
     await handle.dispose();
+    await page.evaluate(({ x, y }) => window.scrollTo(x, y), scroll);
   }
 }
 
