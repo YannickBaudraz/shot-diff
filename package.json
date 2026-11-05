@@ -1,5 +1,5 @@
 {
-  "name": "shot-diff",
+  "name": "@yannickbaudraz/shot-diff",
   "version": "0.1.0",
   "description": "Before and after screenshots of a web page, with what was removed marked red and what was added marked green",
   "license": "MIT",
@@ -42,5 +42,8 @@
     "typescript": "^7.0.2",
     "vite": "^8.3.5",
     "vitest": "^5.1.0"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }
