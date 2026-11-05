@@ -14,6 +14,7 @@ export type ElementInfo = {
   parent: number; // the index of its nearest listed ancestor, or -1
   leaf: boolean; // no listed element inside it: its pixels are its own, not its children's too
   paints: boolean; // draws pixels its style does not describe: an image, a canvas, an SVG, a background image
+  seen: boolean; // not made transparent, by its own opacity or an ancestor's
   top: number; // in page pixels, to number the changes in reading order
   style: Record<string, string>; // the PROPERTIES below, as the CSS sets them
 };
@@ -140,6 +141,7 @@ function pairUp(before: readonly ElementInfo[], after: readonly ElementInfo[]): 
 
 /** The pairs whose style changed, and what changed; and the pairs that draw their own pixels, with
  * no listed element inside them, and whose style did not change: the ones to compare pixel by pixel.
+ * A pair transparent on both pages is neither.
  * An element with others inside it is left out, as its shot holds theirs too: words changed in a
  * section with a background image are a change of words, not a picture redrawn. */
 function sortPairs(
@@ -150,6 +152,8 @@ function sortPairs(
   const restyles: LookChange[] = [];
   const pictures: Pair[] = [];
   for (const pair of pairs) {
+    // Unseen on both pages, such as a copy button shown only on hover: nothing anyone sees changed.
+    if (!before[pair.before].seen && !after[pair.after].seen) continue;
     const what = changedProperties(before[pair.before], after[pair.after], before, after);
     if (what.length) restyles.push({ element: pair, what });
     else if (isPicture(before[pair.before]) && isPicture(after[pair.after])) pictures.push(pair);

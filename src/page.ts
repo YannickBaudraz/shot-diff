@@ -164,6 +164,7 @@ export function runtime(properties: string[]) {
       parent: -1,
       leaf: true,
       paints: PAINTERS.has(element.tagName) || style.backgroundImage !== 'none',
+      seen: element.checkVisibility({ checkOpacity: true }),
       top: pageBox(rect).y,
       // The computed value, as the CSS gave it: `auto` stays `auto`, where getComputedStyle would give
       // the pixels layout made of it, which change with whatever else changed on the page.
@@ -183,7 +184,7 @@ export function runtime(properties: string[]) {
   };
 
   /** Every visible element, in document order. An element with opacity 0 still counts: its opacity
-   * is one of the properties compared. */
+   * is one of the properties compared, and `seen` says whether it shows. */
   const readElements = (properties: string[]): { elements: ElementInfo[]; domElements: Element[] } => {
     const found: Element[] = [];
     const elements: ElementInfo[] = [];

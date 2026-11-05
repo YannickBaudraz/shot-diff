@@ -11,6 +11,7 @@ const el = (
   tag: signature.split(' ')[0].toLowerCase(),
   parent: -1,
   leaf: true,
+  seen: true,
   paints: false,
   top: 0,
   style,
@@ -159,6 +160,21 @@ describe('pictures', () => {
     const after = seen([el('IMG logo.png', { opacity: '0.5' }, { paints: true })]);
     expect((await compareLooks(before, after)).map(l => l.what)).toEqual([['opacity']]);
     expect(before.pixels).not.toHaveBeenCalled();
+  });
+
+  test('an element unseen on both pages is no change: neither its style nor its pixels', async () => {
+    // A copy button shown only on hover: its icon was redrawn, its colour changed, nobody sees either.
+    const button = (color: string) => el('BUTTON copy', { color }, { paints: true, seen: false });
+    const before = seen([button('black')], { 0: await square('#ff0000') });
+    const after = seen([button('grey')], { 0: await square('#00ff00') });
+    expect(await compareLooks(before, after)).toEqual([]);
+    expect(before.pixels).not.toHaveBeenCalled();
+  });
+
+  test('an element that shows on one page only is still compared', async () => {
+    const before = seen([el('BUTTON copy', { opacity: '0' }, { seen: false })]);
+    const after = seen([el('BUTTON copy', { opacity: '1' })]);
+    expect((await compareLooks(before, after)).map(l => l.what)).toEqual([['opacity']]);
   });
 
   test(`at most ${MAX_PICTURES} pictures are compared`, async () => {
