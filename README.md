@@ -1,43 +1,140 @@
 # shot-diff
 
-Before and after screenshots of a web page for a pull request, with the change marked: what the
-after page no longer has is red on the before shot, what it adds is green on the after shot. Each
-shot is its own image, with a band on top naming its side, your title, and what its colour means.
-Changes with no words in them are marked too: an element whose look changed (a colour, a border, a
-size) gets a box saying what changed, and so does a picture redrawn under the same file name.
+Before and after screenshots of a web page, with the change marked, ready to paste in a pull request.
+
+- On the **before** shot, what was removed is red and struck through.
+- On the **after** shot, what was added is green.
+- A change with no words in it is marked too: a box says what changed on an element whose look
+  changed (a colour, a border, a size), or on a picture redrawn under the same file name.
+- Each image has a band on top with its side, your title, and what its colour means.
+
+## Quick start
+
+You need Node.js 22.18 or later. You give it two addresses of the same page, before and after the
+change, and a title:
+
+```sh
+npx @yannickbaudraz/shot-diff <before-url> <after-url> --title "What changed"
+```
+
+It writes `shot-before.png` and `shot-after.png` in the current folder. The first run may ask to
+download a browser (see [Browser](#browser)).
+
+## Get the two addresses
+
+You need the page as it was and the page as it is now, both reachable at the same time. Pick the
+first way that fits.
+
+**1. The site is already online, and the pull request has a preview.** Many projects deploy each
+pull request to its own address (Netlify, Vercel, Cloudflare Pages, GitHub Pages): look for a
+"deploy preview" link in the pull request's checks or comments. Use the live site as before and the
+preview as after. Nothing to install or start:
+
+```sh
+npx @yannickbaudraz/shot-diff \
+  https://vite.dev/config/server-options \
+  https://deploy-preview-23845--vite-docs-main.netlify.app/config/server-options \
+  --title "Server options: grammar fixes" --selector .vp-doc
+```
+
+The live site may have moved on since the pull request started; those changes show up too. Compare
+with a preview of the base branch instead when the project has one.
+
+**2. The site builds to static files.** Build each version into its own folder and point at the
+files, no server needed:
+
+```sh
+git worktree add ../before main          # the base branch, next to your checkout
+(cd ../before && npm ci && npm run build)
+npm run build                            # your branch
+npx @yannickbaudraz/shot-diff file://$PWD/../before/dist/index.html file://$PWD/dist/index.html --title "Home"
+```
+
+The build folder may be `dist`, `build` or `out`, depending on the project. If the page comes out
+without its styles, the build links its files from the site's root, which a `file://` address does
+not have: serve each folder instead, with `npx serve dist -l 3000` and `-l 3001`, and use way 3.
+
+**3. The app needs a server.** Start the base branch on one port and your branch on another, then
+point at both:
 
 ```sh
 npx @yannickbaudraz/shot-diff http://localhost:3000/cart http://localhost:3001/cart --title "Cart: the empty state"
-# shot-before.png  shot-after.png
 ```
 
-Changes too far apart for one image (more than `--max-height` with room around them) get a pair
-each, numbered in the band and in the files: `shot-1-before.png`, `shot-1-after.png`, and so on. A
-change that is still in no image, being taller than `--max-height` or outside `--selector`, is
-listed on stderr.
+Both pages load at the same size, in the same colour scheme, with the same stored settings and
+clicks, so the only difference is the change.
 
-Point it at the two versions of the same page: the base branch's build and the pull request's, two
-servers, or two folders as `file://` URLs. Both load at the same size, in the same colour scheme,
-with the same stored settings and clicks, so the only difference is the change.
+## Shoot only one part of the page
+
+By default it shoots the area around the changes, wherever they are. When the page has changes you
+do not care about (a rotating ad, a date, a menu), name the part you do care about with
+`--selector`:
+
+```sh
+--selector main          # or article, .content, #pricing: any CSS selector
+```
+
+Only the changes inside that element count: in it in the page's HTML, not just drawn over it.
+Everything else is ignored, a menu above it, a column beside it, a wrapper around it: it is in no
+image and left unmarked, and the command says how many changes it ignored. The shots are still cut
+around the changes inside the element, not the whole element.
+
+To find a selector, open the page in your browser, right-click the part you want, choose
+**Inspect**, and use the element's `id` (`#name`) or a class (`.name`) shown there.
+
+## Read the result
+
+- **One pair of images** when all the changes fit in one image.
+- **Several numbered pairs** (`shot-1-before.png`, `shot-1-after.png`, `shot-2-…`) when changes are
+  far apart. The band says "1 of 3", and so on.
+- **"N change(s) are cut from every image"** on the terminal: a change is taller than one image may
+  be. Raise `--max-height`, or narrow the shot with `--selector`.
+- **"N change(s) outside --selector ignored"**: changes it found outside the element you named. That
+  is expected; `--json` lists them under `ignored` if you want to check.
+- **"no difference"**: both pages look the same to it. Check the two addresses are really the two
+  versions.
+
+`--json` prints all of this as JSON: for each image, its file, what it marks and where; then
+`leftOut` (cut from every image) and `ignored` (outside `--selector`).
+
+## Get the page in the right state
+
+| You want | Add |
+|---|---|
+| A phone-sized page | `--width 390 --height 844` |
+| Dark mode | `--dark` |
+| A menu or dialog opened first | `--click "#menu-button"` (repeat for several clicks, in order) |
+| A setting the page reads at load, such as a dismissed banner | `--storage banner-closed=true` |
+| More time for the page to settle | `--wait 1000` (milliseconds) |
+| Numbered boxes, explained in the band, instead of labels over the page | `--markers numbers` |
 
 ## Options
 
-| Option | Default | |
+| Option | Default | What it does |
 |---|---|---|
-| `--title <text>` | required | the band's title |
-| `--out <dir>`, `--name <name>` | `.`, `shot` | write `<dir>/<name>-before.png` and `-after.png` |
-| `--width`, `--height` | 1280, 900 | the viewport |
-| `--scale` | 2 | device pixel ratio |
-| `--dark` | | a dark colour scheme |
+| `--title <text>` | required | the title in the band |
+| `--out <dir>` | `.` | the folder the images go in |
+| `--name <name>` | `shot` | the start of the file names: `<name>-before.png`, `<name>-after.png` |
+| `--selector <css>` | | only count the changes inside this element |
+| `--width`, `--height` | 1280, 900 | the browser window, in pixels |
+| `--scale` | 2 | pixel density: 2 makes sharp images, 1 smaller files |
+| `--dark` | | dark colour scheme |
 | `--storage key=value` | | set in `localStorage` before the page runs (repeatable) |
 | `--click <selector>` | | click after loading, in order (repeatable) |
 | `--wait <ms>` | 300 | wait after loading and clicking |
-| `--selector <css>` | | shoot this element instead of the area around the changes |
-| `--markers <kind>` | `labels` | on a box around a change of look: `labels` writes what changed on it, over the page; `numbers` puts a small number on it and says what each means in the band |
-| `--padding`, `--max-height` | 80, 2400 | room around the changes; the tallest a shot gets |
-| `--chrome <path>` | installed Google Chrome, or `$CHROME` | the browser |
-| `--download`, `--no-download` | ask | without Chrome: download one without asking, or stop without asking |
-| `--json` | | print what was marked, where, and what was left out |
+| `--markers labels\|numbers` | `labels` | on a box around a change of look: what changed written on it, or a number explained in the band |
+| `--padding <px>` | 80 | room kept around the changes |
+| `--max-height <px>` | 2400 | the tallest an image gets; changes further apart get their own pair |
+| `--chrome <path>` | Google Chrome, or `$CHROME` | another Chrome or Chromium to use |
+| `--download`, `--no-download` | ask | without Chrome: download one without asking, or stop |
+| `--json` | | print what was marked, where, and what was left out or ignored |
+
+## Browser
+
+It uses Google Chrome if it is installed, without opening a window. Without it, it offers to
+download Playwright's Chromium (about 100 MB, once) and waits for a yes. Where nobody can answer,
+as on CI, it stops instead: add `--download` to allow the download up front, or `--chrome <path>`
+to use another Chrome or Chromium.
 
 ## How it works
 
@@ -57,8 +154,9 @@ with the same stored settings and clicks, so the only difference is the change.
    Each change gets a box with what changed written on it, or a number explained in the band with
    `--markers numbers`: red on the before shot, green on the after.
 5. It shoots the area around the changes, unchanged words next to each change included, so both
-   shots show the same place even when one side of a change is empty. Changes far apart are shot
-   apart, and an edge of a shot never cuts a line of text in half.
+   shots show the same place even when one side of a change is empty. With `--selector`, it first
+   drops the changes outside the element's tree, and takes their marks off. Changes far apart are
+   shot apart, and an edge of a shot never cuts a line of text in half.
 6. It draws the band on each shot with [sharp](https://sharp.pixelplumbing.com).
 
 ## Limits
@@ -71,11 +169,6 @@ with the same stored settings and clicks, so the only difference is the change.
 - A background image redrawn under the same file name is marked only on an element with no other
   element inside it: a shot of a banner with a heading on it holds the heading too, so its pixels
   are not compared. A background whose file name changed is marked, as a change of style.
-- It runs Chrome headless, so it needs no screen. Without Google Chrome on the machine, it offers to
-  download Playwright's headless Chromium into Playwright's cache (about 100 MB, once) and waits for
-  a yes. With no terminal to ask, as on CI, it stops instead, unless `--download` says yes up front.
-  `--chrome` names any other Chrome or Chromium.
-
 ## Develop
 
 ```sh
