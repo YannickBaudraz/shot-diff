@@ -132,7 +132,12 @@ async function pixels(page: Page, index: number): Promise<Buffer | null> {
   const handle = await page.evaluateHandle(i => window.__shotDiff.element(i), index);
   const scrollBack = await handle.evaluateHandle(element => {
     const areas: [Element, number, number][] = [];
-    for (let area = element.parentElement; area; area = area.parentElement)
+    // The element it is laid out in: its slot, or past the top of a shadow tree, that tree's element.
+    const around = (inner: Element) => {
+      const root = inner.getRootNode();
+      return inner.assignedSlot ?? inner.parentElement ?? (root instanceof ShadowRoot ? root.host : null);
+    };
+    for (let area = around(element); area; area = around(area))
       areas.push([area, area.scrollLeft, area.scrollTop]);
     const { scrollX, scrollY } = window;
     return () => {

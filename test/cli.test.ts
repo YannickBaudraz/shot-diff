@@ -114,6 +114,28 @@ test('a title is required', () => {
   expect(done.stderr).toMatch(/--title/);
 });
 
+test('changes inside a web component are marked: in its shadow tree, and in what it is given', () => {
+  const { done, result } = shotDiff(page('shadow/before.html'), page('shadow/after.html'), '--title', 't');
+  expect(done.status, done.stderr).toBe(0);
+  const [shot] = result.shots;
+  // The price and the button are in the card's shadow tree; the description is given to its slot.
+  expect(shot.before.removed).toEqual(['$12', 'teams.', '[button: text colour, background]']);
+  expect(shot.after.added).toEqual([
+    '$15',
+    'teams, with priority support.',
+    '[button: text colour, background]',
+  ]);
+});
+
+test('--selector takes in the shadow trees inside its element', () => {
+  const pages = [page('shadow/before.html'), page('shadow/after.html')];
+  const inside = shotDiff(...pages, '--title', 't', '--selector', 'main');
+  expect(inside.result.shots[0].after.added).toHaveLength(3);
+  expect(inside.result.ignored).toEqual({ removed: [], added: [] });
+  const outside = shotDiff(...pages, '--title', 't', '--selector', 'h1');
+  expect(outside.result.ignored.added).toHaveLength(3);
+});
+
 test('changes with no words in them are marked: a restyled button, a picture redrawn under the same name', () => {
   const { done, result } = shotDiff(
     page('visual/before/index.html'),

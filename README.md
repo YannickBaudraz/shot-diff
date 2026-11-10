@@ -147,8 +147,9 @@ to use another Chrome or Chromium.
 
 ## How it works
 
-1. It loads both pages in Chrome through Playwright and reads every visible word and image, in
-   document order. Hidden text is left out.
+1. It loads both pages in Chrome through Playwright and reads every visible word and image, in the
+   order the page shows them, inside web components (their shadow trees) too. Hidden text is left
+   out.
 2. It diffs the two word lists (Myers' algorithm, as `git diff` uses for lines, from the
    [`diff`](https://github.com/kpdecker/jsdiff) package).
 3. On the before page it tints the removed words red and strikes them through; on the after page it
@@ -179,6 +180,10 @@ to use another Chrome or Chromium.
 - A background image redrawn under the same file name is marked only on an element with no other
   element inside it: a shot of a banner with a heading on it holds the heading too, so its pixels
   are not compared. A background whose file name changed is marked, as a change of style.
+- A web component's shadow tree is read when it is open, as most are. A closed one cannot be reached
+  from the page, so a change inside it is not seen. `--selector` finds its element in the page
+  itself, not inside a shadow tree; the shadow trees inside that element count.
+
 ## Develop
 
 ```sh

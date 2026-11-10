@@ -95,6 +95,46 @@ export function runtime(properties: string[]) {
     height: box.height + 2 * dy,
   });
 
+  /** The nodes laid out inside `node`, in order. An element with a shadow tree shows that tree, not
+   * its own children; a slot in it shows the nodes the element gives it, or its own with none given.
+   * Only an open shadow tree can be reached from the page: a closed one is not read. */
+  const shownChildren = (node: Node): Node[] => {
+    if (node instanceof Element && node.shadowRoot) return [...node.shadowRoot.childNodes];
+    const given = node instanceof HTMLSlotElement ? node.assignedNodes() : [];
+    return given.length ? given : [...node.childNodes];
+  };
+
+  /** The element `node` is laid out in: the slot it is given to, the element whose shadow tree it is
+   * at the top of, or else its parent. */
+  const shownIn = (node: Node): Element | null => {
+    const slot = node instanceof Element || node instanceof Text ? node.assignedSlot : null;
+    if (slot) return slot;
+    return node.parentElement ?? (node.parentNode instanceof ShadowRoot ? node.parentNode.host : null);
+  };
+
+  /** Call `visit` on every node laid out in `node`, parents first; it says whether to go inside. */
+  const walk = (node: Node, visit: (node: Node) => boolean) => {
+    for (const child of shownChildren(node)) if (visit(child)) walk(child, visit);
+  };
+
+  /** Whether the text laid out in `parent` shows. An element with `display: contents`, as a slot
+   * has, has no box of its own to ask: its visibility is its own, and the rest is asked of the
+   * element it is laid out in. */
+  const showsText = (parent: Element | null): boolean => {
+    if (!parent) return false;
+    const style = getComputedStyle(parent);
+    if (style.display !== 'contents')
+      return parent.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true });
+    return style.visibility === 'visible' && showsText(shownIn(parent));
+  };
+
+  /** Whether `node` is in `ancestor`'s tree, the shadow trees inside it included. */
+  const inTreeOf = (ancestor: Node, node: Node): boolean => {
+    for (let n: Node | null = node; n; n = n.parentNode ?? (n instanceof ShadowRoot ? n.host : null))
+      if (n === ancestor) return true;
+    return false;
+  };
+
   /** The token's rectangles on screen, one per line it is on. */
   const rectsOf = (token: Token) => [...rangeOf(token).getClientRects()].filter(r => r.width || r.height);
 
@@ -107,7 +147,7 @@ export function runtime(properties: string[]) {
     for (
       let node = clipper;
       node && node !== document.body && node !== document.documentElement;
-      node = node.parentElement
+      node = shownIn(node)
     ) {
       const style = getComputedStyle(node);
       const box = node.getBoundingClientRect();
@@ -129,7 +169,7 @@ export function runtime(properties: string[]) {
   /** What shows of a token, a rectangle per line it is on: its text is clipped by its own element
    * and those around it, an image by those around it. */
   const shownRectsOf = (token: Token) => {
-    const clipper = 'image' in token ? token.image.parentElement : token.node.parentElement;
+    const clipper = shownIn('image' in token ? token.image : token.node);
     return rectsOf(token).flatMap(rect => shownPart(rect, clipper) ?? []);
   };
 
@@ -148,27 +188,25 @@ export function runtime(properties: string[]) {
     return `[image ${name}]`;
   };
 
-  /** Every visible word and image, in document order. Text with opacity 0 counts as hidden here. */
+  /** Every visible word and image, in the order the page lays them out, shadow trees included. Text
+   * with opacity 0 counts as hidden here. */
   const readWords = (): { words: string[]; tokens: Token[] } => {
     const found: Token[] = [];
     const words: string[] = [];
-    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT);
-    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-      if (node.nodeType === Node.ELEMENT_NODE) {
-        const element = node as Element;
-        if (element.tagName === 'IMG' && element.checkVisibility()) {
-          found.push({ image: element });
-          words.push(imageWord(element));
+    walk(document.body, node => {
+      if (node instanceof Element) {
+        if (node.tagName === 'IMG' && node.checkVisibility()) {
+          found.push({ image: node });
+          words.push(imageWord(node));
         }
-        continue;
+      } else if (node instanceof Text && showsText(shownIn(node))) {
+        for (const match of node.data.matchAll(/\S+/g)) {
+          found.push({ node, start: match.index, end: match.index + match[0].length });
+          words.push(match[0]);
+        }
       }
-      const text = node as Text;
-      if (!text.parentElement?.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })) continue;
-      for (const match of text.data.matchAll(/\S+/g)) {
-        found.push({ node: text, start: match.index, end: match.index + match[0].length });
-        words.push(match[0]);
-      }
-    }
+      return true;
+    });
     return { words, tokens: found };
   };
 
@@ -212,44 +250,41 @@ export function runtime(properties: string[]) {
     };
   };
 
-  /** The index of the nearest ancestor already listed, if any. */
+  /** The index of the nearest element already listed that `element` is laid out in, if any. */
   const listedAncestor = (element: Element, indexOf: Map<Element, number>) => {
-    for (let ancestor = element.parentElement; ancestor; ancestor = ancestor.parentElement) {
+    for (let ancestor = shownIn(element); ancestor; ancestor = shownIn(ancestor)) {
       const index = indexOf.get(ancestor);
       if (index !== undefined) return index;
     }
     return undefined;
   };
 
-  /** Every visible element, in document order. An element with opacity 0 still counts: its opacity
-   * is one of the properties compared, and `seen` says whether it shows. */
+  /** Every visible element, in the order the page lays them out, shadow trees included. An element
+   * with opacity 0 still counts: its opacity is one of the properties compared, and `seen` says
+   * whether it shows. */
   const readElements = (properties: string[]): { elements: ElementInfo[]; domElements: Element[] } => {
     const found: Element[] = [];
     const elements: ElementInfo[] = [];
     const indexOf = new Map<Element, number>();
-    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT, {
-      // An SVG is one picture: its shapes are not elements of their own here.
-      acceptNode: node =>
-        node.parentElement?.closest('svg') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT,
-    });
-    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-      const element = node as Element;
-      const rect = element.getBoundingClientRect();
+    walk(document.body, node => {
+      if (!(node instanceof Element)) return false;
+      const rect = node.getBoundingClientRect();
       const visible =
-        element.checkVisibility({ checkOpacity: false, checkVisibilityCSS: true }) &&
-        rect.width &&
-        rect.height;
-      if (!visible) continue;
-      const info = describe(element, rect, properties);
-      const parent = listedAncestor(element, indexOf);
-      if (parent !== undefined) {
-        info.parent = parent;
-        elements[parent].leaf = false;
+        node.checkVisibility({ checkOpacity: false, checkVisibilityCSS: true }) && rect.width && rect.height;
+      if (visible) {
+        const info = describe(node, rect, properties);
+        const parent = listedAncestor(node, indexOf);
+        if (parent !== undefined) {
+          info.parent = parent;
+          elements[parent].leaf = false;
+        }
+        indexOf.set(node, elements.length);
+        found.push(node);
+        elements.push(info);
       }
-      indexOf.set(element, elements.length);
-      found.push(element);
-      elements.push(info);
-    }
+      // An SVG is one picture: its shapes are not elements of their own here.
+      return node.tagName !== 'svg';
+    });
     return { elements, domElements: found };
   };
 
@@ -292,12 +327,19 @@ export function runtime(properties: string[]) {
     return undos;
   };
 
-  /** Tint `ranges` with a CSS highlight, which changes nothing the page lays out. */
+  /** Tint `ranges` with a CSS highlight, which changes nothing the page lays out. A tree's styles
+   * stop at its edge, so each shadow tree with a range in it is given the highlight's rule too: as a
+   * style sheet it adopts, which adds no node to it. */
   const paintHighlight = (ranges: Range[], marks: Marks) => {
     const strike = marks.strike ? `text-decoration:line-through ${STRIKE_WIDTH}px ${marks.color};` : '';
+    const rule = `::highlight(shot-diff){background-color:${marks.tint};${strike}}`;
     const style = document.createElement('style');
-    style.textContent = `::highlight(shot-diff){background-color:${marks.tint};${strike}}`;
+    style.textContent = rule;
     document.head.appendChild(style);
+    const sheet = new CSSStyleSheet();
+    sheet.replaceSync(rule);
+    for (const root of new Set(ranges.map(range => range.startContainer.getRootNode())))
+      if (root instanceof ShadowRoot) root.adoptedStyleSheets = [...root.adoptedStyleSheets, sheet];
     CSS.highlights.set('shot-diff', new Highlight(...ranges));
   };
 
@@ -391,7 +433,7 @@ export function runtime(properties: string[]) {
     drawn: HTMLElement[],
   ): Span => {
     const rect = element.getBoundingClientRect();
-    const clipper = getComputedStyle(element).position === 'fixed' ? null : element.parentElement;
+    const clipper = getComputedStyle(element).position === 'fixed' ? null : shownIn(element);
     const shown = shownPart(rect, clipper);
     if (!shown) return { ...inPage(pageRegion([rect])), changed: null, inside: true, clipped: true };
     const box = grow(pageBox(shown), BOX.margin);
@@ -435,10 +477,10 @@ export function runtime(properties: string[]) {
       const tints = highlight(marks, tokens);
       const layer = overlay();
       const removing = (drawn: HTMLElement[]) => drawn.map(element => () => element.remove());
-      // In the element's tree, wherever layout puts it: an ancestor around it, or a column beside
-      // it, is outside.
+      // In the element's tree, the shadow trees inside it included, wherever layout puts it: an
+      // ancestor around it, or a column beside it, is outside.
       const scope = marks.within ? document.querySelector(marks.within) : null;
-      const inside = (nodes: Node[]) => !marks.within || nodes.some(node => !!scope?.contains(node));
+      const inside = (nodes: Node[]) => !marks.within || nodes.some(node => !!scope && inTreeOf(scope, node));
       const words = marks.words.map((change, i) => {
         const drawn: HTMLElement[] = [];
         const span = boxWords(change, tokens, layer, marks.color, drawn);
