@@ -8,6 +8,20 @@ Before and after screenshots of a web page, with the change marked, ready to pas
   changed (a colour, a border, a size), or on a picture redrawn under the same file name.
 - Each image has a band on top with its side, your title, and what its colour means.
 
+A sentence rewritten and a line added:
+
+| Before | After |
+|---|---|
+| ![before](examples/words/shot-before.png) | ![after](examples/words/shot-after.png) |
+
+A dashboard where numbers, a row, a chart and some styles changed:
+
+| Before | After |
+|---|---|
+| ![before](examples/whole-page/shot-before.png) | ![after](examples/whole-page/shot-after.png) |
+
+More in [examples/](examples/README.md), each with its command.
+
 ## Quick start
 
 You need Node.js 22.18 or later. You give it two addresses of the same page, before and after the
