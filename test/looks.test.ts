@@ -59,6 +59,58 @@ describe('compareLooks', () => {
     expect(look.what).toEqual(['border colour']);
   });
 
+  // As Chrome gives them: with none set in the CSS, a border's and an outline's colour is the text's.
+  const line = (name: string, style: string, width: string, color: string) => ({
+    [`${name}-style`]: style,
+    [`${name}-width`]: width,
+    [`${name}-color`]: color,
+  });
+  const lines = (style: string, width: string, color: string) => ({
+    ...line('border-top', style, width, color),
+    ...line('border-right', style, width, color),
+    ...line('border-bottom', style, width, color),
+    ...line('border-left', style, width, color),
+    ...line('outline', style, width, color),
+  });
+  const changes = async (was: Record<string, string>, now: Record<string, string>) =>
+    (await compareLooks(seen([el('P Hello', was)]), seen([el('P Hello', now)]))).flatMap(l => l.what);
+
+  test('a text colour changed is not a change of the border and outline the element does not have', async () => {
+    expect(
+      await changes(
+        { color: 'red', ...lines('none', '3px', 'red') },
+        { color: 'blue', ...lines('none', '3px', 'blue') },
+      ),
+    ).toEqual(['text colour']);
+  });
+
+  test('nor of ones with a style and no width', async () => {
+    expect(
+      await changes(
+        { color: 'red', ...lines('solid', '0px', 'red') },
+        { color: 'blue', ...lines('solid', '0px', 'blue') },
+      ),
+    ).toEqual(['text colour']);
+  });
+
+  test('a border and an outline both pages draw, in another colour, changed colour', async () => {
+    expect(await changes(lines('solid', '1px', 'red'), lines('solid', '1px', 'blue'))).toEqual([
+      'border colour',
+      'outline',
+    ]);
+  });
+
+  test('a border that appears or goes is a border, not a border colour', async () => {
+    const none = { ...lines('none', '3px', 'black'), ...line('outline', 'none', '3px', 'black') };
+    const drawn = { ...lines('solid', '1px', 'green'), ...line('outline', 'none', '3px', 'green') };
+    expect(await changes(none, drawn)).toEqual(['border']);
+    expect(await changes(drawn, none)).toEqual(['border']);
+  });
+
+  test('a width set on a border nobody draws is no change', async () => {
+    expect(await changes(lines('none', '3px', 'black'), lines('none', '8px', 'black'))).toEqual([]);
+  });
+
   test('a colour a child inherits is marked on the parent alone', async () => {
     const page = (c: string) =>
       seen([el('NAV', { color: c }, { leaf: false }), el('A Home', { color: c }, { parent: 0 })]);

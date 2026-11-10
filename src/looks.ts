@@ -122,6 +122,26 @@ const INHERITED = new Set([
   'text-transform',
 ]);
 
+/** The lines an element can have around it, by the start of their properties' names: the four sides
+ * of its border, and its outline. */
+const LINES = ['border-top', 'border-right', 'border-bottom', 'border-left', 'outline'];
+
+/** Whether an element draws `line`: one with no style, or no width, is not there. */
+const drawn = (element: ElementInfo, line: string) =>
+  !['none', 'hidden'].includes(element.style[`${line}-style`]) &&
+  parseFloat(element.style[`${line}-width`]) !== 0;
+
+/** Whether `property` is of a line that shows no change of it. A line's colour is the text's when
+ * the CSS sets none, so it differs with it on an element with no line at all; and its width and
+ * style can be set with nothing drawn. A line neither page draws changed nothing anyone sees. One a
+ * single page draws has appeared or gone, which its style and width say, not its colour. */
+function ofLineNotSeen(property: string, was: ElementInfo, now: ElementInfo): boolean {
+  const line = LINES.find(line => ['color', 'style', 'width'].some(part => property === `${line}-${part}`));
+  if (!line) return false;
+  const pagesDrawing = [was, now].filter(element => drawn(element, line)).length;
+  return pagesDrawing === 0 || (pagesDrawing === 1 && property.endsWith('-color'));
+}
+
 /** The same element on both pages: its index on each. */
 type Pair = Record<Side, number>;
 
@@ -164,7 +184,8 @@ function sortPairs(
 const isPicture = (element: ElementInfo) => element.paints && element.leaf;
 
 /** What changed between an element on the before page and its pair on the after page, one label per
- * kind of change. A change a child only inherits from its parent is left to the parent. Sizes are
+ * kind of change. A change a child only inherits from its parent is left to the parent, and one of
+ * a border or an outline that is not drawn is none. Sizes are
  * compared as the CSS sets them (`auto` stays `auto`), so a box that grows or shrinks with the page
  * around it is not a change. */
 function changedProperties(
@@ -177,7 +198,7 @@ function changedProperties(
   for (const [property, label] of Object.entries(PROPERTIES)) {
     const oldValue = was.style[property];
     const newValue = now.style[property];
-    if (oldValue === newValue) continue;
+    if (oldValue === newValue || ofLineNotSeen(property, was, now)) continue;
     const fromParent =
       INHERITED.has(property) &&
       before[was.parent]?.style[property] === oldValue &&
