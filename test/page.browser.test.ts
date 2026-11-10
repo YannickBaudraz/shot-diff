@@ -175,12 +175,53 @@ describe('mark', () => {
         ],
       }),
     );
-    const labels = drawn().map(box => box.firstElementChild as HTMLElement);
+    const boxes = drawn();
+    const labels = boxes.map(box => box.firstElementChild as HTMLElement);
     expect(labels.map(l => l.textContent)).toEqual(['background', 'border']);
-    expect(labels[0].style.top).toBe('100%'); // no room above: below
-    expect(labels[1].style.bottom).toBe('100%'); // above
+    const [top, lower] = boxes.map((box, i) => ({
+      box: box.getBoundingClientRect(),
+      label: labels[i].getBoundingClientRect(),
+    }));
+    expect(top.label.top).toBe(top.box.bottom); // no room above: below
+    expect(lower.label.bottom).toBe(lower.box.top); // above
+    expect(top.label.left).toBe(top.box.left);
     expect(looks[0].top).toBe(0);
     expect(looks[1].top).toBeLessThan(200 - 4);
+  });
+
+  test('a label goes where it hides no words: below a box with a line right above it', () => {
+    const p = page(
+      '<p style="margin:0">The line above</p><button>changed</button><p style="margin-top:80px">far below</p>',
+    );
+    const index = p.reading.elements.findIndex(e => e.tag === 'button');
+    p.mark(marks({ looks: [{ index, badge: { label: 'background' } }] }));
+    const [box] = drawn();
+    const label = box.firstElementChild!.getBoundingClientRect();
+    expect(label.top).toBe(box.getBoundingClientRect().bottom);
+    const line = document.querySelector('p')!.getBoundingClientRect();
+    expect(label.top).toBeGreaterThanOrEqual(line.bottom);
+  });
+
+  test('with words above and below, it goes to the side that hides none; two labels do not share a place', () => {
+    const p = page(
+      '<p style="margin:0">Above</p><div style="width:300px"><button>one</button></div><p style="margin:0">Below</p>',
+    );
+    const index = p.reading.elements.findIndex(e => e.tag === 'div');
+    const badge = { label: 'spacing' };
+    p.mark(
+      marks({
+        looks: [
+          { index, badge },
+          { index, badge },
+        ],
+      }),
+    );
+    const [first, second] = drawn().map(box => box.firstElementChild!.getBoundingClientRect());
+    const [box] = drawn().map(box => box.getBoundingClientRect());
+    expect(first.right).toBe(box.right); // above, on the right: "Above" is on the left
+    expect(first.bottom).toBe(box.top);
+    expect(second.top).toBe(box.bottom); // the same place is taken: below, on the right
+    expect(second.right).toBe(box.right);
   });
 
   test('a disc is the image it is given, on the box, with no label', () => {

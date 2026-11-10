@@ -44,7 +44,10 @@ export function runtime(properties: string[]) {
 
   // Sizes in CSS pixels.
   const BOX = { margin: 4, border: 2, radius: 4 }; // margin: between an element and its box
-  const LABEL = { height: 22, gap: 2, font: '600 12px/1.4 system-ui,sans-serif', padding: '1px 6px' };
+  const LABEL = { gap: 2, font: '600 12px/1.4 system-ui,sans-serif', padding: '1px 6px' };
+  // How far two boxes go into each other before one covers the other: a line of text's rectangle is
+  // taller than its letters, so a label that only touches it hides nothing.
+  const TOUCHING = 2;
   const IMAGE_OUTLINE = { width: 3, offset: 2 };
   const STRIKE_WIDTH = 2;
   const WORD_BOX_MARGIN = { x: 4, y: 3 }; // between a line of changed words and its box
@@ -397,8 +400,33 @@ export function runtime(properties: string[]) {
     top: Math.max(0, box.y - size / 2),
   });
 
-  /** Whether a box's label fits above it, or goes below it for lack of room on the page. */
-  const labelFitsAbove = (box: Box) => box.y - LABEL.height >= 0;
+  /** Whether two boxes go into each other, by more than touching. */
+  const covers = (one: Box, other: Box) =>
+    Math.min(one.x + one.width, other.x + other.width) - Math.max(one.x, other.x) > TOUCHING &&
+    Math.min(one.y + one.height, other.y + other.height) - Math.max(one.y, other.y) > TOUCHING;
+
+  /** Where the label of `box` goes, as a box in page pixels: of the places around the box that are
+   * on the page, the one that covers the fewest of `taken`, the page's words and the labels before
+   * it. Above the box, on its left, comes first; then below it, then the same two on its right,
+   * then beside it. At the top of the page there is no place above. */
+  const labelPlace = (box: Box, width: number, height: number, taken: Box[]): Box => {
+    const pageWidth = document.documentElement.clientWidth;
+    // Along the box's edge, kept on the page: a box at the page's edge starts a little outside it.
+    const left = Math.max(0, box.x);
+    const right = Math.max(0, Math.min(box.x + box.width, pageWidth) - width);
+    const above = box.y + BOX.border - LABEL.gap - height;
+    const below = box.y + box.height - BOX.border + LABEL.gap;
+    const beside = box.x + box.width + LABEL.gap;
+    const places = [
+      ...(above >= 0 ? [{ x: left, y: above }] : []),
+      { x: left, y: below },
+      ...(above >= 0 ? [{ x: right, y: above }] : []),
+      { x: right, y: below },
+      ...(beside + width <= pageWidth ? [{ x: beside, y: Math.max(0, box.y) }] : []),
+    ].map(corner => ({ ...corner, width, height }));
+    const hides = (place: Box) => taken.filter(other => covers(place, other)).length;
+    return places.reduce((best, place) => (hides(place) < hides(best) ? place : best));
+  };
 
   /** A numbered disc on a box's top left corner. */
   const drawDisc = (layer: HTMLElement, disc: { src: string; size: number }, box: Box) => {
@@ -410,29 +438,34 @@ export function runtime(properties: string[]) {
     return image;
   };
 
-  /** What changed, on a tag above the box, or below it when the page has no room above. */
-  const drawLabel = (boxElement: HTMLElement, label: string, color: string, box: Box) => {
-    const place = labelFitsAbove(box)
-      ? `bottom:100%;margin-bottom:${LABEL.gap}px`
-      : `top:100%;margin-top:${LABEL.gap}px`;
+  /** What changed, on a tag by the box, where it hides the least of `taken`: it is added to them. */
+  const drawLabel = (boxElement: HTMLElement, label: string, color: string, box: Box, taken: Box[]) => {
     const tag = document.createElement('div');
     tag.textContent = label;
     tag.style.cssText =
-      `position:absolute;left:-${BOX.border}px;${place};padding:${LABEL.padding};` +
+      `position:absolute;left:0;top:0;padding:${LABEL.padding};` +
       `border-radius:${BOX.radius}px;white-space:nowrap;background:${color};color:${ON_COLOR};font:${LABEL.font}`;
     boxElement.appendChild(tag);
+    const { width, height } = tag.getBoundingClientRect();
+    const place = labelPlace(box, width, height, taken);
+    // From the inside of the box's border, which is what a tag inside the box is placed from.
+    tag.style.left = `${place.x - box.x - BOX.border}px`;
+    tag.style.top = `${place.y - box.y - BOX.border}px`;
+    taken.push(place);
     return tag;
   };
 
   /** Box an element whose look changed, with its label or its disc, and say where all that is. The
-   * box and the disc go in `drawn`; a label is inside its box. The box is around what shows of the
-   * element: an element a scroll area cuts off is not boxed at all, it is clipped. */
+   * box and the disc go in `drawn`; a label is inside its box, placed off what is `taken`. The box
+   * is around what shows of the element: an element a scroll area cuts off is not boxed at all, it
+   * is clipped. */
   const boxLook = (
     look: Marks['looks'][number],
     element: Element,
     layer: HTMLElement,
     color: string,
     drawn: HTMLElement[],
+    taken: Box[],
   ): Span => {
     const rect = element.getBoundingClientRect();
     const clipper = getComputedStyle(element).position === 'fixed' ? null : shownIn(element);
@@ -443,7 +476,7 @@ export function runtime(properties: string[]) {
     const badge =
       'disc' in look.badge
         ? drawDisc(layer, look.badge.disc, box)
-        : drawLabel(boxElement, look.badge.label, color, box);
+        : drawLabel(boxElement, look.badge.label, color, box, taken);
     drawn.push(boxElement);
     if (badge.parentElement !== boxElement) drawn.push(badge);
     const region = inPage(pageRegion([boxElement, badge].map(drawn => drawn.getBoundingClientRect())));
@@ -492,10 +525,12 @@ export function runtime(properties: string[]) {
           .map(token => ('image' in token ? token.image : token.node));
         return span && { ...span, inside: inside(nodes) };
       });
+      // What a label should not hide: the page's words and images, and the labels placed before it.
+      const taken = tokens.flatMap(rectsOf).map(pageBox);
       const looks = marks.looks.map(look => {
         const drawn: HTMLElement[] = [];
         const element = domElements[look.index];
-        const span = boxLook(look, element, layer, marks.color, drawn);
+        const span = boxLook(look, element, layer, marks.color, drawn, taken);
         undo.looks.push(removing(drawn));
         return { ...span, inside: inside([element]) };
       });
