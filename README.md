@@ -157,8 +157,9 @@ to use another Chrome or Chromium.
    CSS Custom Highlight API and an overlay), so nothing on it moves.
 4. It pairs the elements of the two pages the same way, by tag, id, role, own words and image file,
    and compares what the browser computed for each pair: colours, borders, corners, shadow, font,
-   spacing, alignment, and the size of elements with nothing inside them. Images, canvases, SVGs and
-   backgrounds with no element inside them that kept their style are compared pixel by pixel
+   spacing, alignment, and the size of elements with nothing inside them. A border or an outline
+   counts only where one is drawn. Images, canvases, SVGs, embedded pages (iframes) and backgrounds
+   with no element inside them that kept their style are compared pixel by pixel
    ([pixelmatch](https://github.com/mapbox/pixelmatch)), at the smaller of their two sizes when the
    layout scaled one.
    Each change gets a box with what changed written on it, or a number explained in the band with
@@ -180,6 +181,10 @@ to use another Chrome or Chromium.
 - A background image redrawn under the same file name is marked only on an element with no other
   element inside it: a shot of a banner with a heading on it holds the heading too, so its pixels
   are not compared. A background whose file name changed is marked, as a change of style.
+- The words inside an embedded page (an iframe) are not read. When it is drawn differently, the
+  whole iframe is boxed as an "embedded page", without saying what changed in it. One that differs
+  from one load to the next, as an ad or a video does, is boxed too: name the part you care about
+  with `--selector` to leave it out.
 - A web component's shadow tree is read when it is open, as most are. A closed one cannot be reached
   from the page, so a change inside it is not seen. `--selector` finds its element in the page
   itself, not inside a shadow tree; the shadow trees inside that element count.

@@ -13,7 +13,7 @@ export type ElementInfo = {
   tag: string; // in lower case, to name it in a list of changes
   parent: number; // the index of its nearest listed ancestor, or -1
   leaf: boolean; // no listed element inside it: its pixels are its own, not its children's too
-  paints: boolean; // draws pixels its style does not describe: an image, a canvas, an SVG, a background image file
+  paints: boolean; // draws pixels its style does not describe: an image, a canvas, an SVG, an embedded page, a background image file
   seen: boolean; // not made transparent, by its own opacity or an ancestor's
   top: number; // in page pixels, to number the changes in reading order
   style: Record<string, string>; // the PROPERTIES below, as the CSS sets them
@@ -215,7 +215,9 @@ async function redrawn(pairs: Pair[], before: ComparedPage, after: ComparedPage)
   for (const pair of pairs) {
     const { before: was, after: now } = await bothSides(side => pages[side].pixels(pair[side]));
     if (await repainted(was, now)) {
-      found.push({ element: pair, what: ['picture'] });
+      // An iframe's pixels are a page's: what changed in it is not known, only that something did.
+      const embedded = before.elements[pair.before].tag === 'iframe';
+      found.push({ element: pair, what: [embedded ? 'embedded page' : 'picture'] });
     }
   }
   return found;

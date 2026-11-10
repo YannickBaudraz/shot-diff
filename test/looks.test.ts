@@ -190,6 +190,15 @@ describe('pictures', () => {
     expect(await compareLooks(seen([picture()], { 0: red }), seen([picture()], { 0: red }))).toEqual([]);
   });
 
+  test('an embedded page drawn otherwise is a change of the page in it, not of a picture', async () => {
+    const frame = () => picture('IFRAME Payment widget.html');
+    const changed = await compareLooks(
+      seen([frame()], { 0: await square('#ff0000') }),
+      seen([frame()], { 0: await square('#ff8800') }),
+    );
+    expect(changed.map(look => look.name)).toEqual(['[iframe: embedded page]']);
+  });
+
   test('a picture layout scaled is no change, one redrawn at another size is; one not shot is not', async () => {
     const red = await square('#ff0000');
     const scaled = seen([picture()], { 0: await square('#ff0000', 12) });

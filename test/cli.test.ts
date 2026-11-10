@@ -136,6 +136,17 @@ test('--selector takes in the shadow trees inside its element', () => {
   expect(outside.result.ignored.added).toHaveLength(3);
 });
 
+test('a change inside an embedded page is marked on the iframe, as a whole', () => {
+  const pages = [page('frame/before/index.html'), page('frame/after/index.html')];
+  const { done, result } = shotDiff(...pages, '--title', 't');
+  expect(done.status, done.stderr).toBe(0);
+  expect(result.shots[0].before.removed).toEqual(['[iframe: embedded page]']);
+  expect(result.shots[0].after.added).toEqual(['[iframe: embedded page]']);
+  // The same embedded page on both sides is no change.
+  const same = shotDiff(pages[0], pages[0], '--title', 't');
+  expect(same.done.stderr).toMatch(/no difference/);
+});
+
 test('changes with no words in them are marked: a restyled button, a picture redrawn under the same name', () => {
   const { done, result } = shotDiff(
     page('visual/before/index.html'),

@@ -226,7 +226,9 @@ export function runtime(properties: string[]) {
       .join(' ');
   };
 
-  const PAINTERS = new Set(['IMG', 'CANVAS', 'svg', 'VIDEO']);
+  /** The elements that draw pixels their style does not describe. An embedded page is one: it is a
+   * document of its own, whose words and elements are not read here. */
+  const PAINTERS = new Set(['IMG', 'CANVAS', 'svg', 'VIDEO', 'IFRAME']);
 
   /** An element as looks.ts compares it; its parent is filled in by readElements(). */
   const describe = (element: Element, rect: DOMRect, properties: string[]): ElementInfo => {

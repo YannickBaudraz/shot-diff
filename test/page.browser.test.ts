@@ -88,6 +88,17 @@ describe('read', () => {
   });
 });
 
+describe('read, an embedded page', () => {
+  test('is one element that paints: the words in it are not read', () => {
+    const p = page(
+      '<p>Around</p><iframe title="Payment" srcdoc="<p>Inside</p>" width="200" height="80"></iframe>',
+    );
+    expect(p.reading.words).toEqual(['Around']);
+    const frame = p.reading.elements.find(e => e.tag === 'iframe')!;
+    expect([frame.signature, frame.paints, frame.leaf]).toEqual(['IFRAME', true, true]);
+  });
+});
+
 describe('read, inside a shadow tree', () => {
   test('lists its words where they show: the tree, with what the element is given in its slot', () => {
     const p = page('<p>Before</p><x-card><b>given</b> bare</x-card><p>After</p>');
