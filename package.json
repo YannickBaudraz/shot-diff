@@ -23,6 +23,7 @@
     "prepare": "vite build",
     "check": "tsc",
     "test": "vitest run",
+    "examples": "node examples/generate.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },

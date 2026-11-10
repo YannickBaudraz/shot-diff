@@ -89,6 +89,8 @@ To find a selector, open the page in your browser, right-click the part you want
 
 ## Read the result
 
+[examples/](examples/README.md) shows each of these: the command, what it prints, and its images.
+
 - **One pair of images** when all the changes fit in one image.
 - **Several numbered pairs** (`shot-1-before.png`, `shot-1-after.png`, `shot-2-…`) when changes are
   far apart. The band says "1 of 3", and so on.
