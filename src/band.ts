@@ -3,7 +3,7 @@
 import sharp from 'sharp';
 import { DISC } from './markers.ts';
 import { COLORS, ON_SIDE_COLOR, WORDS, type Side } from './side.ts';
-import { escapePango, renderText } from './text.ts';
+import { escapePango, inkOf, renderText, STRUT } from './text.ts';
 
 /** What a numbered box on a shot means: its disc, the same image as on the page, and what changed. */
 export type Key = { disc: Buffer; what: string };
@@ -155,22 +155,14 @@ async function keyPieces(keys: Key[], width: number, scale: number) {
   const discSize = Math.round(DISC * scale);
   const discGap = Math.round(KEY.discGap * scale);
   const meaningWidth = Math.max(width - discSize - discGap, discSize);
+  const line = await keyLine(scale);
   const items = await Promise.all(
-    keys.map(async ({ disc, what }) => ({
-      disc,
-      what: await renderText(
-        `<span foreground="${TEXT}">${escapePango(what)}</span>`,
-        FONT_SIZE.key,
-        'Regular',
-        scale,
-        meaningWidth,
-      ),
-    })),
+    keys.map(async ({ disc, what }) => ({ disc, what: await keyMeaning(what, meaningWidth, scale) })),
   );
   const rows = intoRows(
     items.map(({ what }) => ({
-      width: discSize + discGap + what.info.width,
-      height: Math.max(discSize, what.info.height),
+      width: discSize + discGap + what.width,
+      height: Math.max(discSize, what.height),
     })),
     width,
     { itemGap: Math.round(KEY.itemGap * scale), rowGap: Math.round(KEY.rowGap * scale) },
@@ -178,12 +170,44 @@ async function keyPieces(keys: Key[], width: number, scale: number) {
   const pieces = items.flatMap(({ disc, what }, i): Piece[] => {
     const { left, top, rowHeight } = rows.spots[i];
     const middle = (height: number) => top + Math.round((rowHeight - height) / 2);
+    // On one line, the meaning reads level with its disc's number: the middle of its capitals is
+    // where the number's is, at the disc's centre. Wrapped, it is centred as a block.
+    const meaningTop =
+      what.height === line.height
+        ? top + Math.round(rowHeight / 2 - line.capitalsMiddle)
+        : middle(what.height);
     return [
       { input: disc, left, top: middle(discSize) },
-      { input: what.data, left: left + discSize + discGap, top: middle(what.info.height) },
+      { input: what.data, left: left + discSize + discGap, top: meaningTop },
     ];
   });
   return { pieces, height: rows.height };
+}
+
+/** What a disc means, drawn to wrap at `width`: an image as high as its lines, not as its letters,
+ * and as wide as its ink. */
+async function keyMeaning(what: string, width: number, scale: number) {
+  const markup = `<span foreground="${TEXT}">${escapePango(what)}</span>${STRUT}`;
+  const drawn = await renderText(markup, FONT_SIZE.key, 'Regular', scale, width);
+  const ink = await inkOf(drawn.data);
+  const size = { width: ink.left + ink.width, height: drawn.info.height };
+  const data = await sharp(drawn.data)
+    .extract({ left: 0, top: 0, ...size })
+    .png()
+    .toBuffer();
+  return { data, ...size };
+}
+
+/** A line of the key: how high it is, and how far down it the middle of its capitals is. */
+async function keyLine(scale: number) {
+  const drawn = await renderText(
+    `<span foreground="${TEXT}">H</span>${STRUT}`,
+    FONT_SIZE.key,
+    'Regular',
+    scale,
+  );
+  const capitals = await inkOf(drawn.data);
+  return { height: drawn.info.height, capitalsMiddle: capitals.top + capitals.height / 2 };
 }
 
 type Size = { width: number; height: number };
