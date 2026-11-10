@@ -6,8 +6,7 @@ repository, from its root: the command, what it prints on the terminal, and the 
 This page and the images are made by `npm run examples`: do not edit them by hand. Text is drawn
 with the fonts of the machine that made them, so yours may differ a little.
 
-<details>
-<summary><h2>Changed words</h2></summary>
+## Changed words
 
 Removed words are red and struck through on the before shot; added words are green on the after shot. Each change has a box.
 
@@ -25,10 +24,7 @@ examples/words/shot-after.png: 2 part(s) added
 |---|---|
 | ![before](words/shot-before.png) | ![after](words/shot-after.png) |
 
-</details>
-
-<details>
-<summary><h2>Changed looks and pictures</h2></summary>
+## Changed looks and pictures
 
 An element restyled, or a picture redrawn under the same file name, has no changed word: it gets a box with what changed written on it.
 
@@ -46,10 +42,7 @@ examples/looks/shot-after.png: 3 part(s) added
 |---|---|
 | ![before](looks/shot-before.png) | ![after](looks/shot-after.png) |
 
-</details>
-
-<details>
-<summary><h2>A page with both</h2></summary>
+## A page with both
 
 Words and looks changed on one page. Only what changed is marked, not the boxes the layout resized around it.
 
@@ -67,10 +60,7 @@ examples/whole-page/shot-after.png: 7 part(s) added
 |---|---|
 | ![before](whole-page/shot-before.png) | ![after](whole-page/shot-after.png) |
 
-</details>
-
-<details>
-<summary><h2>Numbered boxes</h2></summary>
+## Numbered boxes
 
 With `--markers numbers`, each box of a change of look has a number, explained in the band, where a label would cover the page.
 
@@ -88,10 +78,7 @@ examples/numbers/shot-after.png: 7 part(s) added
 |---|---|
 | ![before](numbers/shot-before.png) | ![after](numbers/shot-after.png) |
 
-</details>
-
-<details>
-<summary><h2>Changes far apart</h2></summary>
+## Changes far apart
 
 Changes too far apart for one image get a pair each, numbered in the file names and in the band ("1 of 2").
 
@@ -112,10 +99,7 @@ examples/far-apart/shot-2-after.png: 1 part(s) added
 | ![before](far-apart/shot-1-before.png) | ![after](far-apart/shot-1-after.png) |
 | ![before](far-apart/shot-2-before.png) | ![after](far-apart/shot-2-after.png) |
 
-</details>
-
-<details>
-<summary><h2>One part of the page</h2></summary>
+## One part of the page
 
 With `--selector`, only the changes inside the element count. The others are left unmarked, and the terminal says how many.
 
@@ -134,10 +118,7 @@ shot-diff: 2 change(s) outside --selector ignored (listed under "ignored" in --j
 |---|---|
 | ![before](selector/shot-before.png) | ![after](selector/shot-after.png) |
 
-</details>
-
-<details>
-<summary><h2>A change a scroll area cuts off</h2></summary>
+## A change a scroll area cuts off
 
 A change past the edge of a scroll area cannot be shot: it gets no box, and the terminal lists it.
 
@@ -158,10 +139,7 @@ shot-diff: 2 change(s) are in a part of the page a scroll area cuts off, so no i
 |---|---|
 | ![before](scroll-area/shot-before.png) | ![after](scroll-area/shot-after.png) |
 
-</details>
-
-<details>
-<summary><h2>A change taller than an image may be</h2></summary>
+## A change taller than an image may be
 
 A change that does not fit under `--max-height` is cut from the images, and the terminal lists it.
 
@@ -185,10 +163,7 @@ examples/too-tall/shot-3-after.png: 2 part(s) added
 | ![before](too-tall/shot-2-before.png) | ![after](too-tall/shot-2-after.png) |
 | ![before](too-tall/shot-3-before.png) | ![after](too-tall/shot-3-after.png) |
 
-</details>
-
-<details>
-<summary><h2>Inside a web component</h2></summary>
+## Inside a web component
 
 Changes in a shadow tree are marked as any other: here a price and a button inside the card, and the description the page gives it.
 
@@ -206,10 +181,7 @@ examples/web-component/shot-after.png: 3 part(s) added
 |---|---|
 | ![before](web-component/shot-before.png) | ![after](web-component/shot-after.png) |
 
-</details>
-
-<details>
-<summary><h2>Inside an embedded page</h2></summary>
+## Inside an embedded page
 
 The words inside an iframe are not read: when it is drawn differently, the whole iframe is boxed as an "embedded page".
 
@@ -227,10 +199,7 @@ examples/embedded-page/shot-after.png: 1 part(s) added
 |---|---|
 | ![before](embedded-page/shot-before.png) | ![after](embedded-page/shot-after.png) |
 
-</details>
-
-<details>
-<summary><h2>A phone-sized page</h2></summary>
+## A phone-sized page
 
 The dashboard in a narrow window, with `--width` and `--height`.
 
@@ -248,10 +217,7 @@ examples/phone/shot-after.png: 7 part(s) added
 |---|---|
 | ![before](phone/shot-before.png) | ![after](phone/shot-after.png) |
 
-</details>
-
-<details>
-<summary><h2>No difference</h2></summary>
+## No difference
 
 Two pages that look the same: nothing is marked, the terminal says so, and the shots show the top of each page.
 
@@ -270,10 +236,7 @@ shot-diff: no difference in the pages' words, images or looks; the shots show th
 |---|---|
 | ![before](no-difference/shot-before.png) | ![after](no-difference/shot-after.png) |
 
-</details>
-
-<details>
-<summary><h2>A page set up by hand</h2></summary>
+## A page set up by hand
 
 With `--interactive`, both pages open in windows and are shot as you leave them. This shop looks the same in both versions until its cart is filled: run without `--interactive`, it is the "no difference" above.
 
@@ -290,5 +253,3 @@ shot-diff "file://$PWD/test/fixtures/shop/before.html" "file://$PWD/test/fixture
 | Before | After |
 |---|---|
 | ![before](by-hand/shot-before.png) | ![after](by-hand/shot-after.png) |
-
-</details>

@@ -199,15 +199,13 @@ function section(example: Example, folder: string, printed: string | null): stri
     const after = before.replace('-before.png', '-after.png');
     return `| ![before](${example.id}/${before}) | ![after](${example.id}/${after}) |`;
   });
-  // Folded until it is clicked: a blank line after the summary lets what follows be Markdown.
   return [
-    `<details>\n<summary><h2>${example.name}</h2></summary>`,
+    `## ${example.name}`,
     example.shows,
     ['```sh', `shot-diff ${pages.join(' ')} \\`, `  ${options}`, '```'].join('\n'),
     ...(example.hands ? [example.hands.steps.map((step, i) => `${i + 1}. ${step}`).join('\n')] : []),
     ...(printed ? [['```', printed, '```'].join('\n')] : []),
     ['| Before | After |', '|---|---|', ...rows].join('\n'),
-    '</details>',
   ].join('\n\n');
 }
 
