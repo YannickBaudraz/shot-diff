@@ -26,6 +26,18 @@ const marks = (more: Partial<Marks>): Marks => ({
   ...more,
 });
 
+/** An element with a shadow tree: a line of its own, a slot for what it is given, and a last line. */
+customElements.define(
+  'x-card',
+  class extends HTMLElement {
+    connectedCallback() {
+      this.attachShadow({ mode: 'open' }).innerHTML =
+        '<style>p { margin: 0 0 24px } :host(.folded) section { display: none }</style>' +
+        '<p id="top">Top line</p><section><slot>nothing given</slot></section><p>Bottom</p>';
+    }
+  },
+);
+
 afterEach(() => {
   for (const layer of [...document.documentElement.children])
     if (layer !== document.head && layer !== document.body) layer.remove();
@@ -76,6 +88,59 @@ describe('read', () => {
   });
 });
 
+describe('read, an embedded page', () => {
+  test('is one element that paints: the words in it are not read', () => {
+    const p = page(
+      '<p>Around</p><iframe title="Payment" srcdoc="<p>Inside</p>" width="200" height="80"></iframe>',
+    );
+    expect(p.reading.words).toEqual(['Around']);
+    const frame = p.reading.elements.find(e => e.tag === 'iframe')!;
+    expect([frame.signature, frame.paints, frame.leaf]).toEqual(['IFRAME', true, true]);
+  });
+});
+
+describe('read, inside a shadow tree', () => {
+  test('lists its words where they show: the tree, with what the element is given in its slot', () => {
+    const p = page('<p>Before</p><x-card><b>given</b> bare</x-card><p>After</p>');
+    expect(p.reading.words).toEqual(['Before', 'Top', 'line', 'given', 'bare', 'Bottom', 'After']);
+  });
+
+  test('a slot given nothing shows its own words, and one that is not shown hides what it is given', () => {
+    expect(page('<x-card></x-card>').reading.words).toEqual(['Top', 'line', 'nothing', 'given', 'Bottom']);
+    expect(page('<x-card class="folded"><b>given</b> bare</x-card>').reading.words).toEqual([
+      'Top',
+      'line',
+      'Bottom',
+    ]);
+  });
+
+  test('lists its elements, each in the element it shows in', () => {
+    const { elements } = page('<x-card><b>given</b></x-card>').reading;
+    const parentOf = (signature: string) => elements[elements.find(e => e.signature === signature)!.parent];
+    expect(elements.map(e => e.signature)).toEqual([
+      'X-CARD',
+      'P #top Top line',
+      'SECTION',
+      'B given',
+      'P Bottom',
+    ]);
+    expect(parentOf('P #top Top line').signature).toBe('X-CARD');
+    expect(parentOf('B given').signature).toBe('SECTION'); // through the slot, which has no box
+    expect(elements[0].leaf).toBe(false);
+  });
+});
+
+describe('read, with no box around the words', () => {
+  test('words in an element with display: contents are read; hidden through it, they are not', () => {
+    const p = page(
+      '<div style="display:contents">shown</div>' +
+        '<div style="display:contents;visibility:hidden">unseen</div>' +
+        '<div style="display:none"><div style="display:contents">gone</div></div>',
+    );
+    expect(p.reading.words).toEqual(['shown']);
+  });
+});
+
 describe('the order', () => {
   test("an element's pixels are not given once the page is marked", () => {
     const p = page('<p>a</p>');
@@ -110,12 +175,53 @@ describe('mark', () => {
         ],
       }),
     );
-    const labels = drawn().map(box => box.firstElementChild as HTMLElement);
+    const boxes = drawn();
+    const labels = boxes.map(box => box.firstElementChild as HTMLElement);
     expect(labels.map(l => l.textContent)).toEqual(['background', 'border']);
-    expect(labels[0].style.top).toBe('100%'); // no room above: below
-    expect(labels[1].style.bottom).toBe('100%'); // above
+    const [top, lower] = boxes.map((box, i) => ({
+      box: box.getBoundingClientRect(),
+      label: labels[i].getBoundingClientRect(),
+    }));
+    expect(top.label.top).toBe(top.box.bottom); // no room above: below
+    expect(lower.label.bottom).toBe(lower.box.top); // above
+    expect(top.label.left).toBe(top.box.left);
     expect(looks[0].top).toBe(0);
     expect(looks[1].top).toBeLessThan(200 - 4);
+  });
+
+  test('a label goes where it hides no words: below a box with a line right above it', () => {
+    const p = page(
+      '<p style="margin:0">The line above</p><button>changed</button><p style="margin-top:80px">far below</p>',
+    );
+    const index = p.reading.elements.findIndex(e => e.tag === 'button');
+    p.mark(marks({ looks: [{ index, badge: { label: 'background' } }] }));
+    const [box] = drawn();
+    const label = box.firstElementChild!.getBoundingClientRect();
+    expect(label.top).toBe(box.getBoundingClientRect().bottom);
+    const line = document.querySelector('p')!.getBoundingClientRect();
+    expect(label.top).toBeGreaterThanOrEqual(line.bottom);
+  });
+
+  test('with words above and below, it goes to the side that hides none; two labels do not share a place', () => {
+    const p = page(
+      '<p style="margin:0">Above</p><div style="width:300px"><button>one</button></div><p style="margin:0">Below</p>',
+    );
+    const index = p.reading.elements.findIndex(e => e.tag === 'div');
+    const badge = { label: 'spacing' };
+    p.mark(
+      marks({
+        looks: [
+          { index, badge },
+          { index, badge },
+        ],
+      }),
+    );
+    const [first, second] = drawn().map(box => box.firstElementChild!.getBoundingClientRect());
+    const [box] = drawn().map(box => box.getBoundingClientRect());
+    expect(first.right).toBe(box.right); // above, on the right: "Above" is on the left
+    expect(first.bottom).toBe(box.top);
+    expect(second.top).toBe(box.bottom); // the same place is taken: below, on the right
+    expect(second.right).toBe(box.right);
   });
 
   test('a disc is the image it is given, on the box, with no label', () => {
@@ -126,6 +232,59 @@ describe('mark', () => {
     expect(box.children).toHaveLength(0);
     expect((disc as HTMLImageElement).src).toBe(src);
     expect(disc.style.width).toBe('24px');
+  });
+});
+
+describe('mark, inside a shadow tree', () => {
+  test('tints and boxes its changed words: the tree is given the tint, and no node', () => {
+    const p = page('<p>Before</p><x-card></x-card>');
+    const root = document.querySelector('x-card')!.shadowRoot!;
+    const nodes = root.childNodes.length;
+    const top = root.querySelector('#top')!.getBoundingClientRect();
+    p.mark(marks({ words: [{ changed: [1, 2], anchors: [0] }] })); // "Top line"
+    expect(CSS.highlights.get('shot-diff')?.size).toBe(1);
+    expect(root.adoptedStyleSheets.map(sheet => sheet.cssRules[0].cssText)).toEqual([
+      expect.stringContaining('::highlight(shot-diff)'),
+    ]);
+    expect(root.childNodes.length).toBe(nodes);
+    const [box] = drawn().map(element => element.getBoundingClientRect());
+    expect(box.top).toBeLessThanOrEqual(top.top);
+    expect(box.bottom).toBeGreaterThanOrEqual(top.top + 16); // around the line of words
+  });
+
+  test('a change in it is inside --selector when the element around the tree is', () => {
+    const p = page('<main><x-card></x-card></main><aside><x-card></x-card></aside>');
+    const tops = p.reading.elements.flatMap((e, i) => (e.signature === 'P #top Top line' ? [i] : []));
+    const { words, looks } = p.mark(
+      marks({
+        within: 'main',
+        words: [
+          { changed: [0], anchors: [] }, // "Top", in main's card
+          { changed: [5], anchors: [] }, // "Top", in the aside's
+        ],
+        looks: tops.map(index => ({ index, badge: { label: 'colour' } })),
+      }),
+    );
+    expect(words.map(w => w!.inside)).toEqual([true, false]);
+    expect(looks.map(l => l.inside)).toEqual([true, false]);
+  });
+
+  test('a change in it past the edge of a scroll area around the tree is clipped, not boxed', () => {
+    // The scroll area shows the card's first 24px line: "Top line" is in view, "Bottom" is not.
+    const p = page('<div style="height:24px;overflow:auto"><x-card></x-card></div>');
+    const bottom = p.reading.elements.findIndex(e => e.signature === 'P Bottom');
+    const { words, looks } = p.mark(
+      marks({
+        words: [
+          { changed: [0], anchors: [1] }, // "Top"
+          { changed: [4], anchors: [3] }, // "Bottom"
+        ],
+        looks: [{ index: bottom, badge: { label: 'colour' } }],
+      }),
+    );
+    expect(words.map(w => w!.clipped)).toEqual([false, true]);
+    expect(looks[0].clipped).toBe(true);
+    expect(drawn()).toHaveLength(1); // the box on "Top"
   });
 });
 

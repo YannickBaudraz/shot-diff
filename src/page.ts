@@ -44,7 +44,10 @@ export function runtime(properties: string[]) {
 
   // Sizes in CSS pixels.
   const BOX = { margin: 4, border: 2, radius: 4 }; // margin: between an element and its box
-  const LABEL = { height: 22, gap: 2, font: '600 12px/1.4 system-ui,sans-serif', padding: '1px 6px' };
+  const LABEL = { gap: 2, font: '600 12px/1.4 system-ui,sans-serif', padding: '1px 6px' };
+  // How far two boxes go into each other before one covers the other: a line of text's rectangle is
+  // taller than its letters, so a label that only touches it hides nothing.
+  const TOUCHING = 2;
   const IMAGE_OUTLINE = { width: 3, offset: 2 };
   const STRIKE_WIDTH = 2;
   const WORD_BOX_MARGIN = { x: 4, y: 3 }; // between a line of changed words and its box
@@ -95,6 +98,46 @@ export function runtime(properties: string[]) {
     height: box.height + 2 * dy,
   });
 
+  /** The nodes laid out inside `node`, in order. An element with a shadow tree shows that tree, not
+   * its own children; a slot in it shows the nodes the element gives it, or its own with none given.
+   * Only an open shadow tree can be reached from the page: a closed one is not read. */
+  const shownChildren = (node: Node): Node[] => {
+    if (node instanceof Element && node.shadowRoot) return [...node.shadowRoot.childNodes];
+    const given = node instanceof HTMLSlotElement ? node.assignedNodes() : [];
+    return given.length ? given : [...node.childNodes];
+  };
+
+  /** The element `node` is laid out in: the slot it is given to, the element whose shadow tree it is
+   * at the top of, or else its parent. */
+  const shownIn = (node: Node): Element | null => {
+    const slot = node instanceof Element || node instanceof Text ? node.assignedSlot : null;
+    if (slot) return slot;
+    return node.parentElement ?? (node.parentNode instanceof ShadowRoot ? node.parentNode.host : null);
+  };
+
+  /** Call `visit` on every node laid out in `node`, parents first; it says whether to go inside. */
+  const walk = (node: Node, visit: (node: Node) => boolean) => {
+    for (const child of shownChildren(node)) if (visit(child)) walk(child, visit);
+  };
+
+  /** Whether the text laid out in `parent` shows. An element with `display: contents`, as a slot
+   * has, has no box of its own to ask: its visibility is its own, and the rest is asked of the
+   * element it is laid out in. */
+  const showsText = (parent: Element | null): boolean => {
+    if (!parent) return false;
+    const style = getComputedStyle(parent);
+    if (style.display !== 'contents')
+      return parent.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true });
+    return style.visibility === 'visible' && showsText(shownIn(parent));
+  };
+
+  /** Whether `node` is in `ancestor`'s tree, the shadow trees inside it included. */
+  const inTreeOf = (ancestor: Node, node: Node): boolean => {
+    for (let n: Node | null = node; n; n = n.parentNode ?? (n instanceof ShadowRoot ? n.host : null))
+      if (n === ancestor) return true;
+    return false;
+  };
+
   /** The token's rectangles on screen, one per line it is on. */
   const rectsOf = (token: Token) => [...rangeOf(token).getClientRects()].filter(r => r.width || r.height);
 
@@ -107,7 +150,7 @@ export function runtime(properties: string[]) {
     for (
       let node = clipper;
       node && node !== document.body && node !== document.documentElement;
-      node = node.parentElement
+      node = shownIn(node)
     ) {
       const style = getComputedStyle(node);
       const box = node.getBoundingClientRect();
@@ -129,7 +172,7 @@ export function runtime(properties: string[]) {
   /** What shows of a token, a rectangle per line it is on: its text is clipped by its own element
    * and those around it, an image by those around it. */
   const shownRectsOf = (token: Token) => {
-    const clipper = 'image' in token ? token.image.parentElement : token.node.parentElement;
+    const clipper = shownIn('image' in token ? token.image : token.node);
     return rectsOf(token).flatMap(rect => shownPart(rect, clipper) ?? []);
   };
 
@@ -148,27 +191,25 @@ export function runtime(properties: string[]) {
     return `[image ${name}]`;
   };
 
-  /** Every visible word and image, in document order. Text with opacity 0 counts as hidden here. */
+  /** Every visible word and image, in the order the page lays them out, shadow trees included. Text
+   * with opacity 0 counts as hidden here. */
   const readWords = (): { words: string[]; tokens: Token[] } => {
     const found: Token[] = [];
     const words: string[] = [];
-    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT);
-    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-      if (node.nodeType === Node.ELEMENT_NODE) {
-        const element = node as Element;
-        if (element.tagName === 'IMG' && element.checkVisibility()) {
-          found.push({ image: element });
-          words.push(imageWord(element));
+    walk(document.body, node => {
+      if (node instanceof Element) {
+        if (node.tagName === 'IMG' && node.checkVisibility()) {
+          found.push({ image: node });
+          words.push(imageWord(node));
         }
-        continue;
+      } else if (node instanceof Text && showsText(shownIn(node))) {
+        for (const match of node.data.matchAll(/\S+/g)) {
+          found.push({ node, start: match.index, end: match.index + match[0].length });
+          words.push(match[0]);
+        }
       }
-      const text = node as Text;
-      if (!text.parentElement?.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })) continue;
-      for (const match of text.data.matchAll(/\S+/g)) {
-        found.push({ node: text, start: match.index, end: match.index + match[0].length });
-        words.push(match[0]);
-      }
-    }
+      return true;
+    });
     return { words, tokens: found };
   };
 
@@ -188,7 +229,9 @@ export function runtime(properties: string[]) {
       .join(' ');
   };
 
-  const PAINTERS = new Set(['IMG', 'CANVAS', 'svg', 'VIDEO']);
+  /** The elements that draw pixels their style does not describe. An embedded page is one: it is a
+   * document of its own, whose words and elements are not read here. */
+  const PAINTERS = new Set(['IMG', 'CANVAS', 'svg', 'VIDEO', 'IFRAME']);
 
   /** An element as looks.ts compares it; its parent is filled in by readElements(). */
   const describe = (element: Element, rect: DOMRect, properties: string[]): ElementInfo => {
@@ -212,44 +255,41 @@ export function runtime(properties: string[]) {
     };
   };
 
-  /** The index of the nearest ancestor already listed, if any. */
+  /** The index of the nearest element already listed that `element` is laid out in, if any. */
   const listedAncestor = (element: Element, indexOf: Map<Element, number>) => {
-    for (let ancestor = element.parentElement; ancestor; ancestor = ancestor.parentElement) {
+    for (let ancestor = shownIn(element); ancestor; ancestor = shownIn(ancestor)) {
       const index = indexOf.get(ancestor);
       if (index !== undefined) return index;
     }
     return undefined;
   };
 
-  /** Every visible element, in document order. An element with opacity 0 still counts: its opacity
-   * is one of the properties compared, and `seen` says whether it shows. */
+  /** Every visible element, in the order the page lays them out, shadow trees included. An element
+   * with opacity 0 still counts: its opacity is one of the properties compared, and `seen` says
+   * whether it shows. */
   const readElements = (properties: string[]): { elements: ElementInfo[]; domElements: Element[] } => {
     const found: Element[] = [];
     const elements: ElementInfo[] = [];
     const indexOf = new Map<Element, number>();
-    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT, {
-      // An SVG is one picture: its shapes are not elements of their own here.
-      acceptNode: node =>
-        node.parentElement?.closest('svg') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT,
-    });
-    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-      const element = node as Element;
-      const rect = element.getBoundingClientRect();
+    walk(document.body, node => {
+      if (!(node instanceof Element)) return false;
+      const rect = node.getBoundingClientRect();
       const visible =
-        element.checkVisibility({ checkOpacity: false, checkVisibilityCSS: true }) &&
-        rect.width &&
-        rect.height;
-      if (!visible) continue;
-      const info = describe(element, rect, properties);
-      const parent = listedAncestor(element, indexOf);
-      if (parent !== undefined) {
-        info.parent = parent;
-        elements[parent].leaf = false;
+        node.checkVisibility({ checkOpacity: false, checkVisibilityCSS: true }) && rect.width && rect.height;
+      if (visible) {
+        const info = describe(node, rect, properties);
+        const parent = listedAncestor(node, indexOf);
+        if (parent !== undefined) {
+          info.parent = parent;
+          elements[parent].leaf = false;
+        }
+        indexOf.set(node, elements.length);
+        found.push(node);
+        elements.push(info);
       }
-      indexOf.set(element, elements.length);
-      found.push(element);
-      elements.push(info);
-    }
+      // An SVG is one picture: its shapes are not elements of their own here.
+      return node.tagName !== 'svg';
+    });
     return { elements, domElements: found };
   };
 
@@ -292,12 +332,19 @@ export function runtime(properties: string[]) {
     return undos;
   };
 
-  /** Tint `ranges` with a CSS highlight, which changes nothing the page lays out. */
+  /** Tint `ranges` with a CSS highlight, which changes nothing the page lays out. A tree's styles
+   * stop at its edge, so each shadow tree with a range in it is given the highlight's rule too: as a
+   * style sheet it adopts, which adds no node to it. */
   const paintHighlight = (ranges: Range[], marks: Marks) => {
     const strike = marks.strike ? `text-decoration:line-through ${STRIKE_WIDTH}px ${marks.color};` : '';
+    const rule = `::highlight(shot-diff){background-color:${marks.tint};${strike}}`;
     const style = document.createElement('style');
-    style.textContent = `::highlight(shot-diff){background-color:${marks.tint};${strike}}`;
+    style.textContent = rule;
     document.head.appendChild(style);
+    const sheet = new CSSStyleSheet();
+    sheet.replaceSync(rule);
+    for (const root of new Set(ranges.map(range => range.startContainer.getRootNode())))
+      if (root instanceof ShadowRoot) root.adoptedStyleSheets = [...root.adoptedStyleSheets, sheet];
     CSS.highlights.set('shot-diff', new Highlight(...ranges));
   };
 
@@ -353,8 +400,33 @@ export function runtime(properties: string[]) {
     top: Math.max(0, box.y - size / 2),
   });
 
-  /** Whether a box's label fits above it, or goes below it for lack of room on the page. */
-  const labelFitsAbove = (box: Box) => box.y - LABEL.height >= 0;
+  /** Whether two boxes go into each other, by more than touching. */
+  const covers = (one: Box, other: Box) =>
+    Math.min(one.x + one.width, other.x + other.width) - Math.max(one.x, other.x) > TOUCHING &&
+    Math.min(one.y + one.height, other.y + other.height) - Math.max(one.y, other.y) > TOUCHING;
+
+  /** Where the label of `box` goes, as a box in page pixels: of the places around the box that are
+   * on the page, the one that covers the fewest of `taken`, the page's words and the labels before
+   * it. Above the box, on its left, comes first; then below it, then the same two on its right,
+   * then beside it. At the top of the page there is no place above. */
+  const labelPlace = (box: Box, width: number, height: number, taken: Box[]): Box => {
+    const pageWidth = document.documentElement.clientWidth;
+    // Along the box's edge, kept on the page: a box at the page's edge starts a little outside it.
+    const left = Math.max(0, box.x);
+    const right = Math.max(0, Math.min(box.x + box.width, pageWidth) - width);
+    const above = box.y + BOX.border - LABEL.gap - height;
+    const below = box.y + box.height - BOX.border + LABEL.gap;
+    const beside = box.x + box.width + LABEL.gap;
+    const places = [
+      ...(above >= 0 ? [{ x: left, y: above }] : []),
+      { x: left, y: below },
+      ...(above >= 0 ? [{ x: right, y: above }] : []),
+      { x: right, y: below },
+      ...(beside + width <= pageWidth ? [{ x: beside, y: Math.max(0, box.y) }] : []),
+    ].map(corner => ({ ...corner, width, height }));
+    const hides = (place: Box) => taken.filter(other => covers(place, other)).length;
+    return places.reduce((best, place) => (hides(place) < hides(best) ? place : best));
+  };
 
   /** A numbered disc on a box's top left corner. */
   const drawDisc = (layer: HTMLElement, disc: { src: string; size: number }, box: Box) => {
@@ -366,32 +438,37 @@ export function runtime(properties: string[]) {
     return image;
   };
 
-  /** What changed, on a tag above the box, or below it when the page has no room above. */
-  const drawLabel = (boxElement: HTMLElement, label: string, color: string, box: Box) => {
-    const place = labelFitsAbove(box)
-      ? `bottom:100%;margin-bottom:${LABEL.gap}px`
-      : `top:100%;margin-top:${LABEL.gap}px`;
+  /** What changed, on a tag by the box, where it hides the least of `taken`: it is added to them. */
+  const drawLabel = (boxElement: HTMLElement, label: string, color: string, box: Box, taken: Box[]) => {
     const tag = document.createElement('div');
     tag.textContent = label;
     tag.style.cssText =
-      `position:absolute;left:-${BOX.border}px;${place};padding:${LABEL.padding};` +
+      `position:absolute;left:0;top:0;padding:${LABEL.padding};` +
       `border-radius:${BOX.radius}px;white-space:nowrap;background:${color};color:${ON_COLOR};font:${LABEL.font}`;
     boxElement.appendChild(tag);
+    const { width, height } = tag.getBoundingClientRect();
+    const place = labelPlace(box, width, height, taken);
+    // From the inside of the box's border, which is what a tag inside the box is placed from.
+    tag.style.left = `${place.x - box.x - BOX.border}px`;
+    tag.style.top = `${place.y - box.y - BOX.border}px`;
+    taken.push(place);
     return tag;
   };
 
   /** Box an element whose look changed, with its label or its disc, and say where all that is. The
-   * box and the disc go in `drawn`; a label is inside its box. The box is around what shows of the
-   * element: an element a scroll area cuts off is not boxed at all, it is clipped. */
+   * box and the disc go in `drawn`; a label is inside its box, placed off what is `taken`. The box
+   * is around what shows of the element: an element a scroll area cuts off is not boxed at all, it
+   * is clipped. */
   const boxLook = (
     look: Marks['looks'][number],
     element: Element,
     layer: HTMLElement,
     color: string,
     drawn: HTMLElement[],
+    taken: Box[],
   ): Span => {
     const rect = element.getBoundingClientRect();
-    const clipper = getComputedStyle(element).position === 'fixed' ? null : element.parentElement;
+    const clipper = getComputedStyle(element).position === 'fixed' ? null : shownIn(element);
     const shown = shownPart(rect, clipper);
     if (!shown) return { ...inPage(pageRegion([rect])), changed: null, inside: true, clipped: true };
     const box = grow(pageBox(shown), BOX.margin);
@@ -399,7 +476,7 @@ export function runtime(properties: string[]) {
     const badge =
       'disc' in look.badge
         ? drawDisc(layer, look.badge.disc, box)
-        : drawLabel(boxElement, look.badge.label, color, box);
+        : drawLabel(boxElement, look.badge.label, color, box, taken);
     drawn.push(boxElement);
     if (badge.parentElement !== boxElement) drawn.push(badge);
     const region = inPage(pageRegion([boxElement, badge].map(drawn => drawn.getBoundingClientRect())));
@@ -435,10 +512,10 @@ export function runtime(properties: string[]) {
       const tints = highlight(marks, tokens);
       const layer = overlay();
       const removing = (drawn: HTMLElement[]) => drawn.map(element => () => element.remove());
-      // In the element's tree, wherever layout puts it: an ancestor around it, or a column beside
-      // it, is outside.
+      // In the element's tree, the shadow trees inside it included, wherever layout puts it: an
+      // ancestor around it, or a column beside it, is outside.
       const scope = marks.within ? document.querySelector(marks.within) : null;
-      const inside = (nodes: Node[]) => !marks.within || nodes.some(node => !!scope?.contains(node));
+      const inside = (nodes: Node[]) => !marks.within || nodes.some(node => !!scope && inTreeOf(scope, node));
       const words = marks.words.map((change, i) => {
         const drawn: HTMLElement[] = [];
         const span = boxWords(change, tokens, layer, marks.color, drawn);
@@ -448,10 +525,12 @@ export function runtime(properties: string[]) {
           .map(token => ('image' in token ? token.image : token.node));
         return span && { ...span, inside: inside(nodes) };
       });
+      // What a label should not hide: the page's words and images, and the labels placed before it.
+      const taken = tokens.flatMap(rectsOf).map(pageBox);
       const looks = marks.looks.map(look => {
         const drawn: HTMLElement[] = [];
         const element = domElements[look.index];
-        const span = boxLook(look, element, layer, marks.color, drawn);
+        const span = boxLook(look, element, layer, marks.color, drawn, taken);
         undo.looks.push(removing(drawn));
         return { ...span, inside: inside([element]) };
       });

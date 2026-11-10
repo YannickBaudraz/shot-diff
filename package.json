@@ -23,13 +23,16 @@
     "prepare": "vite build",
     "check": "tsc",
     "test": "vitest run",
+    "examples": "node examples/generate.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
   "dependencies": {
     "@inquirer/confirm": "^6.3.5",
+    "chrome-launcher": "^1.2.3",
     "commander": "^15.0.0",
     "diff": "^9.0.0",
+    "is-wsl": "^3.1.1",
     "pixelmatch": "^8.0.0",
     "playwright-core": "^1.64.1",
     "sharp": "^0.35.5"
@@ -38,6 +41,7 @@
     "@brachkow/vitest-image-snapshot": "^0.3.0",
     "@types/node": "^24.19.2",
     "@vitest/browser-playwright": "^5.1.0",
+    "alpinejs": "^3.17.5",
     "prettier": "^3.9.10",
     "typescript": "^7.0.2",
     "vite": "^8.3.5",

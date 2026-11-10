@@ -1,0 +1,55 @@
+<!doctype html><meta charset="utf-8"><title>AFTER · Acme shop</title>
+<link rel="stylesheet" href="shop.css">
+<!-- The same page as before.html, but for the version it names: shop.js holds what differs. -->
+<body x-data="shop('after')">
+<header>
+ <h1>Acme shop</h1>
+ <a href="shipping.html" target="_blank">Shipping details</a>
+ <template x-if="!customer">
+  <form @submit.prevent="customer = name.trim()">
+   <input id="name" x-model="name" placeholder="Your name" aria-label="Your name"> <button>Log in</button>
+  </form>
+ </template>
+ <template x-if="customer"><span x-text="`Hello, ${customer}`"></span></template>
+</header>
+<main>
+ <section>
+  <h2>Products</h2>
+  <div class="products">
+   <template x-for="product in products" :key="product.id">
+    <div class="product">
+     <strong x-text="product.name"></strong>
+     <div class="price" x-text="money(product.price)"></div>
+     <button :data-add="product.id" @click="add(product)">Add to cart</button>
+    </div>
+   </template>
+  </div>
+ </section>
+ <section class="cart">
+  <h2>Your cart</h2>
+  <template x-if="!lines.length"><p>Your cart is empty.</p></template>
+  <template x-if="lines.length">
+   <div>
+    <table>
+     <template x-for="line in lines" :key="line.id">
+      <tr>
+       <td x-text="line.name"></td>
+       <td><input type="number" min="1" x-model.number="line.quantity" :data-quantity="line.id" :aria-label="`Quantity of ${line.name}`"></td>
+       <td class="num" x-text="money(line.price * count(line))"></td>
+       <td class="num"><button @click="remove(line)" x-text="words.remove"></button></td>
+      </tr>
+     </template>
+    </table>
+    <div class="promo">
+     <input id="code" x-model="typed" placeholder="Promo code" aria-label="Promo code">
+     <button id="apply" @click="apply()">Apply</button>
+    </div>
+    <p class="message" x-text="message"></p>
+    <p class="total" x-text="`${words.total}: ${money(total)}`"></p>
+    <button id="checkout" :class="version">Checkout</button>
+   </div>
+  </template>
+ </section>
+</main>
+<script src="shop.js"></script>
+<script defer src="../../../node_modules/alpinejs/dist/cdn.min.js"></script>

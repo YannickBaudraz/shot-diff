@@ -3,7 +3,7 @@
 import type { Browser } from 'playwright-core';
 import { band, type Content, type Key } from './band.ts';
 import { diff, hunks, type Hunk } from './diff.ts';
-import { load, type LoadedPage, type LoadOptions } from './loaded.ts';
+import { open, openTabs, type LoadedPage, type LoadOptions, type OpenedPage } from './loaded.ts';
 import { compareLooks } from './looks.ts';
 import { markersFor, type Marker, type Mode } from './markers.ts';
 import type { Box } from './page.ts';
@@ -16,7 +16,14 @@ export type Options = LoadOptions &
     after: string;
     title: string;
     markers: Mode; // what a change of look's box says: what changed, or a number the band explains
+    /** Waits while a person sets both opened pages up by hand (--interactive); null to read them as
+     * they load. Called again, with the sides whose window then has several tabs, until none has. */
+    prepare: Prepare | null;
+    /** Open both pages as tabs of one window, not a window each (--tabs): for pages set up by hand. */
+    tabs: boolean;
   };
+
+export type Prepare = (crowded: Side[]) => Promise<void>;
 
 export type ShotSide = { png: Buffer; changed: string[]; box: Box };
 export type Shot = { before: ShotSide; after: ShotSide };
@@ -67,16 +74,44 @@ export async function run(browser: Browser, options: Options): Promise<Result> {
   }
 }
 
-/** Both pages, loaded at once. When one fails to load, the other is closed and the error is thrown. */
-async function loadBoth(browser: Browser, options: Options): Promise<Record<Side, LoadedPage>> {
+/** Both pages, opened at once: in a window each, or as the tabs of one. When one fails to open, the
+ * other is closed and the error is thrown. */
+async function openBoth(browser: Browser, options: Options): Promise<OpenedPage[]> {
   const urls = { before: options.before, after: options.after };
-  const loads = await Promise.allSettled(SIDES.map(side => load(browser, urls[side], side, options)));
-  const [before, after] = loads;
-  if (before.status === 'fulfilled' && after.status === 'fulfilled')
-    return { before: before.value, after: after.value };
-  for (const result of loads) if (result.status === 'fulfilled') await result.value.close();
-  const [failed] = loads.filter(result => result.status === 'rejected');
+  if (options.tabs) return openTabs(browser, urls, options);
+  const opens = await Promise.allSettled(SIDES.map(side => open(browser, urls[side], side, options)));
+  const opened = opens.flatMap(result => (result.status === 'fulfilled' ? [result.value] : []));
+  const [failed] = opens.filter(result => result.status === 'rejected');
+  if (!failed) return opened;
+  await Promise.allSettled(opened.map(page => page.close()));
   throw failed.reason;
+}
+
+/** Both pages, opened, set up by hand when the run says to, then read at once. When that fails,
+ * both are closed and the error is thrown. */
+async function loadBoth(browser: Browser, options: Options): Promise<Record<Side, LoadedPage>> {
+  const opened = await openBoth(browser, options);
+  try {
+    if (options.prepare) await setUp(opened, options.prepare);
+    const handled = options.prepare !== null;
+    const [before, after] = await Promise.all(opened.map(page => page.read(handled)));
+    return { before, after };
+  } catch (error) {
+    // A browser the person quit has nothing left to close, and says so: the first error is the one to give.
+    await Promise.allSettled(opened.map(page => page.close()));
+    throw error;
+  }
+}
+
+/** Wait for the person setting the pages up, and again while a window of theirs has several tabs: a
+ * link can open one, or they can. One tab only is shot, and nothing tells which is in front (to the
+ * pages, each is: Playwright has them all behave as focused), so the choice is left to the person. */
+async function setUp(opened: OpenedPage[], prepare: Prepare): Promise<void> {
+  let crowded: Side[] = [];
+  do {
+    await prepare(crowded);
+    crowded = opened.filter(page => page.tabs() > 1).map(page => page.side);
+  } while (crowded.length);
 }
 
 /** A change, of words or of look: where it is on each page, what it is called in each page's list

@@ -114,6 +114,51 @@ test('a title is required', () => {
   expect(done.stderr).toMatch(/--title/);
 });
 
+test('changes inside a web component are marked: in its shadow tree, and in what it is given', () => {
+  const { done, result } = shotDiff(page('shadow/before.html'), page('shadow/after.html'), '--title', 't');
+  expect(done.status, done.stderr).toBe(0);
+  const [shot] = result.shots;
+  // The price and the button are in the card's shadow tree; the description is given to its slot.
+  expect(shot.before.removed).toEqual(['$12', 'teams.', '[button: text colour, background]']);
+  expect(shot.after.added).toEqual([
+    '$15',
+    'teams, with priority support.',
+    '[button: text colour, background]',
+  ]);
+});
+
+test('--selector takes in the shadow trees inside its element', () => {
+  const pages = [page('shadow/before.html'), page('shadow/after.html')];
+  const inside = shotDiff(...pages, '--title', 't', '--selector', 'main');
+  expect(inside.result.shots[0].after.added).toHaveLength(3);
+  expect(inside.result.ignored).toEqual({ removed: [], added: [] });
+  const outside = shotDiff(...pages, '--title', 't', '--selector', 'h1');
+  expect(outside.result.ignored.added).toHaveLength(3);
+});
+
+test('a change inside an embedded page is marked on the iframe, as a whole', () => {
+  const pages = [page('frame/before/index.html'), page('frame/after/index.html')];
+  const { done, result } = shotDiff(...pages, '--title', 't');
+  expect(done.status, done.stderr).toBe(0);
+  expect(result.shots[0].before.removed).toEqual(['[iframe: embedded page]']);
+  expect(result.shots[0].after.added).toEqual(['[iframe: embedded page]']);
+  // The same embedded page on both sides is no change.
+  const same = shotDiff(pages[0], pages[0], '--title', 't');
+  expect(same.done.stderr).toMatch(/no difference/);
+});
+
+test('--interactive is refused where there is no terminal to wait on', () => {
+  const { done } = shotDiff(page('before.html'), page('after.html'), '--title', 't', '--interactive');
+  expect(done.status).toBe(1);
+  expect(done.stderr).toMatch(/--interactive needs a terminal/);
+});
+
+test('--tabs is refused without --interactive', () => {
+  const { done } = shotDiff(page('before.html'), page('after.html'), '--title', 't', '--tabs');
+  expect(done.status).toBe(1);
+  expect(done.stderr).toMatch(/--tabs goes with --interactive/);
+});
+
 test('changes with no words in them are marked: a restyled button, a picture redrawn under the same name', () => {
   const { done, result } = shotDiff(
     page('visual/before/index.html'),
