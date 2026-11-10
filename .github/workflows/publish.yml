@@ -1,0 +1,36 @@
+name: Publish
+
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: read
+jobs:
+  test:
+    uses: ./.github/workflows/ci.yml
+  publish:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # npm trusted publishing: npm checks this workflow's identity instead of a token.
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          registry-url: https://registry.npmjs.org
+      - name: Check that the tag matches the package version
+        run: |
+          version="v$(node -p 'require("./package.json").version')"
+          if [ "$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match package.json version $version"
+            exit 1
+          fi
+      # npm ci runs prepare, which builds dist.
+      - run: npm ci
+      # Staged, not published: the version goes live only once approved with 2FA,
+      # on npmjs.com or with `npm stage approve <stage-id>`.
+      - run: npm stage publish
