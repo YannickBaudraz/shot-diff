@@ -46,6 +46,8 @@ export type LoadedPage = {
   width: number;
   /** A PNG of element `index`'s own pixels, or null when it cannot be shot. Only before mark(). */
   pixels(index: number): Promise<Buffer | null>;
+  /** Element `index`'s accessible name, as Chrome gives it to screen readers; empty when it has none. Only before mark(). */
+  name(index: number): Promise<string>;
   /** Mark this side's part of the word changes and the changes of look, saying of each whether it is
    * inside the element `within` matches; once. */
   mark(hunks: Hunk[], markers: Marker[], within: string | null): Promise<Spans>;
@@ -270,6 +272,7 @@ async function read(
     elements,
     width,
     pixels: index => shooting(() => pixels(page, index)),
+    name: index => accessibleName(page, index),
     mark: (hunks, markers, within) => call(page, 'mark', marksFor(side, hunks, markers, within)),
     region: selector => call(page, 'region', selector),
     snap: region => call(page, 'snap', region),
@@ -290,6 +293,28 @@ function call<Name extends Method>(page: Page, name: Name, arg: Parameters<Runti
     { name, arg },
   );
   return result as Promise<ReturnType<Runtime[Name]>>;
+}
+
+/** Element `index`'s accessible name, from Chrome's accessibility tree: what a screen reader says,
+ * with every rule of the specification applied. Empty for an element that has none, or that the
+ * tree leaves out, as an image with empty alternative text. */
+async function accessibleName(page: Page, index: number): Promise<string> {
+  const session = await page.context().newCDPSession(page);
+  try {
+    const { result } = await session.send('Runtime.evaluate', {
+      expression: `window.__shotDiff.element(${index})`,
+    });
+    if (!result.objectId) return '';
+    const { nodes } = await session.send('Accessibility.getPartialAXTree', {
+      objectId: result.objectId,
+      fetchRelatives: false,
+    });
+    return String(nodes[0]?.name?.value ?? '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  } finally {
+    await session.detach().catch(() => {});
+  }
 }
 
 /** The errors Playwright gives when an element cannot be shot: it left the page, it has no box, it

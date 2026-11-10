@@ -19,9 +19,14 @@ export type ElementInfo = {
   style: Record<string, string>; // the PROPERTIES below, as the CSS sets them
 };
 
-/** What the comparison needs from a loaded page: its elements, and a PNG of one element's own
- * pixels (null when it cannot be shot). loaded.ts gives the real one. */
-export type ComparedPage = { elements: ElementInfo[]; pixels(index: number): Promise<Buffer | null> };
+/** What the comparison needs from a loaded page: its elements, a PNG of one element's own pixels
+ * (null when it cannot be shot), and one element's accessible name (empty when it has none).
+ * loaded.ts gives the real one. */
+export type ComparedPage = {
+  elements: ElementInfo[];
+  pixels(index: number): Promise<Buffer | null>;
+  name(index: number): Promise<string>;
+};
 
 /** A change of look: the element on each page (an index into its elements), what changed, and what
  * to call it in a list of changes. */
@@ -215,12 +220,27 @@ async function redrawn(pairs: Pair[], before: ComparedPage, after: ComparedPage)
   for (const pair of pairs) {
     const { before: was, after: now } = await bothSides(side => pages[side].pixels(pair[side]));
     if (await repainted(was, now)) {
-      // An iframe's pixels are a page's: what changed in it is not known, only that something did.
-      const embedded = before.elements[pair.before].tag === 'iframe';
-      found.push({ element: pair, what: [embedded ? 'embedded page' : 'picture'] });
+      const label = redrawnLabel(before.elements[pair.before], await before.name(pair.before));
+      found.push({ element: pair, what: [label] });
     }
   }
   return found;
+}
+
+/** What kinds of picture are called, when the page gives one no name. */
+const PICTURE_KINDS: Record<string, string> = { img: 'image', svg: 'SVG', canvas: 'canvas', video: 'video' };
+
+/** The longest name put on a label, so a long description does not cover the page. */
+const MAX_NAME = 40;
+
+/** What a redrawn picture's label says: its accessible name when it has one, its kind otherwise. Any
+ * other element that paints does so with a background image file. An iframe's pixels are a page's:
+ * what changed in it is not known, only that something did. */
+function redrawnLabel(element: ElementInfo, accessibleName: string): string {
+  if (element.tag === 'iframe') return 'embedded page';
+  const name =
+    accessibleName.length > MAX_NAME ? `${accessibleName.slice(0, MAX_NAME - 1).trimEnd()}…` : accessibleName;
+  return name ? `${name} redrawn` : (PICTURE_KINDS[element.tag] ?? 'background image');
 }
 
 /** Whether two shots of an element differ. One that could not be shot is no change. Shots of two

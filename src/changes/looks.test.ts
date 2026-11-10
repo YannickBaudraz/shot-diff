@@ -17,13 +17,16 @@ const el = (
   style,
   ...more,
 });
-/** A page with these elements, whose pixels are `pictures[i]` (none by default). */
+/** A page with these elements, whose pixels are `pictures[i]` (none by default), and whose
+ * accessible names are `names[i]` (none by default). */
 const seen = (
   elements: ElementInfo[],
   pictures: Record<number, Buffer | null> = {},
+  names: Record<number, string> = {},
 ): ComparedPage & { pixels: ReturnType<typeof vi.fn> } => ({
   elements,
   pixels: vi.fn(async (i: number) => pictures[i] ?? null),
+  name: async (i: number) => names[i] ?? '',
 });
 const square = (color: string, size = 10) =>
   sharp({ create: { width: size, height: size, channels: 4, background: color } })
@@ -184,10 +187,25 @@ describe('pictures', () => {
       seen([picture()], { 0: red }),
       seen([picture()], { 0: await square('#ff8800') }),
     );
-    expect(changed).toEqual([
-      { element: { before: 0, after: 0 }, what: ['picture'], name: '[img: picture]' },
-    ]);
+    expect(changed).toEqual([{ element: { before: 0, after: 0 }, what: ['image'], name: '[img: image]' }]);
     expect(await compareLooks(seen([picture()], { 0: red }), seen([picture()], { 0: red }))).toEqual([]);
+  });
+
+  test('a redrawn picture is called by its name, or by its kind when the page gives it none', async () => {
+    const red = await square('#ff0000');
+    const orange = await square('#ff8800');
+    const labelOf = async (element: ElementInfo, name = '') =>
+      (await compareLooks(seen([element], { 0: red }, { 0: name }), seen([element], { 0: orange })))[0].what;
+    expect(await labelOf(el('svg', {}, { paints: true }), 'Monthly revenue chart')).toEqual([
+      'Monthly revenue chart redrawn',
+    ]);
+    expect(await labelOf(el('svg', {}, { paints: true }))).toEqual(['SVG']);
+    expect(await labelOf(el('canvas', {}, { paints: true }))).toEqual(['canvas']);
+    expect(await labelOf(el('DIV #hero', {}, { paints: true }))).toEqual(['background image']);
+    const long = 'Revenue by month for the last twelve months, in dollars';
+    expect(await labelOf(el('img', {}, { paints: true }), long)).toEqual([
+      'Revenue by month for the last twelve mo… redrawn',
+    ]);
   });
 
   test('an embedded page drawn otherwise is a change of the page in it, not of a picture', async () => {

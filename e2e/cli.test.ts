@@ -189,10 +189,10 @@ test('changes with no words in them are marked: a restyled button, a picture red
   const removed = result.shots.flatMap((s: { before: { removed: string[] } }) => s.before.removed);
   const added = result.shots.flatMap((s: { after: { added: string[] } }) => s.after.added);
   expect(removed).toEqual(
-    expect.arrayContaining(['[image mountains.svg]', '[img: picture]', '[button: background]']),
+    expect.arrayContaining(['[image mountains.svg]', '[img: image]', '[button: background]']),
   );
   expect(added).toEqual(
-    expect.arrayContaining(['[image night.svg]', '[img: picture]', '[button: background]']),
+    expect.arrayContaining(['[image night.svg]', '[img: image]', '[button: background]']),
   );
   expect(result.leftOut).toEqual({ removed: [], added: [] });
 });
@@ -211,7 +211,7 @@ test('a dashboard: only what changed is marked, not the boxes layout resized aro
     '[a: background, weight]',
     '[section: spacing]',
     '2.1% +0.3',
-    '[svg: picture]',
+    '[svg: Monthly revenue chart redrawn]',
     '[span: background]',
   ]);
   expect(result.shots[0].after.added).toEqual([
@@ -219,7 +219,7 @@ test('a dashboard: only what changed is marked, not the boxes layout resized aro
     '[a: background, weight]',
     '[section: spacing]',
     '1.6% -0.5',
-    '[svg: picture]',
+    '[svg: Monthly revenue chart redrawn]',
     'Katherine Johnson Team plan $199.00 paid',
     '[span: background]',
   ]);

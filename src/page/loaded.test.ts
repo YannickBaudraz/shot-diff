@@ -114,6 +114,40 @@ describe('pixels', () => {
   });
 });
 
+describe('name', () => {
+  test('is the accessible name Chrome computes, empty when an element has none', async () => {
+    const page = await load(
+      browser,
+      pageOf(
+        '<span id="l1">Monthly</span> <span id="l2">revenue</span>' +
+          '<svg width="10" height="10" aria-label="  A   chart "></svg>' +
+          '<svg width="10" height="10" aria-labelledby="l1 l2"></svg>' +
+          '<img width="10" height="10" alt="Logo">' +
+          '<svg width="10" height="10"><title>Sales</title></svg>' +
+          '<canvas width="10" height="10" title="Map"></canvas>' +
+          '<img width="10" height="10" alt="">' +
+          '<svg width="10" height="10"></svg>',
+      ),
+      'before',
+      OPTIONS,
+    );
+    try {
+      const pictures = page.elements.flatMap((element, index) => (element.paints ? [index] : []));
+      expect(await Promise.all(pictures.map(index => page.name(index)))).toEqual([
+        'A chart',
+        'Monthly revenue',
+        'Logo',
+        'Sales',
+        'Map',
+        '',
+        '',
+      ]);
+    } finally {
+      await page.close();
+    }
+  });
+});
+
 describe('a page set up by hand before it is read', () => {
   test('is read as it was left, not as it loaded', async () => {
     const opened = await open(
