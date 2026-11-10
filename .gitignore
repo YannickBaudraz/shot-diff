@@ -3,5 +3,5 @@ dist/
 *.png
 !docs/*.png
 !examples/*/*.png
-!test/__image_snapshots__/*.png
-test/__image_snapshots__/__diff_output__/
+!e2e/__image_snapshots__/*.png
+e2e/__image_snapshots__/__diff_output__/

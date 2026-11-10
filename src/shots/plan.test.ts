@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
-import { plan, type Place, type PlanOptions, type PlanPage } from '../src/plan.ts';
-import type { Region, Span } from '../src/page.ts';
+import type { Region, Span } from '../geometry.ts';
+import { plan, type Place, type PlanOptions, type PlanPage } from './plan.ts';
 
 /** A change from `top` to `bottom`, the unchanged words around it included. */
 const at = (top: number, bottom = top + 20): Span => ({

@@ -3,8 +3,8 @@
 // once; the page and the band draw what they are given.
 
 import sharp from 'sharp';
-import type { Look } from './looks.ts';
-import { bothSides, COLORS, ON_SIDE_COLOR, type Side } from './side.ts';
+import type { Look } from '../changes/looks.ts';
+import { bothSides, COLORS, ON_SIDE_COLOR, type Side } from '../side.ts';
 import { renderText } from './text.ts';
 
 export type Mode = 'labels' | 'numbers';

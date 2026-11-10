@@ -1,13 +1,13 @@
 // The whole run: load both pages, find what changed, mark it, plan the shots, and draw them.
 
 import type { Browser } from 'playwright-core';
-import { band, type Content, type Key } from './band.ts';
-import { diff, hunks, type Hunk } from './diff.ts';
-import { open, openTabs, type LoadedPage, type LoadOptions, type OpenedPage } from './loaded.ts';
-import { compareLooks } from './looks.ts';
-import { markersFor, type Marker, type Mode } from './markers.ts';
-import type { Box } from './page.ts';
-import { plan, type Place, type Plan, type PlanOptions } from './plan.ts';
+import { compareLooks } from './changes/looks.ts';
+import { diff, hunks, type Hunk } from './changes/words.ts';
+import type { Box } from './geometry.ts';
+import { open, openTabs, type LoadedPage, type LoadOptions, type OpenedPage } from './page/loaded.ts';
+import { band, type Content, type Key } from './shots/band.ts';
+import { markersFor, type Marker, type Mode } from './shots/markers.ts';
+import { plan, type Place, type Plan, type PlanOptions } from './shots/plan.ts';
 import { bothSides, SIDES, type Side } from './side.ts';
 
 export type Options = LoadOptions &

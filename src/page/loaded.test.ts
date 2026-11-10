@@ -5,7 +5,7 @@
 import { chromium, type Browser } from 'playwright-core';
 import sharp from 'sharp';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
-import { open, openTabs, type LoadOptions } from '../src/loaded.ts';
+import { open, openTabs, type LoadOptions } from './loaded.ts';
 
 const OPTIONS: LoadOptions = {
   width: 800,

@@ -2,7 +2,7 @@
 // Playwright sends it, so a helper used from outside its body fails here too.
 
 import { afterEach, describe, expect, test } from 'vitest';
-import { runtime, type Marks, type Runtime } from '../src/page.ts';
+import { runtime, type Marks, type Runtime } from './runtime.ts';
 
 const STYLE = '<style>body { margin: 0; font: 16px/24px sans-serif } p { margin: 0 0 24px }</style>';
 const PROPS = ['margin-top', 'color']; // read as looks.ts reads them; the full list lives there, with Node-only code

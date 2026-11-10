@@ -3,8 +3,8 @@
 // to the maximum height. With --selector, only the changes inside that element count. What still
 // falls outside every shot is said, not dropped.
 
-import type { Box, Region, Span } from './page.ts';
-import { bothSides, SIDES, type Side } from './side.ts';
+import type { Box, Region, Span } from '../geometry.ts';
+import { bothSides, SIDES, type Side } from '../side.ts';
 
 /** Where a change sits on each page; null on a page it has no place on. */
 export type Place = Record<Side, Span | null>;

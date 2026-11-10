@@ -1,7 +1,7 @@
 // The word diff between the two pages (Myers' algorithm, from the diff package), grouped into hunks.
 
 import { diffArrays } from 'diff';
-import type { Side } from './side.ts';
+import type { Side } from '../side.ts';
 
 /** What happened to one token, and where it is on each page. A removed token is not on the after
  * page, so its `after` is where the after page stands at that point; the same for an added one's

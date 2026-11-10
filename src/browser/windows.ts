@@ -12,7 +12,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { launch as start, Launcher } from 'chrome-launcher';
 import isWsl from 'is-wsl';
 import type { BrowserType } from 'playwright-core';
-import type { Launched } from './browser.ts';
+import type { Launched } from './launch.ts';
 
 /** What this needs of WSL; HERE is the real one. */
 export type Wsl = {

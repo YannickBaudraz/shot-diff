@@ -2,12 +2,17 @@ import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import sharp from 'sharp';
 import { expect, test } from 'vitest';
-import { cli, page, shotDiff } from './run.ts';
+import { cli, page, shotDiff } from './helpers.ts';
 
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
 
 test('marks what was removed and what was added, and writes two titled images', () => {
-  const { done, result } = shotDiff(page('before.html'), page('after.html'), '--title', 'Step 10');
+  const { done, result } = shotDiff(
+    page('words/before.html'),
+    page('words/after.html'),
+    '--title',
+    'Step 10',
+  );
   expect(done.status, done.stderr).toBe(0);
   expect(result.shots).toHaveLength(1);
   const [shot] = result.shots;
@@ -24,7 +29,7 @@ test('marks what was removed and what was added, and writes two titled images', 
 });
 
 test('hidden text is not compared', () => {
-  const { result } = shotDiff(page('before.html'), page('after.html'), '--title', 't');
+  const { result } = shotDiff(page('words/before.html'), page('words/after.html'), '--title', 't');
   expect(result.shots[0].before.removed.join(' ')).not.toContain('hidden');
   expect(result.shots[0].after.added.join(' ')).not.toContain('hidden');
 });
@@ -32,12 +37,19 @@ test('hidden text is not compared', () => {
 test('the top of a shot does not cut a line of text in half', () => {
   // The heading's text runs from 46px to 82px, the changed line starts at 112px: 50px of padding
   // alone would start the shot at 62px, through the heading.
-  const { result } = shotDiff(page('before.html'), page('after.html'), '--title', 't', '--padding', '50');
+  const { result } = shotDiff(
+    page('words/before.html'),
+    page('words/after.html'),
+    '--title',
+    't',
+    '--padding',
+    '50',
+  );
   expect(result.shots[0].before.box.y).toBeLessThanOrEqual(46);
 });
 
 test('changes far apart get a numbered pair each, and none is left out', () => {
-  const { done, result } = shotDiff(page('tall-before.html'), page('tall-after.html'), '--title', 't');
+  const { done, result } = shotDiff(page('tall/before.html'), page('tall/after.html'), '--title', 't');
   expect(done.status, done.stderr).toBe(0);
   expect(result.shots).toHaveLength(2);
   expect(result.shots.map((s: { before: { file: string } }) => s.before.file.split('/').pop())).toEqual([
@@ -52,8 +64,8 @@ test('changes far apart get a numbered pair each, and none is left out', () => {
 
 test('--selector: only the changes inside the element are shot, the others ignored', () => {
   const { done, result } = shotDiff(
-    page('tall-before.html'),
-    page('tall-after.html'),
+    page('tall/before.html'),
+    page('tall/after.html'),
     '--title',
     't',
     '--selector',
@@ -70,8 +82,8 @@ test('--selector: only the changes inside the element are shot, the others ignor
 
 test('a change cut from its shot is listed as left out, not as in the shot', () => {
   const { done, result } = shotDiff(
-    page('before.html'),
-    page('after.html'),
+    page('words/before.html'),
+    page('words/after.html'),
     '--title',
     't',
     '--padding',
@@ -89,7 +101,7 @@ test('a change cut from its shot is listed as left out, not as in the shot', () 
 });
 
 test('a change a scroll area cuts off is listed as hidden, and no box is drawn for it', () => {
-  const { done, result } = shotDiff(page('clipped-before.html'), page('clipped-after.html'), '--title', 't');
+  const { done, result } = shotDiff(page('clipped/before.html'), page('clipped/after.html'), '--title', 't');
   expect(done.status, done.stderr).toBe(0);
   expect(result.shots).toHaveLength(1);
   expect(result.shots[0].before.removed).toEqual(['as it was.']); // the line shown on the page
@@ -100,14 +112,14 @@ test('a change a scroll area cuts off is listed as hidden, and no box is drawn f
 });
 
 test('the same page twice marks nothing and says so', () => {
-  const { done, result } = shotDiff(page('before.html'), page('before.html'), '--title', 't');
+  const { done, result } = shotDiff(page('words/before.html'), page('words/before.html'), '--title', 't');
   expect(done.status, done.stderr).toBe(0);
   expect(result.wordChanges).toBe(0);
   expect(done.stderr).toMatch(/no difference/);
 });
 
 test('a title is required', () => {
-  const done = spawnSync(process.execPath, [cli, page('before.html'), page('after.html')], {
+  const done = spawnSync(process.execPath, [cli, page('words/before.html'), page('words/after.html')], {
     encoding: 'utf8',
   });
   expect(done.status).not.toBe(0);
@@ -148,13 +160,19 @@ test('a change inside an embedded page is marked on the iframe, as a whole', () 
 });
 
 test('--interactive is refused where there is no terminal to wait on', () => {
-  const { done } = shotDiff(page('before.html'), page('after.html'), '--title', 't', '--interactive');
+  const { done } = shotDiff(
+    page('words/before.html'),
+    page('words/after.html'),
+    '--title',
+    't',
+    '--interactive',
+  );
   expect(done.status).toBe(1);
   expect(done.stderr).toMatch(/--interactive needs a terminal/);
 });
 
 test('--tabs is refused without --interactive', () => {
-  const { done } = shotDiff(page('before.html'), page('after.html'), '--title', 't', '--tabs');
+  const { done } = shotDiff(page('words/before.html'), page('words/after.html'), '--title', 't', '--tabs');
   expect(done.status).toBe(1);
   expect(done.stderr).toMatch(/--tabs goes with --interactive/);
 });
@@ -227,7 +245,7 @@ test('--markers numbers marks the same changes; an unknown kind is refused', asy
 
   const wrong = spawnSync(
     process.execPath,
-    [cli, page('before.html'), page('after.html'), '--title', 't', '--markers', 'arrows'],
+    [cli, page('words/before.html'), page('words/after.html'), '--title', 't', '--markers', 'arrows'],
     { encoding: 'utf8' },
   );
   expect(wrong.status).not.toBe(0);

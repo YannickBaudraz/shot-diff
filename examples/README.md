@@ -11,7 +11,7 @@ with the fonts of the machine that made them, so yours may differ a little.
 Removed words are red and struck through on the before shot; added words are green on the after shot. Each change has a box.
 
 ```sh
-shot-diff "file://$PWD/test/fixtures/before.html" "file://$PWD/test/fixtures/after.html" \
+shot-diff "file://$PWD/e2e/fixtures/words/before.html" "file://$PWD/e2e/fixtures/words/after.html" \
   --title "Changed words"
 ```
 
@@ -29,7 +29,7 @@ examples/words/shot-after.png: 2 part(s) added
 An element restyled, or a picture redrawn under the same file name, has no changed word: it gets a box with what changed written on it.
 
 ```sh
-shot-diff "file://$PWD/test/fixtures/visual/before/index.html" "file://$PWD/test/fixtures/visual/after/index.html" \
+shot-diff "file://$PWD/e2e/fixtures/visual/before/index.html" "file://$PWD/e2e/fixtures/visual/after/index.html" \
   --title "Changed looks and pictures"
 ```
 
@@ -47,7 +47,7 @@ examples/looks/shot-after.png: 3 part(s) added
 Words and looks changed on one page. Only what changed is marked, not the boxes the layout resized around it.
 
 ```sh
-shot-diff "file://$PWD/test/fixtures/dashboard/before.html" "file://$PWD/test/fixtures/dashboard/after.html" \
+shot-diff "file://$PWD/e2e/fixtures/dashboard/before.html" "file://$PWD/e2e/fixtures/dashboard/after.html" \
   --title "A page with both"
 ```
 
@@ -65,7 +65,7 @@ examples/whole-page/shot-after.png: 7 part(s) added
 With `--markers numbers`, each box of a change of look has a number, explained in the band, where a label would cover the page.
 
 ```sh
-shot-diff "file://$PWD/test/fixtures/dashboard/before.html" "file://$PWD/test/fixtures/dashboard/after.html" \
+shot-diff "file://$PWD/e2e/fixtures/dashboard/before.html" "file://$PWD/e2e/fixtures/dashboard/after.html" \
   --title "Numbered boxes" --markers numbers
 ```
 
@@ -83,7 +83,7 @@ examples/numbers/shot-after.png: 7 part(s) added
 Changes too far apart for one image get a pair each, numbered in the file names and in the band ("1 of 2").
 
 ```sh
-shot-diff "file://$PWD/test/fixtures/tall-before.html" "file://$PWD/test/fixtures/tall-after.html" \
+shot-diff "file://$PWD/e2e/fixtures/tall/before.html" "file://$PWD/e2e/fixtures/tall/after.html" \
   --title "Changes far apart"
 ```
 
@@ -104,7 +104,7 @@ examples/far-apart/shot-2-after.png: 1 part(s) added
 With `--selector`, only the changes inside the element count. The others are left unmarked, and the terminal says how many.
 
 ```sh
-shot-diff "file://$PWD/test/fixtures/tall-before.html" "file://$PWD/test/fixtures/tall-after.html" \
+shot-diff "file://$PWD/e2e/fixtures/tall/before.html" "file://$PWD/e2e/fixtures/tall/after.html" \
   --title "One part of the page" --selector "#end"
 ```
 
@@ -123,7 +123,7 @@ shot-diff: 2 change(s) outside --selector ignored (listed under "ignored" in --j
 A change past the edge of a scroll area cannot be shot: it gets no box, and the terminal lists it.
 
 ```sh
-shot-diff "file://$PWD/test/fixtures/clipped-before.html" "file://$PWD/test/fixtures/clipped-after.html" \
+shot-diff "file://$PWD/e2e/fixtures/clipped/before.html" "file://$PWD/e2e/fixtures/clipped/after.html" \
   --title "A change a scroll area cuts off"
 ```
 
@@ -144,7 +144,7 @@ shot-diff: 2 change(s) are in a part of the page a scroll area cuts off, so no i
 A change that does not fit under `--max-height` is cut from the images, and the terminal lists it.
 
 ```sh
-shot-diff "file://$PWD/test/fixtures/dashboard/before.html" "file://$PWD/test/fixtures/dashboard/after.html" \
+shot-diff "file://$PWD/e2e/fixtures/dashboard/before.html" "file://$PWD/e2e/fixtures/dashboard/after.html" \
   --title "A change taller than an image may be" --max-height 400
 ```
 
@@ -168,7 +168,7 @@ examples/too-tall/shot-3-after.png: 2 part(s) added
 Changes in a shadow tree are marked as any other: here a price and a button inside the card, and the description the page gives it.
 
 ```sh
-shot-diff "file://$PWD/test/fixtures/shadow/before.html" "file://$PWD/test/fixtures/shadow/after.html" \
+shot-diff "file://$PWD/e2e/fixtures/shadow/before.html" "file://$PWD/e2e/fixtures/shadow/after.html" \
   --title "Inside a web component"
 ```
 
@@ -186,7 +186,7 @@ examples/web-component/shot-after.png: 3 part(s) added
 The words inside an iframe are not read: when it is drawn differently, the whole iframe is boxed as an "embedded page".
 
 ```sh
-shot-diff "file://$PWD/test/fixtures/frame/before/index.html" "file://$PWD/test/fixtures/frame/after/index.html" \
+shot-diff "file://$PWD/e2e/fixtures/frame/before/index.html" "file://$PWD/e2e/fixtures/frame/after/index.html" \
   --title "Inside an embedded page"
 ```
 
@@ -204,7 +204,7 @@ examples/embedded-page/shot-after.png: 1 part(s) added
 The dashboard in a narrow window, with `--width` and `--height`.
 
 ```sh
-shot-diff "file://$PWD/test/fixtures/dashboard/before.html" "file://$PWD/test/fixtures/dashboard/after.html" \
+shot-diff "file://$PWD/e2e/fixtures/dashboard/before.html" "file://$PWD/e2e/fixtures/dashboard/after.html" \
   --title "A phone-sized page" --width 390 --height 844
 ```
 
@@ -222,7 +222,7 @@ examples/phone/shot-after.png: 7 part(s) added
 Two pages that look the same: nothing is marked, the terminal says so, and the shots show the top of each page.
 
 ```sh
-shot-diff "file://$PWD/test/fixtures/before.html" "file://$PWD/test/fixtures/before.html" \
+shot-diff "file://$PWD/e2e/fixtures/words/before.html" "file://$PWD/e2e/fixtures/words/before.html" \
   --title "No difference"
 ```
 
@@ -241,7 +241,7 @@ shot-diff: no difference in the pages' words, images or looks; the shots show th
 With `--interactive`, both pages open in windows and are shot as you leave them. This shop looks the same in both versions until its cart is filled: run without `--interactive`, it is the "no difference" above.
 
 ```sh
-shot-diff "file://$PWD/test/fixtures/shop/before.html" "file://$PWD/test/fixtures/shop/after.html" \
+shot-diff "file://$PWD/e2e/fixtures/shop/before.html" "file://$PWD/e2e/fixtures/shop/after.html" \
   --title "A page set up by hand" --interactive
 ```
 

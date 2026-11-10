@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { chromium, type Page } from 'playwright-core';
-import { run } from '../src/shoot.ts';
+import { run } from '../src/run.ts';
 
 const HERE = import.meta.dirname;
 const ROOT = join(HERE, '..');
@@ -16,7 +16,7 @@ type Example = {
   id: string; // its folder
   name: string; // its heading, and the title in the band
   shows: string; // what to look at
-  pages: [before: string, after: string]; // under test/fixtures
+  pages: [before: string, after: string]; // under e2e/fixtures
   options?: string[];
   /** Set up by hand, with --interactive: the steps as a person reads them, and as they are done here. */
   hands?: { steps: string[]; follow(page: Page): Promise<void> };
@@ -28,7 +28,7 @@ const EXAMPLES: Example[] = [
     name: 'Changed words',
     shows:
       'Removed words are red and struck through on the before shot; added words are green on the after shot. Each change has a box.',
-    pages: ['before.html', 'after.html'],
+    pages: ['words/before.html', 'words/after.html'],
   },
   {
     id: 'looks',
@@ -57,14 +57,14 @@ const EXAMPLES: Example[] = [
     name: 'Changes far apart',
     shows:
       'Changes too far apart for one image get a pair each, numbered in the file names and in the band ("1 of 2").',
-    pages: ['tall-before.html', 'tall-after.html'],
+    pages: ['tall/before.html', 'tall/after.html'],
   },
   {
     id: 'selector',
     name: 'One part of the page',
     shows:
       'With `--selector`, only the changes inside the element count. The others are left unmarked, and the terminal says how many.',
-    pages: ['tall-before.html', 'tall-after.html'],
+    pages: ['tall/before.html', 'tall/after.html'],
     options: ['--selector', '#end'],
   },
   {
@@ -72,7 +72,7 @@ const EXAMPLES: Example[] = [
     name: 'A change a scroll area cuts off',
     shows:
       'A change past the edge of a scroll area cannot be shot: it gets no box, and the terminal lists it.',
-    pages: ['clipped-before.html', 'clipped-after.html'],
+    pages: ['clipped/before.html', 'clipped/after.html'],
   },
   {
     id: 'too-tall',
@@ -108,7 +108,7 @@ const EXAMPLES: Example[] = [
     name: 'No difference',
     shows:
       'Two pages that look the same: nothing is marked, the terminal says so, and the shots show the top of each page.',
-    pages: ['before.html', 'before.html'],
+    pages: ['words/before.html', 'words/before.html'],
   },
   {
     id: 'by-hand',
@@ -135,7 +135,7 @@ const EXAMPLES: Example[] = [
   },
 ];
 
-const fixture = (path: string) => `file://${join(ROOT, 'test', 'fixtures', path)}`;
+const fixture = (path: string) => `file://${join(ROOT, 'e2e', 'fixtures', path)}`;
 
 /** The folder of an example, emptied of the images of an earlier run. */
 function folderOf(example: Example): string {
@@ -192,7 +192,7 @@ async function shootByHand(example: Example, folder: string): Promise<void> {
 /** An example's part of the page: what it shows, how to run it, what the terminal says, its images. */
 function section(example: Example, folder: string, printed: string | null): string {
   const quoted = (arg: string) => (/^[\w./-]+$/.test(arg) ? arg : `"${arg}"`);
-  const pages = example.pages.map(path => `"file://$PWD/test/fixtures/${path}"`);
+  const pages = example.pages.map(path => `"file://$PWD/e2e/fixtures/${path}"`);
   const options = ['--title', example.name, ...(example.options ?? [])].map(quoted).join(' ');
   const images = readdirSync(folder).filter(file => file.endsWith('-before.png'));
   const rows = images.map(before => {

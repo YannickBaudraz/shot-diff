@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { diff, hunks, type Op } from '../src/diff.ts';
+import { diff, hunks, type Op } from './words.ts';
 
 const words = (s: string) => s.split(' ').filter(Boolean);
 const apply = (a: string[], b: string[], ops: Op[]) => {

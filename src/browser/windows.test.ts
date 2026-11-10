@@ -4,7 +4,7 @@
 import { EventEmitter } from 'node:events';
 import type { Browser } from 'playwright-core';
 import { describe, expect, test, vi } from 'vitest';
-import { locate, windowsChrome, type Wsl } from '../src/windows.ts';
+import { locate, windowsChrome, type Wsl } from './windows.ts';
 
 /** A WSL with Chrome for Windows within reach, and what was started in it. */
 function wsl(more: Partial<Wsl> = {}) {

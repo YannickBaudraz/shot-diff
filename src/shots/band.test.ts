@@ -1,7 +1,7 @@
 import sharp from 'sharp';
 import { describe, expect, test } from 'vitest';
-import { band, intoRows, type Content } from '../src/band.ts';
-import { markersFor } from '../src/markers.ts';
+import { band, intoRows, type Content } from './band.ts';
+import { markersFor } from './markers.ts';
 
 const SCALE = 2;
 const shot = sharp({ create: { width: 800, height: 300, channels: 4, background: '#ffffff' } })

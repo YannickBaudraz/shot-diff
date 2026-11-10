@@ -2,7 +2,7 @@
 
 import sharp from 'sharp';
 import { DISC } from './markers.ts';
-import { COLORS, ON_SIDE_COLOR, WORDS, type Side } from './side.ts';
+import { COLORS, ON_SIDE_COLOR, WORDS, type Side } from '../side.ts';
 import { escapePango, inkOf, renderText, STRUT } from './text.ts';
 
 /** What a numbered box on a shot means: its disc, the same image as on the page, and what changed. */

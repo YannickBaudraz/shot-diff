@@ -1,6 +1,6 @@
 dist/
 node_modules/
-test/__image_snapshots__/
+e2e/__image_snapshots__/
 package-lock.json
-test/fixtures/
+e2e/fixtures/
 *.md

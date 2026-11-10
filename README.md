@@ -253,8 +253,8 @@ opens. To get the Linux one anyway, name it: `--chrome /usr/bin/google-chrome`.
 
 ```sh
 npm install
-npm test          # vitest, needs Chrome: units in Node, src/page.ts in Chrome (browser mode),
-                  # the command on fixture pages, and its images against test/__image_snapshots__
+npm test          # vitest, needs Chrome: units in Node, src/page/runtime.ts in Chrome (browser mode),
+                  # the command on fixture pages, and its images against e2e/__image_snapshots__
 npx vitest run -u # update the reference images after a change meant to alter them
 npm run check     # types
 npm run build     # vite: dist/cli.js

@@ -1,6 +1,6 @@
 import sharp from 'sharp';
 import { describe, expect, test } from 'vitest';
-import { DISC, markersFor, type Marker } from '../src/markers.ts';
+import { DISC, markersFor, type Marker } from './markers.ts';
 
 /** A numbered marker's discs. */
 const discOf = ({ badge }: Marker) => {

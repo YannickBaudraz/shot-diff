@@ -4,12 +4,12 @@ import { join } from 'node:path';
 import confirm from '@inquirer/confirm';
 import { Command, InvalidArgumentError, Option } from 'commander';
 import { chromium } from 'playwright-core';
-import { launch, type Download, type Launched } from './browser.ts';
-import type { Mode } from './markers.ts';
-import type { Box } from './page.ts';
-import { run, type Options, type Result } from './shoot.ts';
+import { launch, type Download, type Launched } from './browser/launch.ts';
+import { windowsChrome } from './browser/windows.ts';
+import type { Box } from './geometry.ts';
+import { run, type Options, type Result } from './run.ts';
+import type { Mode } from './shots/markers.ts';
 import type { Side } from './side.ts';
-import { windowsChrome } from './windows.ts';
 
 /** The options as commander gives them, by their camel-cased names: the run's, and the command's own. */
 type CliValues = Omit<Options, 'before' | 'after' | 'selector' | 'prepare'> & {

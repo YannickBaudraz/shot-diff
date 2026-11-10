@@ -1,6 +1,6 @@
 import sharp from 'sharp';
 import { describe, expect, test, vi } from 'vitest';
-import { compareLooks, MAX_PICTURES, type ComparedPage, type ElementInfo } from '../src/looks.ts';
+import { compareLooks, MAX_PICTURES, type ComparedPage, type ElementInfo } from './looks.ts';
 
 const el = (
   signature: string,

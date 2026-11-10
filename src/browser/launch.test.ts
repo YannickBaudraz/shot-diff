@@ -1,6 +1,6 @@
 import type { Browser, LaunchOptions } from 'playwright-core';
 import { describe, expect, test, vi } from 'vitest';
-import { launch, type Choice } from '../src/browser.ts';
+import { launch, type Choice } from './launch.ts';
 
 const BROWSER = {} as Browser;
 const NO_CHROME = new Error(

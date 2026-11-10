@@ -8,12 +8,12 @@
 import { readFileSync } from 'node:fs';
 import { toMatchImageSnapshot } from '@brachkow/vitest-image-snapshot';
 import { describe, expect, test } from 'vitest';
-import { page, shotDiff } from './run.ts';
+import { page, shotDiff } from './helpers.ts';
 
 expect.extend({ toMatchImageSnapshot });
 
 const CASES: { name: string; before: string; after: string; args?: string[] }[] = [
-  { name: 'words', before: 'before.html', after: 'after.html' },
+  { name: 'words', before: 'words/before.html', after: 'words/after.html' },
   { name: 'pictures-and-looks', before: 'visual/before/index.html', after: 'visual/after/index.html' },
   { name: 'dashboard-labels', before: 'dashboard/before.html', after: 'dashboard/after.html' },
   {

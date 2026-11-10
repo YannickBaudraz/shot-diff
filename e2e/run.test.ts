@@ -3,8 +3,8 @@
 
 import { chromium, type Browser } from 'playwright-core';
 import { afterAll, beforeAll, expect, test } from 'vitest';
-import { run, type Options } from '../src/shoot.ts';
-import { page as fixture } from './run.ts';
+import { run, type Options } from '../src/run.ts';
+import { page as fixture } from './helpers.ts';
 
 /** A page that greets whoever is typed into it, with `greeting`, as a URL. */
 const greeter = (greeting: string) =>

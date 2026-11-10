@@ -4,11 +4,12 @@
 // side's colour; and shoots parts of it.
 
 import { errors, type Browser, type BrowserContext, type Page } from 'playwright-core';
-import type { Hunk } from './diff.ts';
-import { PROPERTIES, type ElementInfo } from './looks.ts';
-import { DISC, type Marker } from './markers.ts';
-import { runtime, type Box, type Marks, type Region, type Runtime, type Spans } from './page.ts';
-import { COLORS, SIDES, type Side } from './side.ts';
+import { PROPERTIES, type ElementInfo } from '../changes/looks.ts';
+import type { Hunk } from '../changes/words.ts';
+import type { Box, Region } from '../geometry.ts';
+import { DISC, type Marker } from '../shots/markers.ts';
+import { runtime, type Marks, type Runtime, type Spans } from './runtime.ts';
+import { COLORS, SIDES, type Side } from '../side.ts';
 
 declare global {
   interface Window {

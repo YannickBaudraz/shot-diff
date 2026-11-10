@@ -4,8 +4,8 @@
 
 import pixelmatch from 'pixelmatch';
 import sharp from 'sharp';
-import { diff } from './diff.ts';
-import { bothSides, type Side } from './side.ts';
+import { diff } from './words.ts';
+import { bothSides, type Side } from '../side.ts';
 
 /** One visible element, as the page's runtime reads it. */
 export type ElementInfo = {
