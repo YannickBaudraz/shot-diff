@@ -108,6 +108,53 @@ To find a selector, open the page in your browser, right-click the part you want
 
 ## Get the page in the right state
 
+### By hand
+
+When the page needs more than a click before it looks right (something typed, a login, items in a
+cart), add `--interactive`:
+
+```sh
+npx @yannickbaudraz/shot-diff http://localhost:3000/cart http://localhost:3001/cart \
+  --title "Cart: two items" --interactive
+```
+
+Two Chrome windows open, one on each page, and the terminal says which address is the before page
+and which is the after. Do the same thing in both windows: click, type, log in. Then go back to the
+terminal and press Enter: both pages are shot as you left them. Answer `n` instead to stop without
+shooting.
+
+- **Do the same steps in both windows.** Anything you do in one only shows up as a change.
+- **Keep one tab per window.** Only one can be shot. If a link opened another, close the ones you do
+  not want: it asks again until each window has one tab left, and shoots that one.
+- **Scroll both pages to the same place**, or back to the top: a header that stays on screen is
+  drawn where each page is scrolled to.
+- What shows only while the pointer is over it (a tooltip, a hover colour) is not shot: the pointer
+  can be over one window only, so it is taken off both.
+- It needs a screen, and you at the terminal. On CI, use the options below instead.
+- **The size of a window does not matter.** Each page keeps the size set with `--width` and
+  `--height`, however you resize its window, so both are always the same size. And the images are
+  cut around the changes, not around what the window shows: to shoot one part, use `--selector`.
+
+Add `--tabs` to get one window with the two pages as tabs, not a window each:
+
+```sh
+npx @yannickbaudraz/shot-diff http://localhost:3000/cart http://localhost:3001/cart \
+  --title "Cart: two items" --interactive --tabs
+```
+
+- **Resize the window to choose the size of the page**: both tabs take it, a moment after you let
+  go, as on a narrower or wider screen. That is the size the pages are shot at.
+- **The window must have two tabs when you press Enter**, the before page and the after page. A tab
+  one of them opened can take its place; close any other.
+- **One window is one browser session.** The two pages share their cookies when they are on the
+  same host, and `localhost:3000` and `localhost:3001` are: a login or a cart kept in a cookie on
+  one applies to the other. With two windows, each page has its own.
+- On WSL, the windows are Chrome for Windows (see [Browser](#browser)).
+
+### With options
+
+The same every time, with nobody there:
+
 | You want | Add |
 |---|---|
 | A phone-sized page | `--width 390 --height 844` |
@@ -131,6 +178,8 @@ To find a selector, open the page in your browser, right-click the part you want
 | `--storage key=value` | | set in `localStorage` before the page runs (repeatable) |
 | `--click <selector>` | | click after loading, in order (repeatable) |
 | `--wait <ms>` | 300 | wait after loading and clicking |
+| `--interactive` | | open both pages in windows, and shoot them once you have set them up by hand |
+| `--tabs` | | with `--interactive`: one window with both pages as tabs, which you can resize |
 | `--markers labels\|numbers` | `labels` | on a box around a change of look: what changed written on it, or a number explained in the band |
 | `--padding <px>` | 80 | room kept around the changes |
 | `--max-height <px>` | 2400 | the tallest an image gets; changes further apart get their own pair |
@@ -140,10 +189,19 @@ To find a selector, open the page in your browser, right-click the part you want
 
 ## Browser
 
-It uses Google Chrome if it is installed, without opening a window. Without it, it offers to
-download Playwright's Chromium (about 100 MB, once) and waits for a yes. Where nobody can answer,
+It uses Google Chrome if it is installed, without opening a window, except with `--interactive`.
+Without it, it offers to download Playwright's Chromium (about 100 MB, once; about 200 MB for the
+one that opens windows, with `--interactive`) and waits for a yes. Where nobody can answer,
 as on CI, it stops instead: add `--download` to allow the download up front, or `--chrome <path>`
 to use another Chrome or Chromium.
+
+On WSL, `--interactive` opens Chrome for Windows, the one on your desktop, not the Linux one. It
+starts it with a profile of its own, removed after: your tabs, logins and extensions are not in it.
+A `file://` page in WSL is opened from Windows, and `localhost` is the same on both. The pages are
+then drawn with Windows fonts, so the shots differ a little from the ones made without
+`--interactive`, which the Linux Chrome draws. This needs Chrome installed on Windows, and WSL
+sharing localhost with it (`networkingMode=mirrored` in `.wslconfig`); otherwise the Linux Chrome
+opens. To get the Linux one anyway, name it: `--chrome /usr/bin/google-chrome`.
 
 ## How it works
 

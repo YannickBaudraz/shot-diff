@@ -147,6 +147,18 @@ test('a change inside an embedded page is marked on the iframe, as a whole', () 
   expect(same.done.stderr).toMatch(/no difference/);
 });
 
+test('--interactive is refused where there is no terminal to wait on', () => {
+  const { done } = shotDiff(page('before.html'), page('after.html'), '--title', 't', '--interactive');
+  expect(done.status).toBe(1);
+  expect(done.stderr).toMatch(/--interactive needs a terminal/);
+});
+
+test('--tabs is refused without --interactive', () => {
+  const { done } = shotDiff(page('before.html'), page('after.html'), '--title', 't', '--tabs');
+  expect(done.status).toBe(1);
+  expect(done.stderr).toMatch(/--tabs goes with --interactive/);
+});
+
 test('changes with no words in them are marked: a restyled button, a picture redrawn under the same name', () => {
   const { done, result } = shotDiff(
     page('visual/before/index.html'),

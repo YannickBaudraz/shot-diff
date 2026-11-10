@@ -4,14 +4,17 @@ import { join } from 'node:path';
 import confirm from '@inquirer/confirm';
 import { Command, InvalidArgumentError, Option } from 'commander';
 import { chromium } from 'playwright-core';
-import { launch, type Download } from './browser.ts';
+import { launch, type Download, type Launched } from './browser.ts';
 import type { Mode } from './markers.ts';
 import type { Box } from './page.ts';
 import { run, type Options, type Result } from './shoot.ts';
+import type { Side } from './side.ts';
+import { windowsChrome } from './windows.ts';
 
 /** The options as commander gives them, by their camel-cased names: the run's, and the command's own. */
-type CliValues = Omit<Options, 'before' | 'after' | 'selector'> & {
+type CliValues = Omit<Options, 'before' | 'after' | 'selector' | 'prepare'> & {
   selector?: string;
+  interactive: boolean;
   out: string;
   name: string;
   chrome?: string;
@@ -72,6 +75,16 @@ A local file is a file:// URL.`,
   )
   .option('--click <selector>', 'click after loading, in order (repeatable)', append, [])
   .option('--wait <ms>', 'wait after loading and clicking', nonNegativeNumber, 300)
+  .option(
+    '--interactive',
+    'open both pages in windows, and shoot them once you have set them up by hand',
+    false,
+  )
+  .option(
+    '--tabs',
+    'with --interactive: open both pages as tabs of one window, which you can resize, not a window each',
+    false,
+  )
   .option('--selector <css>', 'only look at changes inside this element; the rest are ignored')
   .option('--padding <px>', 'room around the changes', nonNegativeNumber, 80)
   .addOption(
@@ -98,31 +111,70 @@ A local file is a file:// URL.`,
   .option('--json', 'print what was marked as JSON', false)
   .showHelpAfterError()
   .action(async (beforeUrl: string, afterUrl: string, values: CliValues) => {
-    const browser = await browserFor(values);
+    if (values.interactive && !ask)
+      throw new Error('--interactive needs a terminal, to wait there while you set the pages up');
+    if (values.tabs && !values.interactive)
+      throw new Error('--tabs goes with --interactive: it is how the pages you set up are opened');
+    const chrome = await browserFor(values);
     try {
-      const result = await run(browser, options(beforeUrl, afterUrl, values));
+      const pages = options(chrome.locate(beforeUrl), chrome.locate(afterUrl), values);
+      const result = await run(chrome.browser, pages);
       const shots = write(result, values.out, values.name);
       if (values.json) printJson(result, shots);
       else printLines(shots);
       warn(result);
     } finally {
-      await browser.close();
+      await chrome.close();
     }
   });
 
+/** Asks a yes or no question on the terminal, answered `byDefault` on Enter alone; null when there
+ * is no terminal. The question goes to stderr, so stdout stays the --json output. */
+const ask =
+  process.stdin.isTTY && process.stderr.isTTY
+    ? (message: string, byDefault: boolean) =>
+        confirm({ message, default: byDefault }, { output: process.stderr })
+    : null;
+
 /** The browser to use: --chrome, or the installed Chrome, or a download, asked about on a terminal.
- * The question goes to stderr, so stdout stays the --json output. */
-function browserFor(values: CliValues) {
-  const ask =
-    process.stdin.isTTY && process.stderr.isTTY
-      ? (message: string) => confirm({ message, default: false }, { output: process.stderr })
-      : null;
-  return launch(chromium, {
+ * With --interactive, one that opens windows: on WSL, Chrome for Windows when no other is named. */
+async function browserFor(values: CliValues): Promise<Launched> {
+  const log = (line: string) => console.error(line);
+  const windows = values.interactive && !values.chrome ? await windowsChrome(chromium, log) : null;
+  if (windows) return windows;
+  const browser = await launch(chromium, {
     chrome: values.chrome,
+    window: values.interactive,
     download: downloadChoice(values.download),
-    confirm: ask,
-    log: line => console.error(line),
+    confirm: ask && (question => ask(question, false)),
+    log,
   });
+  return { browser, locate: url => url, close: () => browser.close() };
+}
+
+/** Says which window, or which tab with --tabs, is which page, and waits for a yes to shoot them. A
+ * no stops the run. Asked again when there are more tabs than can be shot, it says which to close. */
+async function prepare(before: string, after: string, tabs: boolean, crowded: Side[]): Promise<void> {
+  if (!crowded.length) {
+    console.error(
+      tabs
+        ? 'shot-diff: one window is open, with a tab on each page; resize it to the size to shoot:'
+        : 'shot-diff: two windows are open, one on each page:',
+    );
+    console.error(`  before  ${before}`);
+    console.error(`  after   ${after}`);
+  } else if (tabs) {
+    console.error(
+      'shot-diff: the window must have two tabs left, the before page and the after page: close the others',
+    );
+  } else {
+    for (const side of crowded)
+      console.error(
+        `shot-diff: the ${side} window has several tabs, and only one can be shot: close the others`,
+      );
+  }
+  const shoot = await ask?.('Set both pages up the same way, by hand. Shoot them now?', true);
+  if (!shoot) throw new Error('stopped before shooting; no image written');
 }
 
 /** --download, --no-download, or neither: commander leaves the value undefined when neither is given. */
@@ -132,10 +184,17 @@ function downloadChoice(download: boolean | undefined): Download {
   return 'ask';
 }
 
-/** The run's options: the command's own left out, and no --selector as null. */
+/** The run's options: the command's own left out, no --selector as null, and --interactive as the
+ * wait for the pages to be set up. */
 function options(before: string, after: string, values: CliValues): Options {
-  const { out, name, chrome, download, json, selector, ...run } = values;
-  return { ...run, before, after, selector: selector ?? null };
+  const { out, name, chrome, download, json, selector, interactive, ...run } = values;
+  return {
+    ...run,
+    before,
+    after,
+    selector: selector ?? null,
+    prepare: interactive ? crowded => prepare(before, after, run.tabs, crowded) : null,
+  };
 }
 
 /** Write each shot's two images; a page with several shots numbers them in the file names. */

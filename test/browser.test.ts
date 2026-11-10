@@ -25,6 +25,7 @@ function chromium(...outcomes: (Error | 'ok')[]) {
 }
 
 const choice = (more: Partial<Choice> = {}): Choice => ({
+  window: false,
   download: 'ask',
   confirm: null,
   log: () => {},
@@ -57,7 +58,7 @@ describe('launch', () => {
     const confirm = vi.fn(async () => true);
     expect(await launch(chromium(NO_CHROME, NO_SHELL, 'ok'), choice({ confirm }), install)).toBe(BROWSER);
     expect(confirm).toHaveBeenCalledWith(expect.stringMatching(/Download .* 100 MB/));
-    expect(install).toHaveBeenCalledOnce();
+    expect(install).toHaveBeenCalledExactlyOnceWith('chromium-headless-shell');
   });
 
   test('on a no, it stops without downloading', async () => {
@@ -95,6 +96,32 @@ describe('launch', () => {
     ).rejects.toThrow(/--chrome/);
     expect(confirm).not.toHaveBeenCalled();
     expect(install).not.toHaveBeenCalled();
+  });
+
+  describe('with windows, for pages set up by hand', () => {
+    const WINDOW = { headless: false, args: expect.arrayContaining(['--hide-scrollbars']) };
+
+    test('the installed Google Chrome opens windows, without scrollbars as when headless', async () => {
+      const c = chromium('ok');
+      expect(await launch(c, choice({ window: true }))).toBe(BROWSER);
+      expect(c.calls).toEqual([{ channel: 'chrome', ...WINDOW }]);
+    });
+
+    test('so does a Chrome named with --chrome', async () => {
+      const c = chromium('ok');
+      await launch(c, choice({ window: true, chrome: '/my/chrome' }));
+      expect(c.calls).toEqual([{ executablePath: '/my/chrome', ...WINDOW }]);
+    });
+
+    test("without Chrome, it is Playwright's Chromium with windows that is asked about and downloaded", async () => {
+      const install = vi.fn();
+      const confirm = vi.fn(async () => true);
+      const c = chromium(NO_CHROME, NO_SHELL, 'ok');
+      expect(await launch(c, choice({ window: true, confirm }), install)).toBe(BROWSER);
+      expect(confirm).toHaveBeenCalledWith(expect.stringMatching(/Download Playwright's Chromium .* 200 MB/));
+      expect(install).toHaveBeenCalledExactlyOnceWith('chromium');
+      expect(c.calls).toEqual([{ channel: 'chrome', ...WINDOW }, WINDOW, WINDOW]);
+    });
   });
 
   test('a Chrome that is there but fails to start is an error, not a reason to download', async () => {

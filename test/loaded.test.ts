@@ -1,10 +1,11 @@
-// A loaded page's pixels, in Chrome: an element that cannot be shot is skipped, not an error. The
-// failures are recognised by Playwright's wording, so these fail first when a new Playwright changes it.
+// A page opened and read, in Chrome. Its pixels: an element that cannot be shot is skipped, not an
+// error; the failures are recognised by Playwright's wording, so these fail first when a new
+// Playwright changes it. And a page set up by hand between the two: it is read as it was left.
 
 import { chromium, type Browser } from 'playwright-core';
 import sharp from 'sharp';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
-import { load, type LoadOptions } from '../src/loaded.ts';
+import { open, openTabs, type LoadOptions } from '../src/loaded.ts';
 
 const OPTIONS: LoadOptions = {
   width: 800,
@@ -25,6 +26,12 @@ beforeAll(async () => {
   browser = await chromium.launch({ channel: 'chrome' });
 });
 afterAll(() => browser.close());
+
+/** A page opened and read at once, as when nobody sets it up. */
+const load = async (...args: Parameters<typeof open>) => (await open(...args)).read(false);
+
+/** The one page open in the browser, as the person setting it up has it: these tests are their hands. */
+const inHand = () => browser.contexts().flatMap(context => context.pages())[0];
 
 describe('pixels', () => {
   test('give a PNG of an element that can be shot', async () => {
@@ -105,4 +112,151 @@ describe('pixels', () => {
     await page.close();
     await expect(page.pixels(0)).rejects.toThrow();
   });
+});
+
+describe('a page set up by hand before it is read', () => {
+  test('is read as it was left, not as it loaded', async () => {
+    const opened = await open(
+      browser,
+      pageOf(`<input id="who"><p id="greeting">Nobody yet</p>
+        <script>who.oninput = () => (greeting.textContent = 'Hello ' + who.value)</script>`),
+      'before',
+      OPTIONS,
+    );
+    try {
+      await inHand().fill('#who', 'Ada');
+      expect((await opened.read(true)).words).toEqual(['Hello', 'Ada']);
+    } finally {
+      await opened.close();
+    }
+  });
+
+  test('has the pointer taken off it: what it was left over is not read as hovered', async () => {
+    const opened = await open(
+      browser,
+      pageOf(
+        '<style>a { color: rgb(0, 0, 255) } a:hover { color: rgb(255, 0, 0) }</style><a href="#">A link</a>',
+      ),
+      'before',
+      OPTIONS,
+    );
+    try {
+      await inHand().hover('a');
+      const { elements } = await opened.read(true);
+      expect(elements.find(e => e.tag === 'a')?.style.color).toBe('rgb(0, 0, 255)');
+    } finally {
+      await opened.close();
+    }
+  });
+
+  test('is read in the tab its window has left, when the one it opened in was closed', async () => {
+    const opened = await open(browser, pageOf('<p>Where it opened</p>'), 'before', OPTIONS);
+    try {
+      const first = inHand();
+      const second = await first.context().newPage();
+      await second.goto(pageOf('<p>Where it went on</p>'));
+      expect(opened.tabs()).toBe(2);
+      await first.close();
+      expect(opened.tabs()).toBe(1);
+      expect((await opened.read(true)).words).toEqual(['Where', 'it', 'went', 'on']);
+    } finally {
+      await opened.close();
+    }
+  });
+
+  test('says so when its window was closed', async () => {
+    const opened = await open(browser, pageOf('<p>Here</p>'), 'after', OPTIONS);
+    try {
+      await inHand().close();
+      expect(opened.tabs()).toBe(0);
+      await expect(opened.read(true)).rejects.toThrow("the after page's window was closed");
+    } finally {
+      await opened.close();
+    }
+  });
+});
+
+describe('both pages as tabs of one window', () => {
+  const urls = { before: pageOf('<p>Before page</p>'), after: pageOf('<p>After page</p>') };
+  /** The tab on `url`, as the person has it. */
+  const tabOn = (url: string) =>
+    browser
+      .contexts()
+      .flatMap(c => c.pages())
+      .find(p => p.url() === url)!;
+  const closing = async (work: (opened: Awaited<ReturnType<typeof openTabs>>) => Promise<void>) => {
+    const opened = await openTabs(browser, urls, OPTIONS);
+    try {
+      await work(opened);
+    } finally {
+      await opened[0].close();
+    }
+  };
+
+  test('are in one browser session, each read and shot as its own side', () =>
+    closing(async ([before, after]) => {
+      expect(browser.contexts()).toHaveLength(1);
+      expect([before.tabs(), after.tabs()]).toEqual([1, 1]);
+      const [was, now] = await Promise.all([before.read(true), after.read(true)]);
+      expect([was.side, was.words, now.side, now.words]).toEqual([
+        'before',
+        ['Before', 'page'],
+        'after',
+        ['After', 'page'],
+      ]);
+      // Shot at once, as a run does: each waits for its tab to be in front.
+      const shots = await Promise.all(
+        [was, now].map(page => page.shoot({ x: 0, y: 0, width: 50, height: 20 })),
+      );
+      for (const shot of shots) expect(shot.subarray(1, 4).toString()).toBe('PNG');
+    }));
+
+  test('a tab a page opens is that side going on; any other tab counts on both sides', () =>
+    closing(async ([before, after]) => {
+      const first = tabOn(urls.before);
+      const [opened] = await Promise.all([
+        first.context().waitForEvent('page'),
+        first.evaluate(() => void window.open('about:blank')),
+      ]);
+      await opened.setContent('<p>Went on here</p>');
+      await expect.poll(() => [before.tabs(), after.tabs()]).toEqual([2, 1]);
+      await first.close();
+      expect((await before.read(true)).words).toEqual(['Went', 'on', 'here']);
+      const nobodys = await first.context().newPage(); // as a person opening a tab themselves
+      expect([before.tabs(), after.tabs()]).toEqual([2, 2]);
+      await nobodys.close();
+      expect([before.tabs(), after.tabs()]).toEqual([1, 1]);
+    }));
+
+  test('says so when a side has no tab left', () =>
+    closing(async ([, after]) => {
+      await tabOn(urls.after).close();
+      await expect(after.read(true)).rejects.toThrow("the after page's tab was closed");
+    }));
+
+  test('both take the size the window is resized to, and keep their sharpness', () =>
+    closing(async ([before, after]) => {
+      const tab = tabOn(urls.before);
+      const session = await tab.context().newCDPSession(tab);
+      const { windowId, bounds } = await session.send('Browser.getWindowForTarget');
+      // As a person dragging the window's edge: 200 narrower, 100 shorter.
+      const dragged = { width: bounds.width! - 200, height: bounds.height! - 100 };
+      await session.send('Browser.setWindowBounds', { windowId, bounds: dragged });
+      const sizeOf = (url: string) => tabOn(url).evaluate(() => [innerWidth, innerHeight, devicePixelRatio]);
+      const taken = [OPTIONS.width - 200, OPTIONS.height - 100, OPTIONS.scale];
+      await expect.poll(() => sizeOf(urls.before), { timeout: 5000 }).toEqual(taken);
+      expect(await sizeOf(urls.after)).toEqual(taken);
+      const [was, now] = await Promise.all([before.read(true), after.read(true)]);
+      expect([was.width, now.width]).toEqual([OPTIONS.width - 200, OPTIONS.width - 200]);
+    }));
+
+  test('a resize just before they are read is taken too', () =>
+    closing(async ([before, after]) => {
+      const tab = tabOn(urls.before);
+      const session = await tab.context().newCDPSession(tab);
+      const { windowId, bounds } = await session.send('Browser.getWindowForTarget');
+      await session.send('Browser.setWindowBounds', { windowId, bounds: { width: bounds.width! - 300 } });
+      const [was, now] = await Promise.all([before.read(true), after.read(true)]);
+      expect([was.width, now.width]).toEqual([OPTIONS.width - 300, OPTIONS.width - 300]);
+    }));
 });
