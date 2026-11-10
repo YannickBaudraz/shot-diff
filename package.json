@@ -1,6 +1,6 @@
 {
   "name": "@yannickbaudraz/shot-diff",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Before and after screenshots of a web page, with what was removed marked red and what was added marked green",
   "license": "MIT",
   "author": "Yannick Baudraz",
