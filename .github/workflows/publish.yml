@@ -16,12 +16,13 @@ jobs:
       # npm trusted publishing: npm checks this workflow's identity instead of a token.
       id-token: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
-          cache: npm
           registry-url: https://registry.npmjs.org
+          # No dependency cache here: a poisoned cache would run code that can reach the OIDC token.
+          package-manager-cache: false
       - name: Check that the tag matches the package version
         run: |
           version="v$(node -p 'require("./package.json").version')"
