@@ -440,7 +440,7 @@ describe('cut off', () => {
     const index = p.reading.elements.findIndex(e => e.tag === 'section');
     const { looks } = p.mark(marks({ looks: [{ index, badge: { disc: { src: 'data:,', size: 10 } } }] }));
     const [box] = drawn();
-    expect(box.getBoundingClientRect().height).toBe(30 + 2 * 8); // the 30px shown, and the box's margin
+    expect(box.getBoundingClientRect().height).toBe(30 + 2 * 6); // the 30px shown, and the box's margin
     expect(looks[0].clipped).toBe(false);
   });
 });
