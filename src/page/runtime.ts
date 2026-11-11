@@ -45,7 +45,7 @@ export function runtime(properties: string[], ignore: string[] = []) {
   // taller than its letters, so a label that only touches it hides nothing.
   const TOUCHING = 2;
   const IMAGE_OUTLINE = { width: 3, offset: 2 };
-  const WORD_BOX_MARGIN = { x: 4, y: 5 }; // between a line of changed words and its box
+  const WORD_BOX_MARGIN = { x: 4, y: 3 }; // between a line of changed words and its box
   const SNAP_CLEARANCE = 6; // between a moved shot edge and the line of text it would have cut
   const ON_COLOR = '#ffffff'; // a label's words and a box's ring: ON_SIDE_COLOR in side.ts, which this code cannot import
 
