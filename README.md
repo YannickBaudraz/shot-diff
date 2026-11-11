@@ -280,6 +280,10 @@ opens. To get the Linux one anyway, name it: `--chrome /usr/bin/google-chrome`.
 - Pseudo-elements (`::before`, `::after`) and position on the page are not compared: an element
   pushed down by text added above it is not a change.
 - Moved text shows as removed in one place and added in another.
+- `--no-words` leaves out the words only. Where the data differs, the structure often does too:
+  rows, items or cards that only one page has are still marked added or removed, and a chart or
+  an image drawn from other data is still marked redrawn. Name the part you care about with
+  `--selector` to leave such areas out.
 - A background image redrawn under the same file name is marked only on an element with no other
   element inside it: a shot of a banner with a heading on it holds the heading too, so its pixels
   are not compared. A background whose file name changed is marked, as a change of style.
