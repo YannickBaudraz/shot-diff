@@ -57,6 +57,14 @@ const EXAMPLES: Example[] = [
     pages: ['components/before.html', 'components/after.html'],
   },
   {
+    id: 'layout',
+    name: 'A layout redesigned',
+    title: 'Landing: two-column hero, feature grid',
+    shows:
+      'The same words, laid out anew: the hero goes from centred to two columns with an illustration, and the features from a stack to a row. No word changed, so each element whose layout changed gets a box saying what of it changed, and the illustration, hidden before, is added.',
+    pages: ['layout/before.html', 'layout/after.html'],
+  },
+  {
     id: 'whole-page',
     name: 'A page with both',
     title: 'Dashboard: August figures',

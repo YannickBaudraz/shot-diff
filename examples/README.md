@@ -78,6 +78,24 @@ examples/component/shot-after.png: 1 part(s) added
 |---|---|
 | ![before](component/shot-before.png) | ![after](component/shot-after.png) |
 
+## A layout redesigned
+
+The same words, laid out anew: the hero goes from centred to two columns with an illustration, and the features from a stack to a row. No word changed, so each element whose layout changed gets a box saying what of it changed, and the illustration, hidden before, is added.
+
+```sh
+shot-diff "file://$PWD/e2e/fixtures/layout/before.html" "file://$PWD/e2e/fixtures/layout/after.html" \
+  --title "Landing: two-column hero, feature grid"
+```
+
+```
+examples/layout/shot-before.png: 2 part(s) removed
+examples/layout/shot-after.png: 3 part(s) added
+```
+
+| Before | After |
+|---|---|
+| ![before](layout/shot-before.png) | ![after](layout/shot-after.png) |
+
 ## A page with both
 
 Words and looks changed on one page. Only what changed is marked, not the boxes the layout resized around it.
