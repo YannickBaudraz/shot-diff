@@ -194,6 +194,7 @@ The same every time, with nobody there:
 | `--wait <ms>` | 300 | wait after loading and clicking |
 | `--interactive` | | open both pages in windows, and shoot them once you have set them up by hand |
 | `--tabs` | | with `--interactive`: one window with both pages as tabs, which you can resize |
+| `--ignore <css>` | | leave these elements, and all inside them, out of the comparison, for parts showing other data (prices, dates, a live counter); repeatable, each selector matching every element it fits; they still show in the shots, unmarked. `--json` says how many each matched on each page |
 | `--no-words` | | compare no words, for pages whose text differs anyway (random text, other data): only changes of look, and elements added or removed, are marked; elements are paired by what they are, not by what they say |
 | `--markers labels\|numbers` | `labels` | on a box around a change of look: what changed written on it, or a number explained in the band |
 | `--padding <px>` | 80 | room kept around the changes |
@@ -282,8 +283,8 @@ opens. To get the Linux one anyway, name it: `--chrome /usr/bin/google-chrome`.
 - Moved text shows as removed in one place and added in another.
 - `--no-words` leaves out the words only. Where the data differs, the structure often does too:
   rows, items or cards that only one page has are still marked added or removed, and a chart or
-  an image drawn from other data is still marked redrawn. Name the part you care about with
-  `--selector` to leave such areas out.
+  an image drawn from other data is still marked redrawn. Leave such areas out with `--ignore`, or
+  name the part you care about with `--selector`.
 - A background image redrawn under the same file name is marked only on an element with no other
   element inside it: a shot of a banner with a heading on it holds the heading too, so its pixels
   are not compared. A background whose file name changed is marked, as a change of style.

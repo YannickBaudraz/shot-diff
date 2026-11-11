@@ -42,6 +42,18 @@ afterEach(() => {
   document.body.innerHTML = '';
 });
 
+describe('read, with elements ignored', () => {
+  test('leaves out their words and elements, all inside them, and counts them', () => {
+    document.body.innerHTML = STYLE + '<p>keep</p><p class="data">12 <b>orders</b></p><p class="data">31</p>';
+    const p = new Function(
+      `return (${runtime.toString()})(${JSON.stringify(PROPS)}, ${JSON.stringify(['.data', '.none'])})`,
+    )() as Runtime;
+    expect(p.reading.words).toEqual(['keep']);
+    expect(p.reading.elements.map(e => e.signature)).toEqual(['P keep']);
+    expect(p.reading.ignored).toEqual([2, 0]);
+  });
+});
+
 describe('read', () => {
   test('lists visible words and images in order, and leaves hidden text out', () => {
     const p = page(

@@ -219,6 +219,7 @@ async function shootByHand(example: Example, folder: string): Promise<void> {
       storage: [],
       click: [],
       wait: 300,
+      ignore: [],
       padding: 80,
       maxHeight: 2400,
       selector: null,

@@ -28,7 +28,7 @@ export type Spans = { words: (Span | null)[]; looks: Span[] };
 
 /** The page's runtime, reading the page's words and the `properties` of its elements before anything
  * is drawn over it. */
-export function runtime(properties: string[]) {
+export function runtime(properties: string[], ignore: string[] = []) {
   /** A word, as a stretch of a text node, or an image. */
   type Token = { node: Text; start: number; end: number } | { image: Element };
 
@@ -188,10 +188,11 @@ export function runtime(properties: string[]) {
 
   /** Every visible word and image, in the order the page lays them out, shadow trees included. Text
    * with opacity 0 counts as hidden here. */
-  const readWords = (): { words: string[]; tokens: Token[] } => {
+  const readWords = (skipped: Set<Element>): { words: string[]; tokens: Token[] } => {
     const found: Token[] = [];
     const words: string[] = [];
     walk(document.body, node => {
+      if (node instanceof Element && skipped.has(node)) return false;
       if (node instanceof Element) {
         if (node.tagName === 'IMG' && node.checkVisibility()) {
           found.push({ image: node });
@@ -296,7 +297,7 @@ export function runtime(properties: string[]) {
     const elements: ElementInfo[] = [];
     const indexOf = new Map<Element, number>();
     walk(document.body, node => {
-      if (!(node instanceof Element)) return false;
+      if (!(node instanceof Element) || ignored.has(node)) return false;
       const rect = node.getBoundingClientRect();
       const visible =
         node.checkVisibility({ checkOpacity: false, checkVisibilityCSS: true }) && rect.width && rect.height;
@@ -542,12 +543,22 @@ export function runtime(properties: string[]) {
   /** Whether a shot edge at `y` would cut through `line`. */
   const cuts = (line: Region, y: number) => line.top < y && y < line.bottom;
 
-  const { words, tokens } = readWords();
+  // The elements --ignore names, each selector's: they, and all inside them, are not read, so
+  // nothing in them is compared or marked.
+  const ignoredBy = ignore.map(selector => [...document.querySelectorAll(selector)]);
+  const ignored = new Set(ignoredBy.flat());
+  const { words, tokens } = readWords(ignored);
+  const allTokens = ignored.size ? readWords(new Set()).tokens : tokens; // a shot edge cuts no text, ignored or not
   const { elements, domElements } = readElements(properties, tokenRanges(tokens));
 
   return {
     /** The page's words and elements, read before anything was drawn over it, and its width. */
-    reading: { words, elements, width: document.documentElement.clientWidth },
+    reading: {
+      words,
+      elements,
+      width: document.documentElement.clientWidth,
+      ignored: ignoredBy.map(found => found.length), // how many elements each --ignore selector matched
+    },
 
     /** Element `index` of the reading, for a shot of its own pixels; only before the page is marked. */
     element(index: number): Element {
@@ -606,7 +617,7 @@ export function runtime(properties: string[]) {
     /** The region with its edges moved out of any line of text they would cut: the top up, the
      * bottom down. Moving an edge can land it inside another line, so it repeats until neither moves. */
     snap(region: Region): Region {
-      const lines = textLines(tokens);
+      const lines = textLines(allTokens);
       let { top, bottom } = region;
       let moved: boolean;
       do {

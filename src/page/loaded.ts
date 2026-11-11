@@ -26,6 +26,7 @@ export type LoadOptions = {
   storage: [string, string][]; // set in localStorage before the page runs
   click: string[]; // selectors to click after loading, in order
   wait: number; // milliseconds to wait after loading and clicking
+  ignore: string[]; // selectors of the elements left out of the comparison, all inside them included
 };
 
 /** A page opened for one side: loaded, clicked and waited for, and not read yet. */
@@ -42,6 +43,7 @@ export type OpenedPage = {
 export type LoadedPage = {
   side: Side;
   words: string[];
+  ignored: number[]; // how many elements each of LoadOptions' ignore selectors matched
   elements: ElementInfo[];
   width: number;
   /** A PNG of element `index`'s own pixels, or null when it cannot be shot. Only before mark(). */
@@ -100,7 +102,7 @@ export async function open(
       read: async handled => {
         const [page] = context.pages();
         if (!page) throw new Error(`the ${side} page's window was closed before it was shot`);
-        return read(page, side, handled, close, work => work());
+        return read(page, side, options.ignore, handled, close, work => work());
       },
       close,
     };
@@ -150,7 +152,7 @@ export async function openTabs(
         if (!page) throw new Error(`the ${side} page's tab was closed before it was shot`);
         // Chrome draws the tab in front only: each shot waits its turn, with its tab brought forward.
         const inFront = <T>(work: () => Promise<T>) => inTurn(() => page.bringToFront().then(work));
-        return read(page, side, handled, close, inFront);
+        return read(page, side, options.ignore, handled, close, inFront);
       },
       close,
     }));
@@ -257,18 +259,20 @@ async function visit(page: Page, url: string, options: LoadOptions): Promise<voi
 async function read(
   page: Page,
   side: Side,
+  ignore: string[],
   handled: boolean,
   close: () => Promise<void>,
   shooting: <T>(shot: () => Promise<T>) => Promise<T>,
 ): Promise<LoadedPage> {
   if (handled) await page.mouse.move(-1, -1);
   await page.evaluate(
-    `window.__shotDiff = (${runtime.toString()})(${JSON.stringify(Object.keys(PROPERTIES))})`,
+    `window.__shotDiff = (${runtime.toString()})(${JSON.stringify(Object.keys(PROPERTIES))}, ${JSON.stringify(ignore)})`,
   );
-  const { words, elements, width } = await page.evaluate(() => window.__shotDiff.reading);
+  const { words, elements, width, ignored } = await page.evaluate(() => window.__shotDiff.reading);
   return {
     side,
     words,
+    ignored,
     elements,
     width,
     pixels: index => shooting(() => pixels(page, index)),

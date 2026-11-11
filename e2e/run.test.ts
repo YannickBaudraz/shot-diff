@@ -26,6 +26,7 @@ const OPTIONS: Options = {
   storage: [],
   click: [],
   wait: 0,
+  ignore: [],
   padding: 80,
   maxHeight: 2400,
   selector: null,

@@ -89,6 +89,12 @@ A local file is a file:// URL.`,
     '--no-words',
     'do not compare words, for pages whose text differs anyway (random or other data): mark only changes of look, and elements added or removed',
   )
+  .option(
+    '--ignore <css>',
+    'leave these elements, and all inside them, out of the comparison: for parts showing other data (repeatable)',
+    append,
+    [],
+  )
   .option('--selector <css>', 'only look at changes inside this element; the rest are ignored')
   .option('--padding <px>', 'room around the changes', nonNegativeNumber, 80)
   .addOption(
@@ -218,8 +224,10 @@ function write(result: Result, out: string, name: string): WrittenShot[] {
 
 /** What was marked, where, and what was left out, as JSON on stdout. */
 function printJson(result: Result, shots: WrittenShot[]) {
-  const { wordChanges, lookChanges, leftOut, hidden, ignored } = result;
-  console.log(JSON.stringify({ wordChanges, lookChanges, shots, leftOut, hidden, ignored }, null, 2));
+  const { wordChanges, lookChanges, leftOut, hidden, ignored, ignoredAreas } = result;
+  console.log(
+    JSON.stringify({ wordChanges, lookChanges, shots, leftOut, hidden, ignored, ignoredAreas }, null, 2),
+  );
 }
 
 /** A line per image written, and how many parts it marks. */

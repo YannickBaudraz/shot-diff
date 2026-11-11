@@ -15,6 +15,7 @@ const OPTIONS: LoadOptions = {
   storage: [],
   click: [],
   wait: 0,
+  ignore: [],
 };
 
 /** A page whose body is `html`, as a URL. */

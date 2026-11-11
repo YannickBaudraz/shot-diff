@@ -40,11 +40,20 @@ export type Result = {
   leftOut: { removed: string[]; added: string[] };
   hidden: { removed: string[]; added: string[] };
   ignored: { removed: string[]; added: string[] };
+  /** How many elements each --ignore selector matched on each page. */
+  ignoredAreas: { selector: string; before: number; after: number }[];
 };
 
 export async function run(browser: Browser, options: Options): Promise<Result> {
   const pages = await loadBoth(browser, options);
   try {
+    const ignoredAreas = options.ignore.map((selector, i) => ({
+      selector,
+      before: pages.before.ignored[i],
+      after: pages.after.ignored[i],
+    }));
+    const missed = ignoredAreas.find(area => !area.before && !area.after);
+    if (missed) throw new Error(`--ignore ${missed.selector} matches nothing on either page`);
     const looks = await compareLooks(pages.before, pages.after, options); // before anything is drawn over the pages
     const wordChanges = !options.words
       ? []
@@ -76,6 +85,7 @@ export async function run(browser: Browser, options: Options): Promise<Result> {
         removed: planned.outside.map(i => changes[i].text.before).filter(Boolean),
         added: planned.outside.map(i => changes[i].text.after).filter(Boolean),
       },
+      ignoredAreas,
     };
   } finally {
     await bothSides(side => pages[side].close());

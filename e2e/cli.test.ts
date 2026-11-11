@@ -134,6 +134,35 @@ test('--no-words marks no word change, only changes of look and elements added o
   ]);
 });
 
+test('--ignore leaves an area out of the comparison, and says what each selector matched', () => {
+  const { done, result } = shotDiff(
+    page('dashboard/before.html'),
+    page('dashboard/after.html'),
+    '--title',
+    't',
+    '--ignore',
+    'table',
+  );
+  expect(done.status, done.stderr).toBe(0);
+  const added = result.shots.flatMap((shot: { after: { added: string[] } }) => shot.after.added);
+  expect(added.filter((name: string) => /tr|span/.test(name))).toEqual([]); // the row added, the badge restyled
+  expect(added).toContain('$51,940');
+  expect(result.ignoredAreas).toEqual([{ selector: 'table', before: 1, after: 1 }]);
+});
+
+test('--ignore stops on a selector that matches nothing on either page', () => {
+  const { done } = shotDiff(
+    page('words/before.html'),
+    page('words/after.html'),
+    '--title',
+    't',
+    '--ignore',
+    '.nothing',
+  );
+  expect(done.status).not.toBe(0);
+  expect(done.stderr).toMatch(/--ignore \.nothing matches nothing on either page/);
+});
+
 test('the same page twice marks nothing and says so', () => {
   const { done, result } = shotDiff(page('words/before.html'), page('words/before.html'), '--title', 't');
   expect(done.status, done.stderr).toBe(0);
