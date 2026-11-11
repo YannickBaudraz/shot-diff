@@ -88,6 +88,25 @@ describe('read', () => {
   });
 });
 
+describe('read, the elements with words', () => {
+  test('are the ones with a word or an image in them, their own or inside them', () => {
+    const p = page(
+      '<div id="a"><p>Word</p></div>' +
+        '<div id="b" style="height:10px"><i style="display:block;height:5px"></i></div>' +
+        '<div id="c"><img src="pics/logo.png" width="10" height="10"></div><hr>',
+    );
+    expect(p.reading.elements.map(e => [e.signature, e.worded])).toEqual([
+      ['DIV #a', true],
+      ['P Word', true],
+      ['DIV #b', false],
+      ['I', false],
+      ['DIV #c', true],
+      ['IMG logo.png', true],
+      ['HR', false],
+    ]);
+  });
+});
+
 describe('read, an embedded page', () => {
   test('is one element that paints: the words in it are not read', () => {
     const p = page(
@@ -232,6 +251,28 @@ describe('mark', () => {
     expect(box.children).toHaveLength(0);
     expect((disc as HTMLImageElement).src).toBe(src);
     expect(disc.style.width).toBe('24px');
+  });
+});
+
+describe('mark, a change of look this page has not', () => {
+  test('draws nothing, and says where it would be: at that edge of the element it is given', () => {
+    const p = page('<p>One</p><p>Two</p>');
+    const place = { changed: null, inside: true, clipped: false };
+    const { looks } = p.mark(
+      marks({
+        looks: [
+          { index: 1, badge: null, edge: 'top' },
+          { index: 1, badge: null, edge: 'bottom' },
+          { index: -1, badge: null },
+        ],
+      }),
+    );
+    expect(drawn()).toHaveLength(0);
+    expect(looks).toEqual([
+      { top: 48, bottom: 48, ...place },
+      { top: 72, bottom: 72, ...place },
+      { top: 0, bottom: 0, ...place },
+    ]);
   });
 });
 

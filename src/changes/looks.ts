@@ -1,11 +1,12 @@
 // Changes of look: changes with no words in them. An element whose look changed (a colour, a border,
 // a size set in CSS), found by pairing the elements of the two pages and comparing what the browser
-// computed for them; and a picture redrawn, found by comparing its pixels.
+// computed for them; a picture redrawn, found by comparing its pixels; and an element with no words
+// in it that only one page has, which the word diff cannot show.
 
 import pixelmatch from 'pixelmatch';
 import sharp from 'sharp';
 import { diff } from './words.ts';
-import { bothSides, type Side } from '../side.ts';
+import { bothSides, SIDES, type Side } from '../side.ts';
 
 /** One visible element, as the page's runtime reads it. */
 export type ElementInfo = {
@@ -13,6 +14,7 @@ export type ElementInfo = {
   tag: string; // in lower case, to name it in a list of changes
   parent: number; // the index of its nearest listed ancestor, or -1
   leaf: boolean; // no listed element inside it: its pixels are its own, not its children's too
+  worded: boolean; // has a word or an image in it, its own or inside it: the word diff shows it added or removed
   paints: boolean; // draws pixels its style does not describe: an image, a canvas, an SVG, an embedded page, a background image file
   seen: boolean; // not made transparent, by its own opacity or an ancestor's
   top: number; // in page pixels, to number the changes in reading order
@@ -29,8 +31,13 @@ export type ComparedPage = {
 };
 
 /** A change of look: the element on each page (an index into its elements), what changed, and what
- * to call it in a list of changes. */
-export type Look = { element: Record<Side, number>; what: string[]; name: string };
+ * to call it in a list of changes. An element `only` one page has is that page's; on the other page
+ * `element` is one next to where it would be (-1 with none), and `edge` the side of it that place
+ * is at, to show the same place on both. */
+export type Look = { element: Record<Side, number>; what: string[]; name: string; only?: Side; edge?: Edge };
+
+/** The top of an element, or its bottom. */
+export type Edge = 'top' | 'bottom';
 
 /** The most pictures compared pixel by pixel, so a page of thumbnails stays quick. */
 export const MAX_PICTURES = 300;
@@ -43,18 +50,26 @@ const RESCALED_TOLERANCE = 0.005;
 /** The changes of look between two pages, top to bottom on the before page. Read the pages before
  * anything is drawn over them. */
 export async function compareLooks(before: ComparedPage, after: ComparedPage): Promise<Look[]> {
-  const pairs = pairUp(before.elements, after.elements);
-  const { restyles, pictures } = sortPairs(pairs, before.elements, after.elements);
-  const changes = [...restyles, ...(await redrawn(pictures.slice(0, MAX_PICTURES), before, after))];
-  const onBefore = (change: LookChange) => before.elements[change.element.before];
+  const { pairs, reworded } = pairUp(before.elements, after.elements);
+  const { restyles, pictures } = sortPairs(pairs, reworded, before.elements, after.elements);
+  const changes = [
+    ...restyles,
+    ...(await redrawn(pictures.slice(0, MAX_PICTURES), before, after)),
+    ...onOnePage(pairs, { before: before.elements, after: after.elements }),
+  ];
+  const pages = { before, after };
+  const onBefore = (change: LookChange): ElementInfo | undefined => before.elements[change.element.before];
+  const own = (change: LookChange) =>
+    pages[change.only ?? 'before'].elements[change.element[change.only ?? 'before']];
   return changes
     .sort((x, y) => readingOrder(onBefore(x), onBefore(y)))
-    .map(change => ({ ...change, name: `[${onBefore(change).tag}: ${change.what.join(', ')}]` }));
+    .map(change => ({ ...change, name: `[${own(change).tag}: ${change.what.join(', ')}]` }));
 }
 
-/** Top to bottom; elements level with each other in a fixed order, by signature. */
-const readingOrder = (x: ElementInfo, y: ElementInfo) =>
-  x.top - y.top || x.signature.localeCompare(y.signature);
+/** Top to bottom; elements level with each other in a fixed order, by signature. One with no place
+ * on the before page comes first. */
+const readingOrder = (x: ElementInfo | undefined, y: ElementInfo | undefined) =>
+  (x?.top ?? 0) - (y?.top ?? 0) || (x?.signature ?? '').localeCompare(y?.signature ?? '');
 
 /** The computed properties compared, and what to call each in a label. */
 export const PROPERTIES: Record<string, string> = {
@@ -150,27 +165,137 @@ function ofLineNotSeen(property: string, was: ElementInfo, now: ElementInfo): bo
 /** The same element on both pages: its index on each. */
 type Pair = Record<Side, number>;
 
-/** A paired element whose look changed, its style or its pixels, and what changed. */
-type LookChange = { element: Pair; what: string[] };
+/** An element whose look changed, its style or its pixels, and what changed; or one `only` one page
+ * has, with the element next to its place on the other page. */
+type LookChange = Omit<Look, 'name'>;
 
 /** The elements that are the same on both pages: each page's elements, in document order, diffed on
- * their signatures as the words are, and the ones the diff keeps. */
-function pairUp(before: readonly ElementInfo[], after: readonly ElementInfo[]): Pair[] {
-  return diff(
+ * their signatures as the words are, and the ones the diff keeps. Between two of those, the elements
+ * left over on both pages are diffed again on their tags alone, those with words apart from those
+ * without: an element whose words, id or label changed is the same element in the same place, not
+ * one removed and another added, and its look may have changed too. The pairs `reworded` are the
+ * ones with words found that way: what they show is not the same, so their pixels differ anyway. */
+function pairUp(
+  before: readonly ElementInfo[],
+  after: readonly ElementInfo[],
+): { pairs: Pair[]; reworded: Set<Pair> } {
+  const pairs: Pair[] = [];
+  const reworded = new Set<Pair>();
+  let left: Record<Side, number[]> = { before: [], after: [] };
+  const sameTags = (worded: boolean): Pair[] => {
+    const mine = {
+      before: left.before.filter(i => before[i].worded === worded),
+      after: left.after.filter(i => after[i].worded === worded),
+    };
+    return diff(
+      mine.before.map(i => before[i].tag),
+      mine.after.map(i => after[i].tag),
+    )
+      .filter(op => op.type === 'equal')
+      .map(op => ({ before: mine.before[op.before], after: mine.after[op.after] }));
+  };
+  const pairLeftOvers = () => {
+    const withWords = sameTags(true);
+    for (const pair of withWords) reworded.add(pair);
+    pairs.push(...withWords, ...sameTags(false));
+    left = { before: [], after: [] };
+  };
+  const ops = diff(
     before.map(e => e.signature),
     after.map(e => e.signature),
-  )
-    .filter(op => op.type === 'equal')
-    .map(({ before, after }) => ({ before, after }));
+  );
+  for (const op of ops) {
+    if (op.type === 'remove') left.before.push(op.before);
+    else if (op.type === 'add') left.after.push(op.after);
+    else {
+      pairLeftOvers();
+      pairs.push({ before: op.before, after: op.after });
+    }
+  }
+  pairLeftOvers();
+  return { pairs, reworded };
+}
+
+/** The elements only one page has that the word diff cannot show: with no word or image in them,
+ * and nothing inside them that the other page has too. One inside another is the outer one's: a
+ * component added is one change, not one per element in it. One that does not show is none. */
+function onOnePage(pairs: Pair[], elements: Record<Side, readonly ElementInfo[]>): LookChange[] {
+  const found: LookChange[] = [];
+  for (const side of SIDES) {
+    const other = side === 'before' ? 'after' : 'before';
+    const partner = new Map(pairs.map(pair => [pair[side], pair[other]]));
+    const mine = elements[side];
+    for (let index = 0; index < mine.length; index++) {
+      const end = endOf(mine, index);
+      const alone = !mine[index].worded && range(index, end).every(i => !partner.has(i));
+      if (!alone) continue;
+      if (mine[index].seen) {
+        const place = placeOn(partner, mine, index, end);
+        const element = { [side]: index, [other]: place.element } as Pair;
+        found.push({
+          element,
+          what: [side === 'before' ? 'removed' : 'added'],
+          only: side,
+          edge: place.edge,
+        });
+      }
+      index = end - 1; // what is inside it is part of it
+    }
+  }
+  return found;
+}
+
+const range = (from: number, to: number) => Array.from({ length: to - from }, (_, i) => from + i);
+
+/** Whether element `index` is inside element `ancestor`, or is it. */
+function isIn(elements: readonly ElementInfo[], index: number, ancestor: number): boolean {
+  for (let i = index; i >= ancestor; i = elements[i].parent) if (i === ancestor) return true;
+  return false;
+}
+
+/** The index after the last element inside element `index`: elements are in document order, so the
+ * ones inside it follow it. */
+function endOf(elements: readonly ElementInfo[], index: number): number {
+  let end = index + 1;
+  while (end < elements.length && isIn(elements, end, index)) end++;
+  return end;
+}
+
+/** Where on the other page the element from `index` to `end` would be: under the nearest element
+ * before it in the same parent that the other page has too, else over the nearest after it, else at
+ * the top of the nearest around it; failing those, under the nearest before it anywhere, or over the
+ * nearest after it. No element when the pages share none. */
+function placeOn(
+  partner: Map<number, number>,
+  elements: readonly ElementInfo[],
+  index: number,
+  end: number,
+): { element: number; edge: Edge } {
+  const paired = (indexes: number[]) => indexes.find(i => partner.has(i));
+  const before = range(0, index).reverse();
+  const after = range(end, elements.length);
+  const sibling = (i: number) => elements[i].parent === elements[index].parent;
+  const around = (i: number) => isIn(elements, index, i);
+  const candidates: [number | undefined, Edge][] = [
+    [paired(before.filter(i => sibling(i) && !around(i))), 'bottom'],
+    [paired(after.filter(sibling)), 'top'],
+    [paired(before.filter(around)), 'top'],
+    [paired(before), 'bottom'],
+    [paired(after), 'top'],
+  ];
+  const [near, edge] = candidates.find(([found]) => found !== undefined) ?? [undefined, 'top'];
+  return { element: near === undefined ? -1 : (partner.get(near) ?? -1), edge };
 }
 
 /** The pairs whose style changed, and what changed; and the pairs that draw their own pixels, with
  * no listed element inside them, and whose style did not change: the ones to compare pixel by pixel.
- * A pair transparent on both pages is neither.
+ * A pair transparent on both pages is neither. One `reworded` is compared for its style alone: an
+ * image put in the place of another is a change of words, not the same picture redrawn.
  * An element with others inside it is left out, as its shot holds theirs too: words changed in a
  * section with a background image are a change of words, not a picture redrawn. */
 function sortPairs(
   pairs: Pair[],
+  reworded: Set<Pair>,
   before: readonly ElementInfo[],
   after: readonly ElementInfo[],
 ): { restyles: LookChange[]; pictures: Pair[] } {
@@ -181,7 +306,8 @@ function sortPairs(
     if (!before[pair.before].seen && !after[pair.after].seen) continue;
     const what = changedProperties(before[pair.before], after[pair.after], before, after);
     if (what.length) restyles.push({ element: pair, what });
-    else if (isPicture(before[pair.before]) && isPicture(after[pair.after])) pictures.push(pair);
+    else if (!reworded.has(pair) && isPicture(before[pair.before]) && isPicture(after[pair.after]))
+      pictures.push(pair);
   }
   return { restyles, pictures };
 }

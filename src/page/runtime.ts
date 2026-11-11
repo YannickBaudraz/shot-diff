@@ -14,8 +14,13 @@ export type Marks = {
   /** Word changes: the changed tokens and the unchanged ones around them, as indexes into the reading's words. */
   words: { changed: number[]; anchors: number[] }[];
   /** Changes of look: an element, as an index into the reading's elements, and what to put on its
-   * box: a label, or a disc. */
-  looks: { index: number; badge: { label: string } | { disc: { src: string; size: number } } }[];
+   * box: a label, or a disc. With no badge nothing is drawn: this page has not the element that
+   * changed, which would be at this one's `edge` (at the top of the page with -1, for none). */
+  looks: {
+    index: number;
+    badge: { label: string } | { disc: { src: string; size: number } } | null;
+    edge?: 'top' | 'bottom';
+  }[];
 };
 
 /** Where each word change and each change of look sits, in the order mark() was given them. */
@@ -222,8 +227,24 @@ export function runtime(properties: string[]) {
    * document of its own, whose words and elements are not read here. */
   const PAINTERS = new Set(['IMG', 'CANVAS', 'svg', 'VIDEO', 'IFRAME']);
 
+  /** The elements with a word or an image in them, their own or inside them. */
+  const wordedElements = (tokens: Token[]) => {
+    const worded = new Set<Element>();
+    for (const token of tokens) {
+      const first = 'image' in token ? token.image : shownIn(token.node);
+      for (let element = first; element && !worded.has(element); element = shownIn(element))
+        worded.add(element);
+    }
+    return worded;
+  };
+
   /** An element as looks.ts compares it; its parent is filled in by readElements(). */
-  const describe = (element: Element, rect: DOMRect, properties: string[]): ElementInfo => {
+  const describe = (
+    element: Element,
+    rect: DOMRect,
+    properties: string[],
+    worded: Set<Element>,
+  ): ElementInfo => {
     const style = getComputedStyle(element);
     const computed = element.computedStyleMap();
     return {
@@ -231,6 +252,7 @@ export function runtime(properties: string[]) {
       tag: element.tagName.toLowerCase(),
       parent: -1,
       leaf: true,
+      worded: worded.has(element),
       // A gradient is all in its CSS value, compared as style; and a shot of it holds whatever shows
       // through it, which may be another element passing under it.
       paints: PAINTERS.has(element.tagName) || style.backgroundImage.includes('url('),
@@ -256,7 +278,10 @@ export function runtime(properties: string[]) {
   /** Every visible element, in the order the page lays them out, shadow trees included. An element
    * with opacity 0 still counts: its opacity is one of the properties compared, and `seen` says
    * whether it shows. */
-  const readElements = (properties: string[]): { elements: ElementInfo[]; domElements: Element[] } => {
+  const readElements = (
+    properties: string[],
+    worded: Set<Element>,
+  ): { elements: ElementInfo[]; domElements: Element[] } => {
     const found: Element[] = [];
     const elements: ElementInfo[] = [];
     const indexOf = new Map<Element, number>();
@@ -266,7 +291,7 @@ export function runtime(properties: string[]) {
       const visible =
         node.checkVisibility({ checkOpacity: false, checkVisibilityCSS: true }) && rect.width && rect.height;
       if (visible) {
-        const info = describe(node, rect, properties);
+        const info = describe(node, rect, properties, worded);
         const parent = listedAncestor(node, indexOf);
         if (parent !== undefined) {
           info.parent = parent;
@@ -449,7 +474,7 @@ export function runtime(properties: string[]) {
    * is around what shows of the element: an element a scroll area cuts off is not boxed at all, it
    * is clipped. */
   const boxLook = (
-    look: Marks['looks'][number],
+    badgeOf: NonNullable<Marks['looks'][number]['badge']>,
     element: Element,
     layer: HTMLElement,
     color: string,
@@ -463,13 +488,20 @@ export function runtime(properties: string[]) {
     const box = grow(pageBox(shown), BOX.margin);
     const boxElement = drawBox(layer, color, box);
     const badge =
-      'disc' in look.badge
-        ? drawDisc(layer, look.badge.disc, box)
-        : drawLabel(boxElement, look.badge.label, color, box, taken);
+      'disc' in badgeOf
+        ? drawDisc(layer, badgeOf.disc, box)
+        : drawLabel(boxElement, badgeOf.label, color, box, taken);
     drawn.push(boxElement);
     if (badge.parentElement !== boxElement) drawn.push(badge);
     const region = inPage(pageRegion([boxElement, badge].map(drawn => drawn.getBoundingClientRect())));
     return { ...region, changed: region, inside: true, clipped: false };
+  };
+
+  /** Where a change of look is on a page that has not its element: at that `edge` of `element`,
+   * which is not boxed, or at the top of the page with none. */
+  const placeAt = (element: Element | undefined, edge: 'top' | 'bottom'): Span => {
+    const y = element ? Math.max(0, element.getBoundingClientRect()[edge] + window.scrollY) : 0;
+    return { top: y, bottom: y, changed: null, inside: true, clipped: false };
   };
 
   /** Where each line of each token is on the page. */
@@ -482,7 +514,7 @@ export function runtime(properties: string[]) {
   const cuts = (line: Region, y: number) => line.top < y && y < line.bottom;
 
   const { words, tokens } = readWords();
-  const { elements, domElements } = readElements(properties);
+  const { elements, domElements } = readElements(properties, wordedElements(tokens));
 
   return {
     /** The page's words and elements, read before anything was drawn over it, and its width. */
@@ -518,10 +550,13 @@ export function runtime(properties: string[]) {
       const taken = tokens.flatMap(rectsOf).map(pageBox);
       const looks = marks.looks.map(look => {
         const drawn: HTMLElement[] = [];
-        const element = domElements[look.index];
-        const span = boxLook(look, element, layer, marks.color, drawn, taken);
+        const element: Element | undefined = domElements[look.index];
+        const span =
+          look.badge && element
+            ? boxLook(look.badge, element, layer, marks.color, drawn, taken)
+            : placeAt(element, look.edge ?? 'top');
         undo.looks.push(removing(drawn));
-        return { ...span, inside: inside([element]) };
+        return { ...span, inside: inside(element ? [element] : []) };
       });
       return { words, looks };
     },

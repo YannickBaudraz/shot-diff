@@ -197,7 +197,25 @@ test('changes with no words in them are marked: a restyled button, a picture red
   expect(result.leftOut).toEqual({ removed: [], added: [] });
 });
 
-test('a dashboard: only what changed is marked, not the boxes layout resized around it', () => {
+test('an element with no words that one page alone has is marked there, and both shots show its place', () => {
+  const { done, result } = shotDiff(
+    page('wordless/before.html'),
+    page('wordless/after.html'),
+    '--title',
+    't',
+  );
+  expect(done.status, done.stderr).toBe(0);
+  expect(result.wordChanges).toBe(0);
+  expect(result.lookChanges).toBe(2);
+  expect(result.shots).toHaveLength(1);
+  const [shot] = result.shots;
+  // The bar with its fill is one change; each page lists only what it has.
+  expect(shot.before.removed).toEqual(['[hr: removed]']);
+  expect(shot.after.added).toEqual(['[div: added]']);
+  expect(Math.abs(shot.before.box.y - shot.after.box.y)).toBeLessThan(10);
+});
+
+test('a dashboard: only what changed is marked, not the boxes layout resized around it; a line whose words changed has its new colour marked too', () => {
   const { done, result } = shotDiff(
     page('dashboard/before.html'),
     page('dashboard/after.html'),
@@ -211,6 +229,7 @@ test('a dashboard: only what changed is marked, not the boxes layout resized aro
     '[a: background, weight]',
     '[section: spacing]',
     '2.1% +0.3',
+    '[div: text colour]',
     '[svg: Monthly revenue chart redrawn]',
     '[span: background]',
   ]);
@@ -219,6 +238,7 @@ test('a dashboard: only what changed is marked, not the boxes layout resized aro
     '[a: background, weight]',
     '[section: spacing]',
     '1.6% -0.5',
+    '[div: text colour]',
     '[svg: Monthly revenue chart redrawn]',
     'Katherine Johnson Team plan $199.00 paid',
     '[span: background]',

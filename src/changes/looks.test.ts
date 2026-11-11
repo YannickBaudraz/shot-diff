@@ -11,6 +11,7 @@ const el = (
   tag: signature.split(' ')[0].toLowerCase(),
   parent: -1,
   leaf: true,
+  worded: true,
   seen: true,
   paints: false,
   top: 0,
@@ -175,6 +176,106 @@ describe('compareLooks', () => {
       el('P two', { color: 'red' }, { top: 100 }),
     ]);
     expect((await compareLooks(before, after)).map(l => l.element.before)).toEqual([1, 0]);
+  });
+});
+
+describe('an element whose words changed', () => {
+  test('is the one in its place on the other page: a change of its look is found', async () => {
+    const before = seen([el('H2 Refunds'), el('DIV 2.1%'), el('DIV +0.3 pt', { color: 'red' })]);
+    const after = seen([el('H2 Refunds'), el('DIV 1.6%'), el('DIV -0.5 pt', { color: 'green' })]);
+    expect(await compareLooks(before, after)).toEqual([
+      { element: { before: 2, after: 2 }, what: ['text colour'], name: '[div: text colour]' },
+    ]);
+  });
+
+  test('is told from the ones with no words by having some: each kind is paired with its own', async () => {
+    const before = seen([el('H2 Refunds'), el('DIV +0.3 pt', { color: 'red' })]);
+    const after = seen([
+      el('H2 Refunds'),
+      el('DIV', { color: 'blue' }, { worded: false }),
+      el('DIV -0.5 pt', { color: 'green' }),
+    ]);
+    expect((await compareLooks(before, after)).map(look => look.name).sort()).toEqual([
+      '[div: added]',
+      '[div: text colour]',
+    ]);
+  });
+
+  test('an image put in the place of another is a change of words, not a picture redrawn', async () => {
+    const image = (file: string) => el(`IMG ${file}`, {}, { paints: true });
+    const before = seen([image('mountains.svg')], { 0: await square('#ff0000') });
+    const after = seen([image('night.svg')], { 0: await square('#0000ff') });
+    expect(await compareLooks(before, after)).toEqual([]);
+    expect(before.pixels).not.toHaveBeenCalled();
+  });
+});
+
+describe('an element only one page has', () => {
+  /** An element with no word or image in it. */
+  const bare = (signature: string, more: Partial<ElementInfo> = {}, style: Record<string, string> = {}) =>
+    el(signature, style, { worded: false, ...more });
+
+  test('with no words in it is added, or removed, and placed under the element before it on the other page', async () => {
+    const without = () => seen([el('H1 Title'), el('P Last')]);
+    const withRule = () => seen([el('H1 Title'), bare('HR'), el('P Last')]);
+    expect(await compareLooks(without(), withRule())).toEqual([
+      {
+        element: { before: 0, after: 1 },
+        what: ['added'],
+        name: '[hr: added]',
+        only: 'after',
+        edge: 'bottom',
+      },
+    ]);
+    expect(await compareLooks(withRule(), without())).toEqual([
+      {
+        element: { before: 1, after: 0 },
+        what: ['removed'],
+        name: '[hr: removed]',
+        only: 'before',
+        edge: 'bottom',
+      },
+    ]);
+  });
+
+  test('with words in it is left to the word diff', async () => {
+    expect(await compareLooks(seen([el('H1 Title')]), seen([el('H1 Title'), el('P New')]))).toEqual([]);
+  });
+
+  test('a component with no words is one change, not one for each element in it', async () => {
+    const after = seen([el('H1 Title'), bare('DIV'), bare('DIV', { parent: 1 }), bare('I', { parent: 2 })]);
+    expect((await compareLooks(seen([el('H1 Title')]), after)).map(look => look.element.after)).toEqual([1]);
+  });
+
+  test('one around an element the other page has too is not added: only what is new in it is', async () => {
+    const before = seen([bare('HR')]);
+    const after = seen([bare('DIV'), bare('HR', { parent: 0 }), bare('I', { parent: 0 })]);
+    expect((await compareLooks(before, after)).map(look => look.name)).toEqual(['[i: added]']);
+  });
+
+  test('one that does not show is none', async () => {
+    const after = seen([el('H1 Title'), bare('DIV', { seen: false })]);
+    expect(await compareLooks(seen([el('H1 Title')]), after)).toEqual([]);
+  });
+
+  test('one whose id changed is the same element, compared as any other', async () => {
+    const field = (id: string, color: string) => seen([el('H1 Title'), bare(`INPUT #${id}`, {}, { color })]);
+    expect(await compareLooks(field('a', 'black'), field('b', 'black'))).toEqual([]);
+    expect(await compareLooks(field('a', 'black'), field('b', 'red'))).toEqual([
+      { element: { before: 1, after: 1 }, what: ['text colour'], name: '[input: text colour]' },
+    ]);
+  });
+
+  test('is placed over the element after it when none is before it, and at the top of the one around it when alone in it', async () => {
+    const placeOf = async (before: ElementInfo[], after: ElementInfo[]) => {
+      const [look] = await compareLooks(seen(before), seen(after));
+      return [look.element.before, look.edge];
+    };
+    expect(await placeOf([el('P Next')], [bare('HR'), el('P Next')])).toEqual([0, 'top']);
+    expect(
+      await placeOf([el('P Far'), el('SECTION')], [el('P Far'), el('SECTION'), bare('HR', { parent: 1 })]),
+    ).toEqual([1, 'top']);
+    expect(await placeOf([], [bare('HR')])).toEqual([-1, 'top']);
   });
 });
 

@@ -360,19 +360,22 @@ async function pixels(page: Page, index: number): Promise<Buffer | null> {
 }
 
 /** What to draw on `side`'s page: its colour, its half of each word change, and each change of look's
- * element there with its label or this side's disc. */
+ * element there with its label or this side's disc. A change only the other page has gets none. */
 function marksFor(side: Side, hunks: Hunk[], markers: Marker[], within: string | null): Marks {
   return {
     ...COLORS[side],
     strike: side === 'before',
     within,
     words: hunks.map(hunk => ({ changed: hunk.changed[side], anchors: hunk.anchors[side] })),
-    looks: markers.map(({ element, badge }) => ({
+    looks: markers.map(({ element, badge, only, edge }) => ({
       index: element[side],
+      edge,
       badge:
-        'label' in badge
-          ? badge
-          : { disc: { src: `data:image/png;base64,${badge.disc[side].toString('base64')}`, size: DISC } },
+        only && only !== side
+          ? null
+          : 'label' in badge
+            ? badge
+            : { disc: { src: `data:image/png;base64,${badge.disc[side].toString('base64')}`, size: DISC } },
     })),
   };
 }

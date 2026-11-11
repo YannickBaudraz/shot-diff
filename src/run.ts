@@ -140,7 +140,11 @@ async function markPages(
     })),
     ...markers.map((marker, i) => ({
       place: { before: spans.before.looks[i], after: spans.after.looks[i] },
-      text: { before: marker.name, after: marker.name },
+      // An element only one page has is in that page's list alone.
+      text: {
+        before: marker.only === 'after' ? '' : marker.name,
+        after: marker.only === 'before' ? '' : marker.name,
+      },
       marker,
     })),
   ];
@@ -193,11 +197,11 @@ async function picture(
   };
 }
 
-/** The band's key: the numbered markers among `changes`, by number, with `side`'s disc. */
+/** The band's key: the numbered markers among `changes` that `side` shows, by number, with its disc. */
 function keyOf(changes: Change[], side: Side): Key[] {
   const numbered: (Key & { number: number })[] = [];
   for (const { marker } of changes) {
-    if (marker && 'disc' in marker.badge)
+    if (marker && 'disc' in marker.badge && (!marker.only || marker.only === side))
       numbered.push({ number: marker.number, disc: marker.badge.disc[side], what: marker.what.join(', ') });
   }
   return numbered.sort((x, y) => x.number - y.number);

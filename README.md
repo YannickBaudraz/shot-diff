@@ -5,7 +5,9 @@ Before and after screenshots of a web page, with the change marked, ready to pas
 - On the **before** shot, what was removed is red and struck through.
 - On the **after** shot, what was added is green.
 - A change with no words in it is marked too: a box says what changed on an element whose look
-  changed (a colour, a border, a size), or on a picture redrawn under the same file name.
+  changed (a colour, a border, a size), or on a picture redrawn under the same file name; and an
+  element with no words that was added or removed, a divider or a progress bar, gets a box saying
+  so.
 - Each image has a band on top with its side, your title, and what its colour means.
 
 A sentence rewritten and a line added:
@@ -229,13 +231,19 @@ opens. To get the Linux one anyway, name it: `--chrome /usr/bin/google-chrome`.
 3. On the before page it tints the removed words red and strikes them through; on the after page it
    tints the added words green. A box goes around each change. Both are drawn over the page (the
    CSS Custom Highlight API and an overlay), so nothing on it moves.
-4. It pairs the elements of the two pages the same way, by tag, id, role, own words and image file,
-   and compares what the browser computed for each pair: colours, borders, corners, shadow, font,
+4. It pairs the elements of the two pages the same way, by tag, id, role, own words and image file;
+   then, between two elements it paired, the ones left over on both pages by their tag alone, so an
+   element whose words changed is still paired with the one in its place. It compares what the
+   browser computed for each pair: colours, borders, corners, shadow, font,
    spacing, alignment, and the size of elements with nothing inside them. A border or an outline
    counts only where one is drawn. Images, canvases, SVGs, embedded pages (iframes) and backgrounds
    with no element inside them that kept their style are compared pixel by pixel
    ([pixelmatch](https://github.com/mapbox/pixelmatch)), at the smaller of their two sizes when the
    layout scaled one.
+   An element with no word or image in it that only one page has, with nothing inside it that the
+   other page has too, is a change as well: "removed" on the before shot, "added" on the after.
+   One inside another is the outer one's, so a component added is boxed once. Its words, when it
+   has some, already say it: an element with words is marked by them alone.
    Each change gets a box with what changed written on it, or a number explained in the band with
    `--markers numbers`: red on the before shot, green on the after.
 5. It shoots the area around the changes, unchanged words next to each change included, so both
@@ -248,7 +256,16 @@ opens. To get the Linux one anyway, name it: `--chrome /usr/bin/google-chrome`.
 ## Limits
 
 - An element is matched across the pages by its tag, id, role, own words and image file. One whose
-  words changed is marked as words, not looks; one that moved elsewhere in the page is not matched.
+  words changed is matched with the element of the same tag in its place, and a change of its look
+  is marked beside its words; where elements were also added or removed around it, that match can
+  be with a neighbour. One that moved elsewhere in the page is not matched, and with no words in it
+  is marked removed where it was and added where it is.
+- Among elements alike, with no words to tell them apart, the one added or removed cannot be told
+  from its neighbours: of three dividers where there were two, the box may go on another than the
+  new one.
+- An element added with words in it is marked by its words, and by the elements with no words
+  inside it: a new panel has its text tinted and its progress bars boxed, and no box around its
+  own frame.
 - Pseudo-elements (`::before`, `::after`) and position on the page are not compared: an element
   pushed down by text added above it is not a change.
 - Moved text shows as removed in one place and added in another.
