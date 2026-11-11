@@ -39,13 +39,13 @@ export function runtime(properties: string[]) {
   // Sizes in CSS pixels.
   // margin: between an element and its box; ring: the white line outside it, which keeps it apart
   // from a background close to its colour
-  const BOX = { margin: 4, border: 3, ring: 2, radius: 4 };
+  const BOX = { margin: 8, border: 3, ring: 2, radius: 6 };
   const LABEL = { gap: BOX.border, font: '600 12px/1.4 system-ui,sans-serif', padding: '1px 6px' };
   // How far two boxes go into each other before one covers the other: a line of text's rectangle is
   // taller than its letters, so a label that only touches it hides nothing.
   const TOUCHING = 2;
   const IMAGE_OUTLINE = { width: 3, offset: 2 };
-  const WORD_BOX_MARGIN = { x: 4, y: 3 }; // between a line of changed words and its box
+  const WORD_BOX_MARGIN = { x: 4, y: 5 }; // between a line of changed words and its box
   const SNAP_CLEARANCE = 6; // between a moved shot edge and the line of text it would have cut
   const ON_COLOR = '#ffffff'; // a label's words and a box's ring: ON_SIDE_COLOR in side.ts, which this code cannot import
 

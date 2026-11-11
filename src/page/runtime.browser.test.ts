@@ -232,7 +232,7 @@ describe('mark', () => {
 
   test('with words above and below, it goes to the side that hides none; two labels do not share a place', () => {
     const p = page(
-      '<p style="margin:0">Above</p><div style="width:300px"><button>one</button></div><p style="margin:0">Below</p>',
+      '<p style="margin:40px 0 0">Above</p><div style="width:300px"><button>one</button></div><p style="margin:0">Below</p>',
     );
     const index = p.reading.elements.findIndex(e => e.tag === 'div');
     const badge = { label: 'spacing' };
@@ -417,7 +417,7 @@ describe('cut off', () => {
     const index = p.reading.elements.findIndex(e => e.tag === 'section');
     const { looks } = p.mark(marks({ looks: [{ index, badge: { disc: { src: 'data:,', size: 10 } } }] }));
     const [box] = drawn();
-    expect(box.getBoundingClientRect().height).toBe(30 + 2 * 4); // the 30px shown, and the box's margin
+    expect(box.getBoundingClientRect().height).toBe(30 + 2 * 8); // the 30px shown, and the box's margin
     expect(looks[0].clipped).toBe(false);
   });
 });
