@@ -363,8 +363,7 @@ async function pixels(page: Page, index: number): Promise<Buffer | null> {
  * element there with its label or this side's disc. A change only the other page has gets none. */
 function marksFor(side: Side, hunks: Hunk[], markers: Marker[], within: string | null): Marks {
   return {
-    ...COLORS[side],
-    strike: side === 'before',
+    color: COLORS[side].color,
     within,
     words: hunks.map(hunk => ({ changed: hunk.changed[side], anchors: hunk.anchors[side] })),
     looks: markers.map(({ element, badge, only, edge }) => ({

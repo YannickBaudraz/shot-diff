@@ -18,8 +18,6 @@ const drawn = () =>
     .flatMap(l => [...l.children]) as HTMLElement[];
 const marks = (more: Partial<Marks>): Marks => ({
   color: 'red',
-  tint: 'pink',
-  strike: true,
   within: null,
   words: [],
   looks: [],
@@ -41,9 +39,6 @@ customElements.define(
 afterEach(() => {
   for (const layer of [...document.documentElement.children])
     if (layer !== document.head && layer !== document.body) layer.remove();
-  for (const style of document.head.querySelectorAll('style'))
-    if (style.textContent?.includes('shot-diff')) style.remove();
-  CSS.highlights.clear();
   document.body.innerHTML = '';
 });
 
@@ -170,15 +165,29 @@ describe('the order', () => {
 });
 
 describe('mark', () => {
-  test('tints the changed words and boxes a wrapped change line by line', () => {
+  test('boxes a wrapped change line by line, and paints nothing over the words', () => {
     const p = page('<p style="width:120px">aa bb cc dd ee ff gg hh</p>');
     const marked = p.mark(marks({ words: [{ changed: [2, 3, 4, 5, 6], anchors: [1, 7] }] }));
-    expect(CSS.highlights.get('shot-diff')?.size).toBeGreaterThan(0);
+    expect(CSS.highlights.size).toBe(0);
     const boxes = drawn();
     expect(boxes.length).toBeGreaterThan(1);
     for (const box of boxes) expect(box.getBoundingClientRect().height).toBeLessThan(36); // one 24px line each
     const { changed } = marked.words[0]!;
     expect(changed!.top).toBeLessThan(changed!.bottom);
+  });
+
+  test('boxes a block whose words all changed once, however many lines it wraps to', () => {
+    const p = page('<p style="width:120px">aa bb cc dd ee ff gg hh</p><p>ii jj</p>');
+    p.mark(marks({ words: [{ changed: [0, 1, 2, 3, 4, 5, 6, 7], anchors: [8] }] }));
+    const [box, ...more] = drawn();
+    expect(more).toHaveLength(0);
+    expect(box.getBoundingClientRect().height).toBeGreaterThan(36); // around every line of the block
+  });
+
+  test('gives a box a white ring outside it', () => {
+    const p = page('<p>aa bb</p>');
+    p.mark(marks({ words: [{ changed: [0], anchors: [1] }] }));
+    expect(drawn()[0].style.boxShadow).toContain('255, 255, 255');
   });
 
   const twoButtons =
@@ -277,16 +286,13 @@ describe('mark, a change of look this page has not', () => {
 });
 
 describe('mark, inside a shadow tree', () => {
-  test('tints and boxes its changed words: the tree is given the tint, and no node', () => {
+  test('boxes its changed words, and adds no node and no style to the tree', () => {
     const p = page('<p>Before</p><x-card></x-card>');
     const root = document.querySelector('x-card')!.shadowRoot!;
     const nodes = root.childNodes.length;
     const top = root.querySelector('#top')!.getBoundingClientRect();
     p.mark(marks({ words: [{ changed: [1, 2], anchors: [0] }] })); // "Top line"
-    expect(CSS.highlights.get('shot-diff')?.size).toBe(1);
-    expect(root.adoptedStyleSheets.map(sheet => sheet.cssRules[0].cssText)).toEqual([
-      expect.stringContaining('::highlight(shot-diff)'),
-    ]);
+    expect(root.adoptedStyleSheets).toHaveLength(0);
     expect(root.childNodes.length).toBe(nodes);
     const [box] = drawn().map(element => element.getBoundingClientRect());
     expect(box.top).toBeLessThanOrEqual(top.top);
@@ -393,7 +399,7 @@ describe('cut off', () => {
 });
 
 describe('unmark', () => {
-  test("takes back only the given changes' tints, boxes, outlines and discs", () => {
+  test("takes back only the given changes' boxes, outlines and discs", () => {
     const p = page(
       '<p>aa bb</p><p>cc <img src="pics/x.png" width="10" height="10" style="outline:1px dotted blue"> dd</p>' +
         '<button style="position:absolute;top:200px;left:20px">b</button>',
@@ -417,11 +423,9 @@ describe('unmark', () => {
     p.unmark({ words: [1], looks: [0] });
     expect(drawn()).toHaveLength(1); // the first word change's box
     expect(image.style.outline).toBe(pageOutline); // as the page had it
-    expect(CSS.highlights.get('shot-diff')?.size).toBe(1);
 
     p.unmark({ words: [0], looks: [] });
     expect(drawn()).toHaveLength(0);
-    expect(CSS.highlights.get('shot-diff')?.size).toBe(0);
   });
 });
 

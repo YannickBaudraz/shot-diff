@@ -10,10 +10,11 @@ export async function bothSides<T>(work: (side: Side) => Promise<T>): Promise<Re
   return { before, after };
 }
 
-/** What the after page no longer has is red on the before shot; what it adds is green on the after shot. */
-export const COLORS: Record<Side, { color: string; tint: string }> = {
-  before: { color: '#cf222e', tint: 'rgba(255, 129, 130, 0.45)' },
-  after: { color: '#1a7f37', tint: 'rgba(74, 194, 107, 0.4)' },
+/** What the after page no longer has is boxed red on the before shot; what it adds is boxed green on
+ * the after shot. */
+export const COLORS: Record<Side, { color: string }> = {
+  before: { color: '#cf222e' },
+  after: { color: '#1a7f37' },
 };
 
 /** What is drawn on or around a side's colour: the side's name on its pill, a disc's number and ring,

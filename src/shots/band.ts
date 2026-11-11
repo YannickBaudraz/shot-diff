@@ -126,7 +126,7 @@ async function heading(
 /** The band's right: a swatch of the side's colour and what it means; placed from the band's top
  * right corner, so the lefts are negative. */
 async function colorKey(side: Side, scale: number): Promise<Piece[]> {
-  const { color, tint } = COLORS[side];
+  const { color } = COLORS[side];
   const meaning = await renderText(
     `<span foreground="${TEXT}">${WORDS[side].marks}</span>`,
     FONT_SIZE.colorMeaning,
@@ -137,7 +137,7 @@ async function colorKey(side: Side, scale: number): Promise<Piece[]> {
   const stroke = SWATCH.stroke * scale;
   const swatchSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}">
     <rect x="${stroke / 2}" y="${stroke / 2}" width="${size - stroke}" height="${size - stroke}"
-      rx="${SWATCH.radius * scale}" fill="${tint}" stroke="${color}" stroke-width="${stroke}"/></svg>`;
+      rx="${SWATCH.radius * scale}" fill="none" stroke="${color}" stroke-width="${stroke}"/></svg>`;
   return [
     { input: meaning.data, left: -meaning.info.width, top: middleOfRow(meaning.info.height, scale) },
     {

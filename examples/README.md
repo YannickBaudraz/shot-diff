@@ -8,7 +8,7 @@ with the fonts of the machine that made them, so yours may differ a little.
 
 ## Changed words
 
-Removed words are red and struck through on the before shot; added words are green on the after shot. Each change has a box.
+Removed words are boxed red on the before shot; added words are boxed green on the after shot. Each change has a box.
 
 ```sh
 shot-diff "file://$PWD/e2e/fixtures/words/before.html" "file://$PWD/e2e/fixtures/words/after.html" \

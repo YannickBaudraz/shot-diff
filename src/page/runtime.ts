@@ -7,9 +7,7 @@ import type { Box, Region, Span } from '../geometry.ts';
 
 /** What to draw on a page. */
 export type Marks = {
-  color: string; // the boxes, the strike and the labels
-  tint: string; // the background behind changed words
-  strike: boolean; // strike the changed words through (the before page)
+  color: string; // the boxes and the labels
   within: string | null; // a selector: say of each change whether it is inside the element it matches
   /** Word changes: the changed tokens and the unchanged ones around them, as indexes into the reading's words. */
   words: { changed: number[]; anchors: number[] }[];
@@ -37,16 +35,17 @@ export function runtime(properties: string[]) {
   const undo: { words: (() => void)[][]; looks: (() => void)[][] } = { words: [], looks: [] };
 
   // Sizes in CSS pixels.
-  const BOX = { margin: 4, border: 2, radius: 4 }; // margin: between an element and its box
-  const LABEL = { gap: 2, font: '600 12px/1.4 system-ui,sans-serif', padding: '1px 6px' };
+  // margin: between an element and its box; ring: the white line outside it, which keeps it apart
+  // from a background close to its colour
+  const BOX = { margin: 4, border: 3, ring: 2, radius: 4 };
+  const LABEL = { gap: BOX.border, font: '600 12px/1.4 system-ui,sans-serif', padding: '1px 6px' };
   // How far two boxes go into each other before one covers the other: a line of text's rectangle is
   // taller than its letters, so a label that only touches it hides nothing.
   const TOUCHING = 2;
   const IMAGE_OUTLINE = { width: 3, offset: 2 };
-  const STRIKE_WIDTH = 2;
   const WORD_BOX_MARGIN = { x: 4, y: 3 }; // between a line of changed words and its box
   const SNAP_CLEARANCE = 6; // between a moved shot edge and the line of text it would have cut
-  const ON_COLOR = '#ffffff'; // a label's words: ON_SIDE_COLOR in side.ts, which this code cannot import
+  const ON_COLOR = '#ffffff'; // a label's words and a box's ring: ON_SIDE_COLOR in side.ts, which this code cannot import
 
   const rangeOf = (token: Token) => {
     const range = document.createRange();
@@ -318,56 +317,22 @@ export function runtime(properties: string[]) {
     };
   };
 
-  /** Tint the changed words, struck through on the before page: one highlight range per run of
-   * tokens in the same text node. A changed image gets an outline instead. Gives, for each change,
-   * how to take its tint and outlines off. */
-  const highlight = (marks: Marks, tokens: Token[]): (() => void)[][] => {
-    const ranges: Range[] = [];
-    const undos = marks.words.map(change => {
-      const undoChange: (() => void)[] = [];
-      let run: { node: Text; range: Range } | null = null;
-      for (const i of change.changed) {
+  /** Outline the changed images: the words are boxed, not painted over. Gives, for each change, how
+   * to take its outlines off. */
+  const outlineImages = (marks: Marks, tokens: Token[]): (() => void)[][] =>
+    marks.words.map(change =>
+      change.changed.flatMap(i => {
         const token = tokens[i];
-        if ('image' in token) {
-          undoChange.push(outline(token.image as HTMLElement, marks.color));
-          run = null;
-        } else if (run && run.node === token.node) {
-          run.range.setEnd(token.node, token.end);
-        } else {
-          const range = rangeOf(token);
-          run = { node: token.node, range };
-          ranges.push(range);
-          undoChange.push(() => CSS.highlights.get('shot-diff')?.delete(range));
-        }
-      }
-      return undoChange;
-    });
-    paintHighlight(ranges, marks);
-    return undos;
-  };
-
-  /** Tint `ranges` with a CSS highlight, which changes nothing the page lays out. A tree's styles
-   * stop at its edge, so each shadow tree with a range in it is given the highlight's rule too: as a
-   * style sheet it adopts, which adds no node to it. */
-  const paintHighlight = (ranges: Range[], marks: Marks) => {
-    const strike = marks.strike ? `text-decoration:line-through ${STRIKE_WIDTH}px ${marks.color};` : '';
-    const rule = `::highlight(shot-diff){background-color:${marks.tint};${strike}}`;
-    const style = document.createElement('style');
-    style.textContent = rule;
-    document.head.appendChild(style);
-    const sheet = new CSSStyleSheet();
-    sheet.replaceSync(rule);
-    for (const root of new Set(ranges.map(range => range.startContainer.getRootNode())))
-      if (root instanceof ShadowRoot) root.adoptedStyleSheets = [...root.adoptedStyleSheets, sheet];
-    CSS.highlights.set('shot-diff', new Highlight(...ranges));
-  };
+        return 'image' in token ? [outline(token.image as HTMLElement, marks.color)] : [];
+      }),
+    );
 
   /** A box drawn on `layer` at `box`, in page pixels. */
   const drawBox = (layer: HTMLElement, color: string, box: Box) => {
     const element = document.createElement('div');
     element.style.cssText =
       `position:absolute;box-sizing:border-box;border:${BOX.border}px solid ${color};border-radius:${BOX.radius}px;` +
-      `left:${box.x}px;top:${box.y}px;width:${box.width}px;height:${box.height}px`;
+      `box-shadow:0 0 0 ${BOX.ring}px ${ON_COLOR};left:${box.x}px;top:${box.y}px;width:${box.width}px;height:${box.height}px`;
     layer.appendChild(element);
     return element;
   };
@@ -383,9 +348,47 @@ export function runtime(properties: string[]) {
     return lines;
   };
 
+  /** The nearest element around a token that is not inline, where its text is a block of its own. */
+  const blockOf = (token: Token): Element | null => {
+    let element = shownIn('image' in token ? token.image : token.node);
+    while (element && ['inline', 'contents'].includes(getComputedStyle(element).display))
+      element = shownIn(element);
+    return element;
+  };
+
+  let blockSizes: Map<Element, number> | null = null;
+
+  /** How many words and images each block has. */
+  const sizeOfBlock = (block: Element): number => {
+    if (!blockSizes) {
+      blockSizes = new Map();
+      for (const token of tokens) {
+        const owner = blockOf(token);
+        if (owner) blockSizes.set(owner, (blockSizes.get(owner) ?? 0) + 1);
+      }
+    }
+    return blockSizes.get(block) ?? 0;
+  };
+
+  /** The rectangles to box for a change, a group of them per box: all the words of a block that the
+   * change takes entirely make one group, as there is no unchanged word for a box to run through;
+   * other words are grouped by the line of text they are on. */
+  const groupsOf = (changed: number[], tokens: Token[]): DOMRect[][] => {
+    const byBlock = new Map<Element | null, number[]>();
+    for (const i of changed) {
+      const block = blockOf(tokens[i]);
+      byBlock.set(block, [...(byBlock.get(block) ?? []), i]);
+    }
+    return [...byBlock].flatMap(([block, indexes]) => {
+      const rects = indexes.flatMap(i => shownRectsOf(tokens[i]));
+      return block && indexes.length === sizeOfBlock(block) && rects.length ? [rects] : linesOf(rects);
+    });
+  };
+
   /** Box a word change, one box per line, so a change that wraps gets no box through the words
-   * between; and say where it is, with the unchanged words around it. Each box drawn goes in `drawn`.
-   * A changed word that a scroll area cuts off gets no box; with none shown, the change is clipped. */
+   * between, or one box for the block it takes entirely; and say where it is, with the unchanged
+   * words around it. Each box drawn goes in `drawn`. A changed word that a scroll area cuts off gets
+   * no box; with none shown, the change is clipped. */
   const boxWords = (
     change: Marks['words'][number],
     tokens: Token[],
@@ -393,8 +396,8 @@ export function runtime(properties: string[]) {
     color: string,
     drawn: HTMLElement[],
   ): Span | null => {
-    const elements = linesOf(change.changed.flatMap(i => shownRectsOf(tokens[i]))).map(line =>
-      drawBox(layer, color, grow(pageBox(around(line)), WORD_BOX_MARGIN.x, WORD_BOX_MARGIN.y)),
+    const elements = groupsOf(change.changed, tokens).map(rects =>
+      drawBox(layer, color, grow(pageBox(around(rects)), WORD_BOX_MARGIN.x, WORD_BOX_MARGIN.y)),
     );
     drawn.push(...elements);
     const boxes = elements.map(element => element.getBoundingClientRect());
@@ -527,10 +530,10 @@ export function runtime(properties: string[]) {
       return domElements[index];
     },
 
-    /** Tint and box the changed words, box the elements whose look changed, and say where each is. */
+    /** Box the changed words, box the elements whose look changed, and say where each is. */
     mark(marks: Marks): Spans {
       marked = true;
-      const tints = highlight(marks, tokens);
+      const outlines = outlineImages(marks, tokens);
       const layer = overlay();
       const removing = (drawn: HTMLElement[]) => drawn.map(element => () => element.remove());
       // In the element's tree, the shadow trees inside it included, wherever layout puts it: an
@@ -540,7 +543,7 @@ export function runtime(properties: string[]) {
       const words = marks.words.map((change, i) => {
         const drawn: HTMLElement[] = [];
         const span = boxWords(change, tokens, layer, marks.color, drawn);
-        undo.words.push([...tints[i], ...removing(drawn)]);
+        undo.words.push([...outlines[i], ...removing(drawn)]);
         const nodes = change.changed
           .map(t => tokens[t])
           .map(token => ('image' in token ? token.image : token.node));

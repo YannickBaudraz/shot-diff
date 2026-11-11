@@ -2,8 +2,10 @@
 
 Before and after screenshots of a web page, with the change marked, ready to paste in a pull request.
 
-- On the **before** shot, what was removed is red and struck through.
-- On the **after** shot, what was added is green.
+- On the **before** shot, a red box goes around what was removed.
+- On the **after** shot, a green box goes around what was added.
+- The boxes only point at a change: nothing is painted over the page, so what is inside one looks
+  as it does on the page.
 - A change with no words in it is marked too: a box says what changed on an element whose look
   changed (a colour, a border, a size), or on a picture redrawn under the same file name; and an
   element with no words that was added or removed, a divider or a progress bar, gets a box saying
@@ -222,9 +224,10 @@ opens. To get the Linux one anyway, name it: `--chrome /usr/bin/google-chrome`.
    out.
 2. It diffs the two word lists (Myers' algorithm, as `git diff` uses for lines, from the
    [`diff`](https://github.com/kpdecker/jsdiff) package).
-3. On the before page it tints the removed words red and strikes them through; on the after page it
-   tints the added words green. A box goes around each change. Both are drawn over the page (the
-   CSS Custom Highlight API and an overlay), so nothing on it moves.
+3. On the before page it boxes the removed words in red; on the after page it boxes the added words
+   in green, one box per line of text, or one box around a block whose words all changed. The
+   boxes are drawn over the page in an overlay, with a white ring outside them, so nothing on it
+   moves and a box shows on a background close to its colour.
 4. It pairs the elements of the two pages the same way, by tag, id, role, own words and image file;
    then, between two elements it paired, the ones left over on both pages by their tag alone, so an
    element whose words changed is still paired with the one in its place. It compares what the
@@ -258,7 +261,7 @@ opens. To get the Linux one anyway, name it: `--chrome /usr/bin/google-chrome`.
   from its neighbours: of three dividers where there were two, the box may go on another than the
   new one.
 - An element added with words in it is marked by its words, and by the elements with no words
-  inside it: a new panel has its text tinted and its progress bars boxed, and no box around its
+  inside it: a new panel has its words and its progress bars boxed, and no box around its
   own frame.
 - Pseudo-elements (`::before`, `::after`) and position on the page are not compared: an element
   pushed down by text added above it is not a change.
