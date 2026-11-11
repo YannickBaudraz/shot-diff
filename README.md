@@ -10,12 +10,6 @@ Before and after screenshots of a web page, with the change marked, ready to pas
   so.
 - Each image has a band on top with its side, your title, and what its colour means.
 
-A sentence rewritten and a line added:
-
-| Before | After |
-|---|---|
-| ![before](examples/words/shot-before.png) | ![after](examples/words/shot-after.png) |
-
 A dashboard where numbers, a row, a chart and some styles changed:
 
 | Before | After |

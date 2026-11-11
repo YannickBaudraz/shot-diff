@@ -12,7 +12,7 @@ Removed words are red and struck through on the before shot; added words are gre
 
 ```sh
 shot-diff "file://$PWD/e2e/fixtures/words/before.html" "file://$PWD/e2e/fixtures/words/after.html" \
-  --title "Changed words"
+  --title "Tickets: add the merge step"
 ```
 
 ```
@@ -30,7 +30,7 @@ An element restyled, or a picture redrawn under the same file name, has no chang
 
 ```sh
 shot-diff "file://$PWD/e2e/fixtures/visual/before/index.html" "file://$PWD/e2e/fixtures/visual/after/index.html" \
-  --title "Changed looks and pictures"
+  --title "Trip: night photo, green button"
 ```
 
 ```
@@ -42,18 +42,36 @@ examples/looks/shot-after.png: 3 part(s) added
 |---|---|
 | ![before](looks/shot-before.png) | ![after](looks/shot-after.png) |
 
+## An element with no words, added or removed
+
+An element with no word or image in it that only one page has gets a box saying so: here a progress bar added, and a divider removed. Each shot marks only what its page has.
+
+```sh
+shot-diff "file://$PWD/e2e/fixtures/wordless/before.html" "file://$PWD/e2e/fixtures/wordless/after.html" \
+  --title "Checkout: progress bar in, divider out"
+```
+
+```
+examples/no-words/shot-before.png: 1 part(s) removed
+examples/no-words/shot-after.png: 1 part(s) added
+```
+
+| Before | After |
+|---|---|
+| ![before](no-words/shot-before.png) | ![after](no-words/shot-after.png) |
+
 ## A page with both
 
 Words and looks changed on one page. Only what changed is marked, not the boxes the layout resized around it.
 
 ```sh
 shot-diff "file://$PWD/e2e/fixtures/dashboard/before.html" "file://$PWD/e2e/fixtures/dashboard/after.html" \
-  --title "A page with both"
+  --title "Dashboard: August figures"
 ```
 
 ```
-examples/whole-page/shot-before.png: 6 part(s) removed
-examples/whole-page/shot-after.png: 7 part(s) added
+examples/whole-page/shot-before.png: 7 part(s) removed
+examples/whole-page/shot-after.png: 8 part(s) added
 ```
 
 | Before | After |
@@ -66,12 +84,12 @@ With `--markers numbers`, each box of a change of look has a number, explained i
 
 ```sh
 shot-diff "file://$PWD/e2e/fixtures/dashboard/before.html" "file://$PWD/e2e/fixtures/dashboard/after.html" \
-  --title "Numbered boxes" --markers numbers
+  --title "Dashboard: August figures" --markers numbers
 ```
 
 ```
-examples/numbers/shot-before.png: 6 part(s) removed
-examples/numbers/shot-after.png: 7 part(s) added
+examples/numbers/shot-before.png: 7 part(s) removed
+examples/numbers/shot-after.png: 8 part(s) added
 ```
 
 | Before | After |
@@ -84,7 +102,7 @@ Changes too far apart for one image get a pair each, numbered in the file names 
 
 ```sh
 shot-diff "file://$PWD/e2e/fixtures/tall/before.html" "file://$PWD/e2e/fixtures/tall/after.html" \
-  --title "Changes far apart"
+  --title "Tall page: top and bottom lines reworded"
 ```
 
 ```
@@ -105,7 +123,7 @@ With `--selector`, only the changes inside the element count. The others are lef
 
 ```sh
 shot-diff "file://$PWD/e2e/fixtures/tall/before.html" "file://$PWD/e2e/fixtures/tall/after.html" \
-  --title "One part of the page" --selector "#end"
+  --title "Tall page: bottom line reworded" --selector "#end"
 ```
 
 ```
@@ -124,7 +142,7 @@ A change past the edge of a scroll area cannot be shot: it gets no box, and the 
 
 ```sh
 shot-diff "file://$PWD/e2e/fixtures/clipped/before.html" "file://$PWD/e2e/fixtures/clipped/after.html" \
-  --title "A change a scroll area cuts off"
+  --title "Scroll area: both lines reworded"
 ```
 
 ```
@@ -145,12 +163,12 @@ A change that does not fit under `--max-height` is cut from the images, and the 
 
 ```sh
 shot-diff "file://$PWD/e2e/fixtures/dashboard/before.html" "file://$PWD/e2e/fixtures/dashboard/after.html" \
-  --title "A change taller than an image may be" --max-height 400
+  --title "Dashboard: August figures" --max-height 400
 ```
 
 ```
-examples/too-tall/shot-1-before.png: 4 part(s) removed
-examples/too-tall/shot-1-after.png: 4 part(s) added
+examples/too-tall/shot-1-before.png: 5 part(s) removed
+examples/too-tall/shot-1-after.png: 5 part(s) added
 examples/too-tall/shot-2-before.png: 1 part(s) removed
 examples/too-tall/shot-2-after.png: 1 part(s) added
 examples/too-tall/shot-3-before.png: 1 part(s) removed
@@ -169,7 +187,7 @@ Changes in a shadow tree are marked as any other: here a price and a button insi
 
 ```sh
 shot-diff "file://$PWD/e2e/fixtures/shadow/before.html" "file://$PWD/e2e/fixtures/shadow/after.html" \
-  --title "Inside a web component"
+  --title "Plans: Team costs more, with priority support"
 ```
 
 ```
@@ -187,7 +205,7 @@ The words inside an iframe are not read: when it is drawn differently, the whole
 
 ```sh
 shot-diff "file://$PWD/e2e/fixtures/frame/before/index.html" "file://$PWD/e2e/fixtures/frame/after/index.html" \
-  --title "Inside an embedded page"
+  --title "Order: higher payment"
 ```
 
 ```
@@ -201,16 +219,16 @@ examples/embedded-page/shot-after.png: 1 part(s) added
 
 ## A phone-sized page
 
-The dashboard in a narrow window, with `--width` and `--height`.
+A page made for a phone, shot in a narrow window with `--width` and `--height`.
 
 ```sh
-shot-diff "file://$PWD/e2e/fixtures/dashboard/before.html" "file://$PWD/e2e/fixtures/dashboard/after.html" \
-  --title "A phone-sized page" --width 390 --height 844
+shot-diff "file://$PWD/e2e/fixtures/phone/before.html" "file://$PWD/e2e/fixtures/phone/after.html" \
+  --title "Order: out for delivery" --width 390 --height 844
 ```
 
 ```
-examples/phone/shot-before.png: 6 part(s) removed
-examples/phone/shot-after.png: 7 part(s) added
+examples/phone/shot-before.png: 5 part(s) removed
+examples/phone/shot-after.png: 5 part(s) added
 ```
 
 | Before | After |
@@ -223,7 +241,7 @@ Two pages that look the same: nothing is marked, the terminal says so, and the s
 
 ```sh
 shot-diff "file://$PWD/e2e/fixtures/words/before.html" "file://$PWD/e2e/fixtures/words/before.html" \
-  --title "No difference"
+  --title "Tickets: refactoring, nothing visible"
 ```
 
 ```
@@ -242,7 +260,7 @@ With `--interactive`, both pages open in windows and are shot as you leave them.
 
 ```sh
 shot-diff "file://$PWD/e2e/fixtures/shop/before.html" "file://$PWD/e2e/fixtures/shop/after.html" \
-  --title "A page set up by hand" --interactive
+  --title "Cart: total incl. VAT, promo details" --interactive
 ```
 
 1. Click **Add to cart** on Mug and on Poster.

@@ -1,0 +1,34 @@
+<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Acme · Order 1042</title>
+<style>
+ * { box-sizing: border-box }
+ body { margin: 0; font: 16px/1.5 system-ui, sans-serif; color: #1f2328; background: #f6f8fa }
+ header { padding: 14px 16px; background: #24292f; color: #fff; font-weight: 600 }
+ main { padding: 16px; display: grid; gap: 16px }
+ .card { background: #fff; border: 1px solid #d0d7de; border-radius: 12px; padding: 16px }
+ .card h2 { font-size: 15px; margin: 0 0 8px; color: #59636e; font-weight: 500 }
+ .status { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 14px; font-weight: 600 }
+ .status.preparing { background: #fff8c5; color: #7d4e00 }
+ .status.out { background: #dafbe1; color: #1a7f37 }
+ .eta { font-size: 20px; font-weight: 600; margin: 8px 0 0 }
+ ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px }
+ li { display: flex; gap: 10px; align-items: center; color: #59636e }
+ li::before { content: ""; width: 12px; height: 12px; border-radius: 50%; border: 2px solid #d0d7de; flex: none }
+ li.done { color: #1f2328 }
+ li.done::before { background: #1a7f37; border-color: #1a7f37 }
+ .row { display: flex; justify-content: space-between; padding: 6px 0 }
+ .row + .row { border-top: 1px solid #eaeef2 }
+ button { width: 100%; padding: 14px; border: 0; border-radius: 10px; color: #fff; font: 600 16px system-ui, sans-serif; background: #1a7f37 }
+</style>
+<header>Order 1042</header>
+<main>
+ <section class="card"><h2>Status</h2><span class="status out">Out for delivery</span><p class="eta">Arrives today by 6 pm</p></section>
+ <section class="card"><h2>Progress</h2>
+  <ol><li class="done">Order placed</li><li class="done">Packed</li><li class="done">On its way</li><li class="">Delivered</li></ol>
+ </section>
+ <section class="card"><h2>Items</h2>
+  <div class="row"><span>Mug × 3</span><span>$36.00</span></div>
+  <div class="row"><span>Poster</span><span>$18.00</span></div>
+  <div class="row"><strong>Total</strong><strong>$54.00</strong></div>
+ </section>
+ <button>Track the parcel</button>
+</main>
