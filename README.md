@@ -7,9 +7,9 @@ Before and after screenshots of a web page, with the change marked, ready to pas
 - The boxes only point at a change: nothing is painted over the page, so what is inside one looks
   as it does on the page.
 - A change with no words in it is marked too: a box says what changed on an element whose look
-  changed (a colour, a border, a size), or on a picture redrawn under the same file name; and an
-  element with no words that was added or removed, a divider or a progress bar, gets a box saying
-  so.
+  changed (a colour, a border, a size), or on a picture redrawn under the same file name.
+- A component added or removed, a card, a row, a paragraph, gets one box saying so, and nothing
+  inside it is marked.
 - Each image has a band on top with its side, your title, and what its colour means.
 
 A dashboard where numbers, a row, a chart and some styles changed:
@@ -237,10 +237,12 @@ opens. To get the Linux one anyway, name it: `--chrome /usr/bin/google-chrome`.
    with no element inside them that kept their style are compared pixel by pixel
    ([pixelmatch](https://github.com/mapbox/pixelmatch)), at the smaller of their two sizes when the
    layout scaled one.
-   An element with no word or image in it that only one page has, with nothing inside it that the
-   other page has too, is a change as well: "removed" on the before shot, "added" on the after.
-   One inside another is the outer one's, so a component added is boxed once. Its words, when it
-   has some, already say it: an element with words is marked by them alone.
+   An element that only one page has, with nothing inside it that the other page has too, is a
+   change as well: "removed" on the before shot, "added" on the after. It is a component when it
+   has no word or image in it, or is a block of its own (a paragraph, a card, a table row); a link
+   in a sentence is not, and stays a change of words. One inside another is the outer one's, so a
+   card added is boxed once, and what is inside it is not marked. The words of a component are left
+   out of the word diff, so they pair with no word on the other page.
    Each change gets a box with what changed written on it, or a number explained in the band with
    `--markers numbers`: red on the before shot, green on the after.
 5. It shoots the area around the changes, unchanged words next to each change included, so both
@@ -260,9 +262,14 @@ opens. To get the Linux one anyway, name it: `--chrome /usr/bin/google-chrome`.
 - Among elements alike, with no words to tell them apart, the one added or removed cannot be told
   from its neighbours: of three dividers where there were two, the box may go on another than the
   new one.
-- An element added with words in it is marked by its words, and by the elements with no words
-  inside it: a new panel has its words and its progress bars boxed, and no box around its
-  own frame.
+- A component is told apart by what is in it: when an element inside it matches one the other page
+  has, as a "Buy" button identical to an existing one does, the component is not "added" whole,
+  and what is new in it is marked each by itself. Rows of a table, and other elements alike, are
+  paired by their place; one whose contents match none of the old one's is taken for a new row, so
+  a row added is one box even when its cells repeat those of other rows.
+- A component put where another was, a card replaced by a different card, is paired with the old
+  one by its tag and shown as changed words, not as one removed and one added.
+- A component taller than `--max-height` is shown by its top: its box runs off the bottom of the shot.
 - Pseudo-elements (`::before`, `::after`) and position on the page are not compared: an element
   pushed down by text added above it is not a change.
 - Moved text shows as removed in one place and added in another.

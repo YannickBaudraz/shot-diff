@@ -17,7 +17,10 @@ test('marks what was removed and what was added, and writes two titled images', 
   expect(result.shots).toHaveLength(1);
   const [shot] = result.shots;
   expect(shot.before.removed).toEqual(['approve them before they are published.']);
-  expect(shot.after.added).toEqual(['confirm the breakdown in the same session.', 'Step 13 merges it.']);
+  expect(shot.after.added).toEqual([
+    'confirm the breakdown in the same session.',
+    '[p: added] Step 13 merges it.',
+  ]);
   expect(shot.before.file).toMatch(/shot-before\.png$/);
   for (const file of [shot.before.file, shot.after.file])
     expect(readFileSync(file).subarray(0, 4)).toEqual(PNG);
@@ -92,11 +95,15 @@ test('a change cut from its shot is listed as left out, not as in the shot', () 
     '20',
   );
   expect(done.status, done.stderr).toBe(0);
-  for (const shot of result.shots) {
-    expect(shot.before.removed).toEqual([]);
-    expect(shot.after.added).toEqual([]);
-  }
-  expect(result.leftOut.removed).toEqual(['approve them before they are published.']);
+  for (const shot of result.shots) expect(shot.before.removed).toEqual([]);
+  // The paragraph added is taller than the shot, and shown by its top; the words are cut from every shot.
+  expect(result.shots.flatMap((shot: { after: { added: string[] } }) => shot.after.added)).toEqual([
+    '[p: added] Step 13 merges it.',
+  ]);
+  expect(result.leftOut).toEqual({
+    removed: ['approve them before they are published.'],
+    added: ['confirm the breakdown in the same session.'],
+  });
   expect(done.stderr).toMatch(/cut from every image; raise --max-height/);
 });
 
@@ -215,6 +222,23 @@ test('an element with no words that one page alone has is marked there, and both
   expect(Math.abs(shot.before.box.y - shot.after.box.y)).toBeLessThan(10);
 });
 
+test('a component added or removed is one change, said once, and its words are no word changes', () => {
+  const [before, after] = [page('components/before.html'), page('components/after.html')];
+  for (const [from, to, side, found] of [
+    [before, after, 'after', '[section: added] Team 9 euros per month'],
+    [after, before, 'before', '[section: removed] Team 9 euros per month'],
+  ] as const) {
+    const { done, result } = shotDiff(from, to, '--title', 't');
+    expect(done.status, done.stderr).toBe(0);
+    expect(result.wordChanges).toBe(0);
+    expect(result.lookChanges).toBe(1); // the card and the bar in it are one change, nothing inside is marked
+    expect(result.shots).toHaveLength(1);
+    const [shot] = result.shots;
+    expect(shot[side].added ?? shot[side].removed).toEqual([found]);
+    expect(result.leftOut).toEqual({ removed: [], added: [] });
+  }
+});
+
 test('a dashboard: only what changed is marked, not the boxes layout resized around it; a line whose words changed has its new colour marked too', () => {
   const { done, result } = shotDiff(
     page('dashboard/before.html'),
@@ -240,7 +264,7 @@ test('a dashboard: only what changed is marked, not the boxes layout resized aro
     '1.6% -0.5',
     '[div: text colour]',
     '[svg: Monthly revenue chart redrawn]',
-    'Katherine Johnson Team plan $199.00 paid',
+    '[tr: added] Katherine Johnson Team plan $199.00 paid',
     '[span: background]',
   ]);
 });
@@ -256,7 +280,10 @@ test('--markers numbers marks the same changes; an unknown kind is refused', asy
     'numbers',
   );
   expect(numbers.done.status, numbers.done.stderr).toBe(0);
-  expect(numbers.result.shots[0].after.added).toEqual(labels.result.shots[0].after.added);
+  // In the order of the shot's page, which a disc and a label take differently.
+  expect([...numbers.result.shots[0].after.added].sort()).toEqual(
+    [...labels.result.shots[0].after.added].sort(),
+  );
   // The numbers' meanings take a line in the band, so the image is taller than with labels.
   const height = async (file: string) => (await sharp(file).metadata()).height;
   expect(await height(numbers.result.shots[0].after.file)).toBeGreaterThan(

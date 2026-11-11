@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { diff, hunks, type Op } from './words.ts';
+import { diff, hunks, wordHunks, type Op } from './words.ts';
 
 const words = (s: string) => s.split(' ').filter(Boolean);
 const apply = (a: string[], b: string[], ops: Op[]) => {
@@ -71,4 +71,15 @@ test('random lists replay exactly', () => {
     const b = Array.from({ length: rand(30) }, () => String(rand(5)));
     expect(apply(a, b, diff(a, b))).toEqual({ left: a, right: b });
   }
+});
+
+test('wordHunks leaves a skipped stretch out, and gives indexes into the words as given', () => {
+  // The after page has a component, "the Buy", between "Pay" and "now": no change, and no pairing
+  // with the other page's "Buy".
+  const before = words('Buy now');
+  const after = words('Pay the Buy now');
+  expect(wordHunks({ before, after }, { before: [], after: [[1, 3]] })).toEqual([
+    { changed: { before: [0], after: [0] }, anchors: { before: [1], after: [3] } },
+  ]);
+  expect(wordHunks({ before, after: words('Buy now') }, { before: [], after: [] })).toEqual([]);
 });

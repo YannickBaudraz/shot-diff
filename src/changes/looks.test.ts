@@ -12,6 +12,8 @@ const el = (
   parent: -1,
   leaf: true,
   worded: true,
+  block: false,
+  tokens: [0, 0],
   seen: true,
   paints: false,
   top: 0,
@@ -24,7 +26,9 @@ const seen = (
   elements: ElementInfo[],
   pictures: Record<number, Buffer | null> = {},
   names: Record<number, string> = {},
+  words: string[] = [],
 ): ComparedPage & { pixels: ReturnType<typeof vi.fn> } => ({
+  words,
   elements,
   pixels: vi.fn(async (i: number) => pictures[i] ?? null),
   name: async (i: number) => names[i] ?? '',
@@ -238,8 +242,56 @@ describe('an element only one page has', () => {
     ]);
   });
 
-  test('with words in it is left to the word diff', async () => {
-    expect(await compareLooks(seen([el('H1 Title')]), seen([el('H1 Title'), el('P New')]))).toEqual([]);
+  test('with words in it, and not a block, is left to the word diff', async () => {
+    expect(await compareLooks(seen([el('H1 Title')]), seen([el('H1 Title'), el('A New')]))).toEqual([]);
+  });
+
+  /** A block with words in it, from the word at `from` up to after the word before `to`. */
+  const block = (signature: string, from: number, to: number, more: Partial<ElementInfo> = {}) =>
+    el(signature, {}, { block: true, tokens: [from, to], ...more });
+
+  test('a block with words in it is added, named by its first words', async () => {
+    const words = ['Title', 'Pro', 'plan', '12', 'euros'];
+    const before = seen([el('H1 Title')], {}, {}, words.slice(0, 1));
+    const after = seen([el('H1 Title'), block('ARTICLE', 1, 5)], {}, {}, words);
+    expect(await compareLooks(before, after)).toEqual([
+      {
+        element: { before: 0, after: 1 },
+        what: ['added'],
+        name: '[article: added] Pro plan 12 euros',
+        only: 'after',
+        edge: 'bottom',
+      },
+    ]);
+  });
+
+  test('a long text is cut in its name', async () => {
+    const words = ['Title', ...Array.from({ length: 30 }, () => 'word')];
+    const after = seen([el('H1 Title'), block('P', 1, 31)], {}, {}, words);
+    const [look] = await compareLooks(seen([el('H1 Title')], {}, {}, ['Title']), after);
+    expect(look.name).toMatch(/^\[p: added\] word word .*word…$/);
+    expect(look.name.length).toBeLessThan(60);
+  });
+
+  test('a block with words, and the elements in it, is one change', async () => {
+    const after = seen([
+      el('H1 Title'),
+      block('SECTION', 1, 3),
+      block('H2 Pro', 1, 2, { parent: 1 }),
+      bare('HR', { parent: 1 }),
+    ]);
+    const looks = await compareLooks(seen([el('H1 Title')]), after);
+    expect(looks.map(look => look.element.after)).toEqual([1]);
+  });
+
+  test('a block with an element in it that the other page has too is not added: what is new in it is', async () => {
+    const before = seen([el('BUTTON Buy')]);
+    const after = seen([
+      block('ARTICLE', 0, 2),
+      block('H2 Plan', 0, 1, { parent: 0 }),
+      el('BUTTON Buy', {}, { parent: 0 }),
+    ]);
+    expect((await compareLooks(before, after)).map(look => look.element.after)).toEqual([1]);
   });
 
   test('a component with no words is one change, not one for each element in it', async () => {
@@ -251,6 +303,18 @@ describe('an element only one page has', () => {
     const before = seen([bare('HR')]);
     const after = seen([bare('DIV'), bare('HR', { parent: 0 }), bare('I', { parent: 0 })]);
     expect((await compareLooks(before, after)).map(look => look.name)).toEqual(['[i: added]']);
+  });
+
+  test('a row added before rows alike is one change, though the old first row was paired with it', async () => {
+    const row = (name: string, top: number) => [
+      block('TR', 0, 1, { parent: 0 }),
+      block(`TD ${name}`, 0, 1, { parent: top }),
+      block('TD Team plan', 0, 1, { parent: top }),
+    ];
+    const before = seen([block('TBODY', 0, 1), ...row('Ada', 1), ...row('Alan', 4)]);
+    const after = seen([block('TBODY', 0, 1), ...row('Kate', 1), ...row('Ada', 4), ...row('Alan', 7)]);
+    const looks = await compareLooks(before, after);
+    expect(looks.map(look => [look.element.after, look.what])).toEqual([[1, ['added']]]);
   });
 
   test('one that does not show is none', async () => {

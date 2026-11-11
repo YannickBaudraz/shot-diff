@@ -1,7 +1,7 @@
 // Changes of look: changes with no words in them. An element whose look changed (a colour, a border,
 // a size set in CSS), found by pairing the elements of the two pages and comparing what the browser
-// computed for them; a picture redrawn, found by comparing its pixels; and an element with no words
-// in it that only one page has, which the word diff cannot show.
+// computed for them; a picture redrawn, found by comparing its pixels; and a component only one page
+// has, an element added or removed with all that is in it, which is one change, not one per word.
 
 import pixelmatch from 'pixelmatch';
 import sharp from 'sharp';
@@ -14,24 +14,28 @@ export type ElementInfo = {
   tag: string; // in lower case, to name it in a list of changes
   parent: number; // the index of its nearest listed ancestor, or -1
   leaf: boolean; // no listed element inside it: its pixels are its own, not its children's too
-  worded: boolean; // has a word or an image in it, its own or inside it: the word diff shows it added or removed
+  worded: boolean; // has a word or an image in it, its own or inside it
+  block: boolean; // not inline: a block of its own, not part of a run of text
+  tokens: [number, number]; // its words and images among the page's: from the first, up to after the last
   paints: boolean; // draws pixels its style does not describe: an image, a canvas, an SVG, an embedded page, a background image file
   seen: boolean; // not made transparent, by its own opacity or an ancestor's
   top: number; // in page pixels, to number the changes in reading order
   style: Record<string, string>; // the PROPERTIES below, as the CSS sets them
 };
 
-/** What the comparison needs from a loaded page: its elements, a PNG of one element's own pixels
+/** What the comparison needs from a loaded page: its words, its elements, a PNG of one element's own pixels
  * (null when it cannot be shot), and one element's accessible name (empty when it has none).
  * loaded.ts gives the real one. */
 export type ComparedPage = {
+  words: readonly string[]; // the page's words and images, as the word diff reads them
   elements: ElementInfo[];
   pixels(index: number): Promise<Buffer | null>;
   name(index: number): Promise<string>;
 };
 
 /** A change of look: the element on each page (an index into its elements), what changed, and what
- * to call it in a list of changes. An element `only` one page has is that page's; on the other page
+ * to call it in a list of changes. An element `only` one page has, a whole component added or
+ * removed, is that page's; on the other page
  * `element` is one next to where it would be (-1 with none), and `edge` the side of it that place
  * is at, to show the same place on both. */
 export type Look = { element: Record<Side, number>; what: string[]; name: string; only?: Side; edge?: Edge };
@@ -50,7 +54,9 @@ const RESCALED_TOLERANCE = 0.005;
 /** The changes of look between two pages, top to bottom on the before page. Read the pages before
  * anything is drawn over them. */
 export async function compareLooks(before: ComparedPage, after: ComparedPage): Promise<Look[]> {
-  const { pairs, reworded } = pairUp(before.elements, after.elements);
+  const paired = pairUp(before.elements, after.elements);
+  const { reworded } = paired;
+  const pairs = unhollowed(paired.pairs, before.elements, after.elements);
   const { restyles, pictures } = sortPairs(pairs, reworded, before.elements, after.elements);
   const changes = [
     ...restyles,
@@ -59,11 +65,28 @@ export async function compareLooks(before: ComparedPage, after: ComparedPage): P
   ];
   const pages = { before, after };
   const onBefore = (change: LookChange): ElementInfo | undefined => before.elements[change.element.before];
-  const own = (change: LookChange) =>
-    pages[change.only ?? 'before'].elements[change.element[change.only ?? 'before']];
+  const own = (change: LookChange) => {
+    const side = change.only ?? 'before';
+    return { element: pages[side].elements[change.element[side]], words: pages[side].words };
+  };
   return changes
     .sort((x, y) => readingOrder(onBefore(x), onBefore(y)))
-    .map(change => ({ ...change, name: `[${own(change).tag}: ${change.what.join(', ')}]` }));
+    .map(change => {
+      const { element, words } = own(change);
+      const what = `[${element.tag}: ${change.what.join(', ')}]`;
+      return { ...change, name: change.only ? `${what}${beginning(element, words)}` : what };
+    });
+}
+
+/** The longest start of a component's words put in its name, so a long text does not cover the page. */
+const MAX_WORDS = 40;
+
+/** What an added or removed element says, to tell it from the others in a list: the start of its
+ * words, after a space; nothing when it has none. */
+function beginning(element: ElementInfo, words: readonly string[]): string {
+  const text = words.slice(...element.tokens).join(' ');
+  if (!text) return '';
+  return ` ${text.length > MAX_WORDS ? `${text.slice(0, MAX_WORDS - 1).trimEnd()}…` : text}`;
 }
 
 /** Top to bottom; elements level with each other in a fixed order, by signature. One with no place
@@ -216,9 +239,32 @@ function pairUp(
   return { pairs, reworded };
 }
 
-/** The elements only one page has that the word diff cannot show: with no word or image in them,
- * and nothing inside them that the other page has too. One inside another is the outer one's: a
- * component added is one change, not one per element in it. One that does not show is none. */
+/** The `pairs` that are of one element and another with something in each, but of nothing in one
+ * with anything in the other. Elements alike (the rows of a table) are paired by their place in the
+ * list, so a row added can take the old row's pair, and the cells of that row are paired to the
+ * cells of the next one: the pair left is not the same element, and is dropped, so the row added
+ * is a component of its own. An element with nothing inside it is never dropped: its words are all
+ * that changed. */
+function unhollowed(pairs: Pair[], before: readonly ElementInfo[], after: readonly ElementInfo[]): Pair[] {
+  const partner = new Map(pairs.map(pair => [pair.before, pair.after]));
+  const hollow = ({ before: was, after: now }: Pair) => {
+    const inside = range(was + 1, endOf(before, was));
+    const there = [now + 1, endOf(after, now)];
+    return (
+      before[was].worded &&
+      after[now].worded &&
+      inside.length > 0 &&
+      there[1] > there[0] &&
+      !inside.some(i => (partner.get(i) ?? -1) >= there[0] && (partner.get(i) ?? -1) < there[1])
+    );
+  };
+  return pairs.filter(pair => !hollow(pair));
+}
+
+/** The components only one page has: an element with nothing inside it that the other page has too,
+ * and either no word or image in it, or a block of its own, as a paragraph is and a link in a
+ * sentence is not. One inside another is the outer one's: a component added is one change, not one
+ * per element in it. One that does not show is none. */
 function onOnePage(pairs: Pair[], elements: Record<Side, readonly ElementInfo[]>): LookChange[] {
   const found: LookChange[] = [];
   for (const side of SIDES) {
@@ -227,7 +273,8 @@ function onOnePage(pairs: Pair[], elements: Record<Side, readonly ElementInfo[]>
     const mine = elements[side];
     for (let index = 0; index < mine.length; index++) {
       const end = endOf(mine, index);
-      const alone = !mine[index].worded && range(index, end).every(i => !partner.has(i));
+      const alone =
+        (!mine[index].worded || mine[index].block) && range(index, end).every(i => !partner.has(i));
       if (!alone) continue;
       if (mine[index].seen) {
         const place = placeOn(partner, mine, index, end);

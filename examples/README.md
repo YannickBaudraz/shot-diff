@@ -8,7 +8,7 @@ with the fonts of the machine that made them, so yours may differ a little.
 
 ## Changed words
 
-Removed words are boxed red on the before shot; added words are boxed green on the after shot. Each change has a box.
+Removed words are boxed red on the before shot; added words are boxed green on the after shot. A paragraph added is one box saying so.
 
 ```sh
 shot-diff "file://$PWD/e2e/fixtures/words/before.html" "file://$PWD/e2e/fixtures/words/after.html" \
@@ -59,6 +59,24 @@ examples/no-words/shot-after.png: 1 part(s) added
 | Before | After |
 |---|---|
 | ![before](no-words/shot-before.png) | ![after](no-words/shot-after.png) |
+
+## A component added
+
+A card added gets one box saying so, and nothing inside it is marked: its words, its heading and its bar are all part of it. A card removed gets the same box on the before shot.
+
+```sh
+shot-diff "file://$PWD/e2e/fixtures/components/before.html" "file://$PWD/e2e/fixtures/components/after.html" \
+  --title "Plans: Team plan added"
+```
+
+```
+examples/component/shot-before.png: 0 part(s) removed
+examples/component/shot-after.png: 1 part(s) added
+```
+
+| Before | After |
+|---|---|
+| ![before](component/shot-before.png) | ![after](component/shot-after.png) |
 
 ## A page with both
 

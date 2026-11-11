@@ -97,6 +97,16 @@ describe('what is left out', () => {
     expect(p.leftOut).toEqual({ before: [0], after: [0] });
   });
 
+  test('a component taller than the maximum is shown by its top, and not left out', async () => {
+    const tall = (): Place => ({
+      before: { ...at(100, 3000), byTop: true },
+      after: { ...at(100, 100), changed: null },
+    });
+    const p = await plan([tall()], OPTIONS, pages());
+    expect(p.shots[0].before.height).toBe(2400);
+    expect(p.leftOut).toEqual({ before: [], after: [] });
+  });
+
   test('a shot that snap grows past the maximum is cut, and the change at its bottom is left out', async () => {
     const changes = [both(at(400)), both(at(2500))]; // padded, 320 to 2600: 2280px, they share a shot
     // snap raises the top by 300px (a tall line above), so the shot would run 20 to 2600: cut at 2420.

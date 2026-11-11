@@ -226,15 +226,20 @@ export function runtime(properties: string[]) {
    * document of its own, whose words and elements are not read here. */
   const PAINTERS = new Set(['IMG', 'CANVAS', 'svg', 'VIDEO', 'IFRAME']);
 
-  /** The elements with a word or an image in them, their own or inside them. */
-  const wordedElements = (tokens: Token[]) => {
-    const worded = new Set<Element>();
-    for (const token of tokens) {
+  /** The elements with a word or an image in them, their own or inside them, and where theirs are
+   * among the page's tokens: from the first, up to after the last. The ones inside an element are
+   * next to each other, as the page's tokens are in the order the page lays them out. */
+  const tokenRanges = (tokens: Token[]) => {
+    const ranges = new Map<Element, [number, number]>();
+    for (const [i, token] of tokens.entries()) {
       const first = 'image' in token ? token.image : shownIn(token.node);
-      for (let element = first; element && !worded.has(element); element = shownIn(element))
-        worded.add(element);
+      for (let element = first; element; element = shownIn(element)) {
+        const range = ranges.get(element);
+        if (range) range[1] = i + 1;
+        else ranges.set(element, [i, i + 1]);
+      }
     }
-    return worded;
+    return ranges;
   };
 
   /** An element as looks.ts compares it; its parent is filled in by readElements(). */
@@ -242,7 +247,7 @@ export function runtime(properties: string[]) {
     element: Element,
     rect: DOMRect,
     properties: string[],
-    worded: Set<Element>,
+    ranges: Map<Element, [number, number]>,
   ): ElementInfo => {
     const style = getComputedStyle(element);
     const computed = element.computedStyleMap();
@@ -251,7 +256,9 @@ export function runtime(properties: string[]) {
       tag: element.tagName.toLowerCase(),
       parent: -1,
       leaf: true,
-      worded: worded.has(element),
+      worded: ranges.has(element),
+      block: !['inline', 'contents'].includes(style.display),
+      tokens: ranges.get(element) ?? [0, 0],
       // A gradient is all in its CSS value, compared as style; and a shot of it holds whatever shows
       // through it, which may be another element passing under it.
       paints: PAINTERS.has(element.tagName) || style.backgroundImage.includes('url('),
@@ -279,7 +286,7 @@ export function runtime(properties: string[]) {
    * whether it shows. */
   const readElements = (
     properties: string[],
-    worded: Set<Element>,
+    ranges: Map<Element, [number, number]>,
   ): { elements: ElementInfo[]; domElements: Element[] } => {
     const found: Element[] = [];
     const elements: ElementInfo[] = [];
@@ -290,7 +297,7 @@ export function runtime(properties: string[]) {
       const visible =
         node.checkVisibility({ checkOpacity: false, checkVisibilityCSS: true }) && rect.width && rect.height;
       if (visible) {
-        const info = describe(node, rect, properties, worded);
+        const info = describe(node, rect, properties, ranges);
         const parent = listedAncestor(node, indexOf);
         if (parent !== undefined) {
           info.parent = parent;
@@ -517,7 +524,7 @@ export function runtime(properties: string[]) {
   const cuts = (line: Region, y: number) => line.top < y && y < line.bottom;
 
   const { words, tokens } = readWords();
-  const { elements, domElements } = readElements(properties, wordedElements(tokens));
+  const { elements, domElements } = readElements(properties, tokenRanges(tokens));
 
   return {
     /** The page's words and elements, read before anything was drawn over it, and its width. */

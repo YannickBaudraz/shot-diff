@@ -145,13 +145,14 @@ function byDistance(order: number[], places: Place[], options: PlanOptions): Gro
 async function clip(region: Region | null, page: PlanPage, options: PlanOptions): Promise<Box> {
   if (!region) return { x: 0, y: 0, width: page.width, height: options.height };
   const { top, bottom } = await page.snap(padded(region, options.padding));
-  return { x: 0, y: top, width: page.width, height: Math.min(bottom - top, options.maxHeight) };
+  return { x: 0, y: top, width: page.width, height: Math.max(1, Math.min(bottom - top, options.maxHeight)) };
 }
 
-/** Whether a change's changed part falls outside the shot's box; a page with none of it never does. */
+/** Whether a change's changed part falls outside the shot's box; a page with none of it never does.
+ * A component taller than a shot can be is shown by its top: it runs off the bottom of the shot. */
 function isOutside(span: Span | null, box: Box): boolean {
   if (!span?.changed) return false;
-  return span.changed.top < box.y || span.changed.bottom > box.y + box.height;
+  return span.changed.top < box.y || (span.changed.bottom > box.y + box.height && !span.byTop);
 }
 
 /** `region` grown to take in `span`; a region of its own when there is none yet. */

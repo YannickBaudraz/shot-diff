@@ -1,9 +1,9 @@
 // The whole run: load both pages, find what changed, mark it, plan the shots, and draw them.
 
 import type { Browser } from 'playwright-core';
-import { compareLooks } from './changes/looks.ts';
-import { diff, hunks, type Hunk } from './changes/words.ts';
-import type { Box } from './geometry.ts';
+import { compareLooks, type Look } from './changes/looks.ts';
+import { wordHunks, type Hunk } from './changes/words.ts';
+import type { Box, Span } from './geometry.ts';
 import { open, openTabs, type LoadedPage, type LoadOptions, type OpenedPage } from './page/loaded.ts';
 import { band, type Content, type Key } from './shots/band.ts';
 import { markersFor, type Marker, type Mode } from './shots/markers.ts';
@@ -42,8 +42,11 @@ export type Result = {
 export async function run(browser: Browser, options: Options): Promise<Result> {
   const pages = await loadBoth(browser, options);
   try {
-    const wordChanges = hunks(diff(pages.before.words, pages.after.words));
     const looks = await compareLooks(pages.before, pages.after); // before anything is drawn over the pages
+    const wordChanges = wordHunks(
+      { before: pages.before.words, after: pages.after.words },
+      { before: componentWords(looks, pages, 'before'), after: componentWords(looks, pages, 'after') },
+    );
     const markers = await markersFor(looks, options.markers, options.scale);
     const changes = await markPages(pages, wordChanges, markers, options.selector);
     const planned = await plan(
@@ -72,6 +75,12 @@ export async function run(browser: Browser, options: Options): Promise<Result> {
   } finally {
     await bothSides(side => pages[side].close());
   }
+}
+
+/** The words of the components only `side` has, as stretches of its words: they are said by the
+ * component's box, and are no word changes. */
+function componentWords(looks: Look[], pages: Record<Side, LoadedPage>, side: Side): [number, number][] {
+  return looks.flatMap(look => (look.only === side ? [pages[side].elements[look.element[side]].tokens] : []));
 }
 
 /** Both pages, opened at once: in a window each, or as the tabs of one. When one fails to open, the
@@ -139,7 +148,10 @@ async function markPages(
       marker: null,
     })),
     ...markers.map((marker, i) => ({
-      place: { before: spans.before.looks[i], after: spans.after.looks[i] },
+      place: {
+        before: byTop(spans.before.looks[i], marker.only === 'before'),
+        after: byTop(spans.after.looks[i], marker.only === 'after'),
+      },
       // An element only one page has is in that page's list alone.
       text: {
         before: marker.only === 'after' ? '' : marker.name,
@@ -149,6 +161,10 @@ async function markPages(
     })),
   ];
 }
+
+/** `span`, marked as shown by its top when it is a component's: the page has it, and a shot of its
+ * top shows it, however far down it runs. */
+const byTop = (span: Span, component: boolean): Span => (component ? { ...span, byTop: true } : span);
 
 /** Take the marks off the changes outside --selector's element: a shot of a change inside it could
  * otherwise show their boxes, beside or under it. Changes are listed words first, then looks. */
