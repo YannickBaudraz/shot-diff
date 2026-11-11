@@ -190,6 +190,24 @@ shot-diff: 2 change(s) outside --selector ignored (listed under "ignored" in --j
 |---|---|
 | ![before](selector/shot-before.png) | ![after](selector/shot-after.png) |
 
+## Parts of the page left out
+
+With `--ignore`, the elements named are left out of the comparison: here the table of orders, whose rows are data that differs from one page to the other. The row added and the badge restyled in it are not marked; with nothing else changed below, the shot stops above the table. The rest of the page is compared as usual.
+
+```sh
+shot-diff "file://$PWD/e2e/fixtures/dashboard/before.html" "file://$PWD/e2e/fixtures/dashboard/after.html" \
+  --title "Dashboard: August figures, orders left out" --ignore table
+```
+
+```
+examples/ignore/shot-before.png: 6 part(s) removed
+examples/ignore/shot-after.png: 6 part(s) added
+```
+
+| Before | After |
+|---|---|
+| ![before](ignore/shot-before.png) | ![after](ignore/shot-after.png) |
+
 ## A change a scroll area cuts off
 
 A change past the edge of a scroll area cannot be shot: it gets no box, and the terminal lists it.

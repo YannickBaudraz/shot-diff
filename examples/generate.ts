@@ -107,6 +107,15 @@ const EXAMPLES: Example[] = [
     options: ['--selector', '#end'],
   },
   {
+    id: 'ignore',
+    name: 'Parts of the page left out',
+    title: 'Dashboard: August figures, orders left out',
+    shows:
+      'With `--ignore`, the elements named are left out of the comparison: here the table of orders, whose rows are data that differs from one page to the other. The row added and the badge restyled in it are not marked; with nothing else changed below, the shot stops above the table. The rest of the page is compared as usual.',
+    pages: ['dashboard/before.html', 'dashboard/after.html'],
+    options: ['--ignore', 'table'],
+  },
+  {
     id: 'scroll-area',
     name: 'A change a scroll area cuts off',
     title: 'Scroll area: both lines reworded',
