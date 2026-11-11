@@ -285,6 +285,30 @@ describe('mark, a change of look this page has not', () => {
   });
 });
 
+describe('mark, an element added or removed', () => {
+  test('gets a box with nothing on it', () => {
+    const p = page('<p>aa</p><hr style="height:4px">');
+    p.mark(marks({ looks: [{ index: 1, badge: { plain: true } }] }));
+    const [box, ...more] = drawn();
+    expect(more).toHaveLength(0);
+    expect(box.children).toHaveLength(0);
+  });
+
+  test('on the other page, takes the element beside its place in whole', () => {
+    const p = page('<p>aa</p><p>bb</p>');
+    const { looks } = p.mark(
+      marks({
+        looks: [
+          { index: 0, badge: null, edge: 'bottom', beside: true },
+          { index: 0, badge: null, edge: 'bottom' },
+        ],
+      }),
+    );
+    expect([looks[0].top, looks[0].bottom]).toEqual([0, 24]);
+    expect([looks[1].top, looks[1].bottom]).toEqual([24, 24]);
+  });
+});
+
 describe('mark, inside a shadow tree', () => {
   test('boxes its changed words, and adds no node and no style to the tree', () => {
     const p = page('<p>Before</p><x-card></x-card>');

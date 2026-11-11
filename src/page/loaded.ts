@@ -366,15 +366,16 @@ function marksFor(side: Side, hunks: Hunk[], markers: Marker[], within: string |
     color: COLORS[side].color,
     within,
     words: hunks.map(hunk => ({ changed: hunk.changed[side], anchors: hunk.anchors[side] })),
-    looks: markers.map(({ element, badge, only, edge }) => ({
+    looks: markers.map(({ element, badge, only, edge, beside }) => ({
       index: element[side],
       edge,
+      beside,
       badge:
         only && only !== side
           ? null
-          : 'label' in badge
-            ? badge
-            : { disc: { src: `data:image/png;base64,${badge.disc[side].toString('base64')}`, size: DISC } },
+          : 'disc' in badge
+            ? { disc: { src: `data:image/png;base64,${badge.disc[side].toString('base64')}`, size: DISC } }
+            : badge,
     })),
   };
 }

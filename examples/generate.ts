@@ -29,7 +29,7 @@ const EXAMPLES: Example[] = [
     name: 'Changed words',
     title: 'Tickets: add the merge step',
     shows:
-      'Removed words are boxed red on the before shot; added words are boxed green on the after shot. A paragraph added is one box saying so.',
+      'Removed words are boxed red on the before shot; added words are boxed green on the after shot. A paragraph added is one box around it.',
     pages: ['words/before.html', 'words/after.html'],
   },
   {
@@ -45,7 +45,7 @@ const EXAMPLES: Example[] = [
     name: 'An element with no words, added or removed',
     title: 'Checkout: progress bar in, divider out',
     shows:
-      'An element with no word or image in it that only one page has gets a box saying so: here a progress bar added, and a divider removed. Each shot marks only what its page has.',
+      'An element with no word or image in it that only one page has gets a plain box, green when added, red when removed: here a progress bar added, and a divider removed. Each shot marks only what its page has.',
     pages: ['wordless/before.html', 'wordless/after.html'],
   },
   {
@@ -53,7 +53,7 @@ const EXAMPLES: Example[] = [
     name: 'A component added',
     title: 'Plans: Team plan added',
     shows:
-      'A card added gets one box saying so, and nothing inside it is marked: its words, its heading and its bar are all part of it. A card removed gets the same box on the before shot.',
+      'A card added gets one plain green box, and nothing inside it is marked: its words, its heading and its bar are all part of it. A card removed gets a red one on the before shot. The before shot shows the whole card next to where it goes.',
     pages: ['components/before.html', 'components/after.html'],
   },
   {

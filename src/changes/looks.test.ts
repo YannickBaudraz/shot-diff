@@ -229,6 +229,7 @@ describe('an element only one page has', () => {
         name: '[hr: added]',
         only: 'after',
         edge: 'bottom',
+        beside: true,
       },
     ]);
     expect(await compareLooks(withRule(), without())).toEqual([
@@ -238,6 +239,7 @@ describe('an element only one page has', () => {
         name: '[hr: removed]',
         only: 'before',
         edge: 'bottom',
+        beside: true,
       },
     ]);
   });
@@ -261,6 +263,7 @@ describe('an element only one page has', () => {
         name: '[article: added] Pro plan 12 euros',
         only: 'after',
         edge: 'bottom',
+        beside: true,
       },
     ]);
   });
@@ -340,6 +343,11 @@ describe('an element only one page has', () => {
       await placeOf([el('P Far'), el('SECTION')], [el('P Far'), el('SECTION'), bare('HR', { parent: 1 })]),
     ).toEqual([1, 'top']);
     expect(await placeOf([], [bare('HR')])).toEqual([-1, 'top']);
+    const [inside] = await compareLooks(
+      seen([el('P Far'), el('SECTION')]),
+      seen([el('P Far'), el('SECTION'), bare('HR', { parent: 1 })]),
+    );
+    expect(inside.beside).toBe(false); // the element around it is not taken in whole
   });
 });
 

@@ -36,9 +36,17 @@ export type ComparedPage = {
 /** A change of look: the element on each page (an index into its elements), what changed, and what
  * to call it in a list of changes. An element `only` one page has, a whole component added or
  * removed, is that page's; on the other page
- * `element` is one next to where it would be (-1 with none), and `edge` the side of it that place
+ * `element` is one next to where it would be (-1 with none), `beside` when it is in the same element,
+ * and `edge` the side of it that place
  * is at, to show the same place on both. */
-export type Look = { element: Record<Side, number>; what: string[]; name: string; only?: Side; edge?: Edge };
+export type Look = {
+  element: Record<Side, number>;
+  what: string[];
+  name: string;
+  only?: Side;
+  edge?: Edge;
+  beside?: boolean;
+};
 
 /** The top of an element, or its bottom. */
 export type Edge = 'top' | 'bottom';
@@ -284,6 +292,7 @@ function onOnePage(pairs: Pair[], elements: Record<Side, readonly ElementInfo[]>
           what: [side === 'before' ? 'removed' : 'added'],
           only: side,
           edge: place.edge,
+          beside: place.beside,
         });
       }
       index = end - 1; // what is inside it is part of it
@@ -317,7 +326,7 @@ function placeOn(
   elements: readonly ElementInfo[],
   index: number,
   end: number,
-): { element: number; edge: Edge } {
+): { element: number; edge: Edge; beside: boolean } {
   const paired = (indexes: number[]) => indexes.find(i => partner.has(i));
   const before = range(0, index).reverse();
   const after = range(end, elements.length);
@@ -330,8 +339,14 @@ function placeOn(
     [paired(before), 'bottom'],
     [paired(after), 'top'],
   ];
-  const [near, edge] = candidates.find(([found]) => found !== undefined) ?? [undefined, 'top'];
-  return { element: near === undefined ? -1 : (partner.get(near) ?? -1), edge };
+  const found = candidates.findIndex(([near]) => near !== undefined);
+  const [near, edge] = candidates[found] ?? [undefined, 'top'];
+  // The first two are next to it in the same element: what both pages share around it.
+  return {
+    element: near === undefined ? -1 : (partner.get(near) ?? -1),
+    edge,
+    beside: found === 0 || found === 1,
+  };
 }
 
 /** The pairs whose style changed, and what changed; and the pairs that draw their own pixels, with

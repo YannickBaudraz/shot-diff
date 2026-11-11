@@ -219,7 +219,8 @@ test('an element with no words that one page alone has is marked there, and both
   // The bar with its fill is one change; each page lists only what it has.
   expect(shot.before.removed).toEqual(['[hr: removed]']);
   expect(shot.after.added).toEqual(['[div: added]']);
-  expect(Math.abs(shot.before.box.y - shot.after.box.y)).toBeLessThan(10);
+  // Each shot takes in the element next to the other page's change whole: they start near each other.
+  expect(Math.abs(shot.before.box.y - shot.after.box.y)).toBeLessThan(40);
 });
 
 test('a component added or removed is one change, said once, and its words are no word changes', () => {

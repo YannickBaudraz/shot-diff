@@ -12,12 +12,14 @@ export type Marks = {
   /** Word changes: the changed tokens and the unchanged ones around them, as indexes into the reading's words. */
   words: { changed: number[]; anchors: number[] }[];
   /** Changes of look: an element, as an index into the reading's elements, and what to put on its
-   * box: a label, or a disc. With no badge nothing is drawn: this page has not the element that
-   * changed, which would be at this one's `edge` (at the top of the page with -1, for none). */
+   * box: a label, a disc, or nothing (plain). With no badge nothing is drawn: this page has not the
+   * element that changed, which would be at this one's `edge` (at the top of the page with -1, for
+   * none); when it is `beside` it, in the same element, the place takes all of it in. */
   looks: {
     index: number;
-    badge: { label: string } | { disc: { src: string; size: number } } | null;
+    badge: { label: string } | { disc: { src: string; size: number } } | { plain: true } | null;
     edge?: 'top' | 'bottom';
+    beside?: boolean;
   }[];
 };
 
@@ -500,17 +502,23 @@ export function runtime(properties: string[]) {
     const badge =
       'disc' in badgeOf
         ? drawDisc(layer, badgeOf.disc, box)
-        : drawLabel(boxElement, badgeOf.label, color, box, taken);
+        : 'label' in badgeOf
+          ? drawLabel(boxElement, badgeOf.label, color, box, taken)
+          : boxElement;
     drawn.push(boxElement);
-    if (badge.parentElement !== boxElement) drawn.push(badge);
+    if (badge.parentElement !== boxElement && badge !== boxElement) drawn.push(badge);
     const region = inPage(pageRegion([boxElement, badge].map(drawn => drawn.getBoundingClientRect())));
     return { ...region, changed: region, inside: true, clipped: false };
   };
 
   /** Where a change of look is on a page that has not its element: at that `edge` of `element`,
-   * which is not boxed, or at the top of the page with none. */
-  const placeAt = (element: Element | undefined, edge: 'top' | 'bottom'): Span => {
-    const y = element ? Math.max(0, element.getBoundingClientRect()[edge] + window.scrollY) : 0;
+   * which is not boxed, or at the top of the page with none. An element `beside` it is taken in
+   * whole, so the shot shows what both pages have around the place, not a cut through it. */
+  const placeAt = (element: Element | undefined, edge: 'top' | 'bottom', beside = false): Span => {
+    if (!element) return { top: 0, bottom: 0, changed: null, inside: true, clipped: false };
+    const rect = element.getBoundingClientRect();
+    if (beside) return { ...inPage(pageRegion([rect])), changed: null, inside: true, clipped: false };
+    const y = Math.max(0, rect[edge] + window.scrollY);
     return { top: y, bottom: y, changed: null, inside: true, clipped: false };
   };
 
@@ -564,7 +572,7 @@ export function runtime(properties: string[]) {
         const span =
           look.badge && element
             ? boxLook(look.badge, element, layer, marks.color, drawn, taken)
-            : placeAt(element, look.edge ?? 'top');
+            : placeAt(element, look.edge ?? 'top', look.beside);
         undo.looks.push(removing(drawn));
         return { ...span, inside: inside(element ? [element] : []) };
       });

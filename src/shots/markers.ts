@@ -19,19 +19,22 @@ const RING = 2;
 const NUMBER_SIZE = 12;
 
 /** What goes on a change of look's box: a label saying what changed, or a disc image for each side,
- * DISC wide. */
-export type Badge = { label: string } | { disc: Record<Side, Buffer> };
+ * DISC wide; nothing on an element added or removed, which the box's colour says. */
+export type Badge = { label: string } | { disc: Record<Side, Buffer> } | { plain: true };
 
 /** A change of look, numbered, with what goes on its box. */
 export type Marker = Look & { number: number; badge: Badge };
 
-/** The markers of `looks`, numbered in their order. */
+/** The markers of `looks`, numbered in their order; an element added or removed has no number. */
 export async function markersFor(looks: Look[], mode: Mode, scale: number): Promise<Marker[]> {
+  let count = 0;
+  const numbers = looks.map(look => (look.only ? 0 : ++count));
   return Promise.all(
     looks.map(async (look, index) => {
-      const number = index + 1;
-      const badge: Badge =
-        mode === 'labels'
+      const number = numbers[index];
+      const badge: Badge = look.only
+        ? { plain: true }
+        : mode === 'labels'
           ? { label: look.what.join(', ') }
           : { disc: await bothSides(side => disc(number, side, scale)) };
       return { ...look, number, badge };

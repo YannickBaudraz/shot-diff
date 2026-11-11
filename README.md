@@ -8,7 +8,7 @@ Before and after screenshots of a web page, with the change marked, ready to pas
   as it does on the page.
 - A change with no words in it is marked too: a box says what changed on an element whose look
   changed (a colour, a border, a size), or on a picture redrawn under the same file name.
-- A component added or removed, a card, a row, a paragraph, gets one box saying so, and nothing
+- A component added or removed, a card, a row, a paragraph, gets one plain box, red or green, and nothing
   inside it is marked.
 - Each image has a band on top with its side, your title, and what its colour means.
 
@@ -238,13 +238,15 @@ opens. To get the Linux one anyway, name it: `--chrome /usr/bin/google-chrome`.
    ([pixelmatch](https://github.com/mapbox/pixelmatch)), at the smaller of their two sizes when the
    layout scaled one.
    An element that only one page has, with nothing inside it that the other page has too, is a
-   change as well: "removed" on the before shot, "added" on the after. It is a component when it
+   change as well, removed on the before shot and added on the after. It is a component when it
    has no word or image in it, or is a block of its own (a paragraph, a card, a table row); a link
    in a sentence is not, and stays a change of words. One inside another is the outer one's, so a
    card added is boxed once, and what is inside it is not marked. The words of a component are left
    out of the word diff, so they pair with no word on the other page.
-   Each change gets a box with what changed written on it, or a number explained in the band with
-   `--markers numbers`: red on the before shot, green on the after.
+   A change of look gets a box with what changed written on it, or a number explained in the band
+   with `--markers numbers`. A component added or removed gets a plain box, as changed words do: its
+   colour says it, red on the before shot, green on the after. On the page without it, the shot
+   takes in whole the element next to where it would be.
 5. It shoots the area around the changes, unchanged words next to each change included, so both
    shots show the same place even when one side of a change is empty. With `--selector`, it first
    drops the changes outside the element's tree, and takes their marks off. A box goes around what

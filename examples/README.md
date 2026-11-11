@@ -8,7 +8,7 @@ with the fonts of the machine that made them, so yours may differ a little.
 
 ## Changed words
 
-Removed words are boxed red on the before shot; added words are boxed green on the after shot. A paragraph added is one box saying so.
+Removed words are boxed red on the before shot; added words are boxed green on the after shot. A paragraph added is one box around it.
 
 ```sh
 shot-diff "file://$PWD/e2e/fixtures/words/before.html" "file://$PWD/e2e/fixtures/words/after.html" \
@@ -44,7 +44,7 @@ examples/looks/shot-after.png: 3 part(s) added
 
 ## An element with no words, added or removed
 
-An element with no word or image in it that only one page has gets a box saying so: here a progress bar added, and a divider removed. Each shot marks only what its page has.
+An element with no word or image in it that only one page has gets a plain box, green when added, red when removed: here a progress bar added, and a divider removed. Each shot marks only what its page has.
 
 ```sh
 shot-diff "file://$PWD/e2e/fixtures/wordless/before.html" "file://$PWD/e2e/fixtures/wordless/after.html" \
@@ -62,7 +62,7 @@ examples/no-words/shot-after.png: 1 part(s) added
 
 ## A component added
 
-A card added gets one box saying so, and nothing inside it is marked: its words, its heading and its bar are all part of it. A card removed gets the same box on the before shot.
+A card added gets one plain green box, and nothing inside it is marked: its words, its heading and its bar are all part of it. A card removed gets a red one on the before shot. The before shot shows the whole card next to where it goes.
 
 ```sh
 shot-diff "file://$PWD/e2e/fixtures/components/before.html" "file://$PWD/e2e/fixtures/components/after.html" \
