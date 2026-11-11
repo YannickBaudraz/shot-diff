@@ -11,6 +11,7 @@ import { bothSides, SIDES, type Side } from '../side.ts';
 /** One visible element, as the page's runtime reads it. */
 export type ElementInfo = {
   signature: string; // what pairs it with its match on the other page: tag, id, role, label, own words, file
+  shape: string; // its signature without its own words, to pair it when words are not compared
   tag: string; // in lower case, to name it in a list of changes
   parent: number; // the index of its nearest listed ancestor, or -1
   leaf: boolean; // no listed element inside it: its pixels are its own, not its children's too
@@ -66,9 +67,12 @@ const RESCALED_TOLERANCE = 0.005;
 export async function compareLooks(
   before: ComparedPage,
   after: ComparedPage,
-  maxHeight = Infinity,
+  { maxHeight = Infinity, words = true }: { maxHeight?: number; words?: boolean } = {},
 ): Promise<Look[]> {
-  const paired = pairUp(before.elements, after.elements);
+  // Without words, elements are paired by what they are, not by what they say: words that differ
+  // from one load to the next, or from one set of data to another, do not unpair them.
+  const key = (element: ElementInfo) => (words ? element.signature : element.shape);
+  const paired = pairUp(before.elements, after.elements, key);
   const { reworded } = paired;
   const pairs = unhollowed(paired.pairs, before.elements, after.elements);
   const { restyles, pictures } = sortPairs(pairs, reworded, before.elements, after.elements);
@@ -291,6 +295,7 @@ type LookChange = Omit<Look, 'name'>;
 function pairUp(
   before: readonly ElementInfo[],
   after: readonly ElementInfo[],
+  key: (element: ElementInfo) => string,
 ): { pairs: Pair[]; reworded: Set<Pair> } {
   const pairs: Pair[] = [];
   const reworded = new Set<Pair>();
@@ -313,10 +318,7 @@ function pairUp(
     pairs.push(...withWords, ...sameTags(false));
     left = { before: [], after: [] };
   };
-  const ops = diff(
-    before.map(e => e.signature),
-    after.map(e => e.signature),
-  );
+  const ops = diff(before.map(key), after.map(key));
   for (const op of ops) {
     if (op.type === 'remove') left.before.push(op.before);
     else if (op.type === 'add') left.after.push(op.after);

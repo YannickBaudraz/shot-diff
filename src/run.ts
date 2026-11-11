@@ -16,6 +16,9 @@ export type Options = LoadOptions &
     after: string;
     title: string;
     markers: Mode; // what a change of look's box says: what changed, or a number the band explains
+    /** Compare the words (the default); false (--no-words) for pages whose words differ anyway, as
+     * random or other data do: only changes of look, and elements added or removed, are marked. */
+    words: boolean;
     /** Waits while a person sets both opened pages up by hand (--interactive); null to read them as
      * they load. Called again, with the sides whose window then has several tabs, until none has. */
     prepare: Prepare | null;
@@ -42,11 +45,13 @@ export type Result = {
 export async function run(browser: Browser, options: Options): Promise<Result> {
   const pages = await loadBoth(browser, options);
   try {
-    const looks = await compareLooks(pages.before, pages.after, options.maxHeight); // before anything is drawn over the pages
-    const wordChanges = wordHunks(
-      { before: pages.before.words, after: pages.after.words },
-      { before: componentWords(looks, pages, 'before'), after: componentWords(looks, pages, 'after') },
-    );
+    const looks = await compareLooks(pages.before, pages.after, options); // before anything is drawn over the pages
+    const wordChanges = !options.words
+      ? []
+      : wordHunks(
+          { before: pages.before.words, after: pages.after.words },
+          { before: componentWords(looks, pages, 'before'), after: componentWords(looks, pages, 'after') },
+        );
     const markers = await markersFor(looks, options.markers, options.scale);
     const changes = await markPages(pages, wordChanges, markers, options.selector);
     const planned = await plan(

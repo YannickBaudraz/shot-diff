@@ -194,6 +194,7 @@ The same every time, with nobody there:
 | `--wait <ms>` | 300 | wait after loading and clicking |
 | `--interactive` | | open both pages in windows, and shoot them once you have set them up by hand |
 | `--tabs` | | with `--interactive`: one window with both pages as tabs, which you can resize |
+| `--no-words` | | compare no words, for pages whose text differs anyway (random text, other data): only changes of look, and elements added or removed, are marked; elements are paired by what they are, not by what they say |
 | `--markers labels\|numbers` | `labels` | on a box around a change of look: what changed written on it, or a number explained in the band |
 | `--padding <px>` | 80 | room kept around the changes |
 | `--max-height <px>` | 2400 | the tallest an image gets; changes further apart get their own pair |

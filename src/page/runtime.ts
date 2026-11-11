@@ -209,12 +209,12 @@ export function runtime(properties: string[]) {
   };
 
   /** What pairs an element with its match on the other page: tag, id, role, label, own words, file. */
-  const signature = (element: Element) => {
+  const signature = (element: Element, withWords = true) => {
     const ownText = [...element.childNodes]
       .filter(n => n.nodeType === Node.TEXT_NODE)
       .map(n => n.textContent)
       .join(' ');
-    const ownWords = ownText.replace(/\s+/g, ' ').trim().slice(0, 80);
+    const ownWords = withWords ? ownText.replace(/\s+/g, ' ').trim().slice(0, 80) : '';
     const link = element.getAttribute('src') || element.getAttribute('href') || '';
     const file = link.split(/[?#]/)[0].split('/').pop() || '';
     const role = element.getAttribute('role') || '';
@@ -255,6 +255,7 @@ export function runtime(properties: string[]) {
     const computed = element.computedStyleMap();
     return {
       signature: signature(element),
+      shape: signature(element, false),
       tag: element.tagName.toLowerCase(),
       parent: -1,
       leaf: true,

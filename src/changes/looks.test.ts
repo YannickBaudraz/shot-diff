@@ -8,6 +8,7 @@ const el = (
   more: Partial<ElementInfo> = {},
 ): ElementInfo => ({
   signature,
+  shape: signature.split(' ')[0],
   tag: signature.split(' ')[0].toLowerCase(),
   parent: -1,
   leaf: true,
@@ -487,8 +488,17 @@ describe('children of one kind changed alike', () => {
     const tall = await compareLooks(
       menu('0', ['6px', '6px'], { height: 5000 }),
       menu('0', ['8px', '8px'], { height: 5000 }),
-      2400,
+      { maxHeight: 2400 },
     );
     expect(tall.map(look => look.element.before)).toEqual([1, 2]);
+  });
+});
+
+describe('without words', () => {
+  test('pairs elements by what they are, so text that differs unpairs nothing', async () => {
+    const before = seen([el('H1 Orders'), el('P 12 orders today', { color: 'black' })]);
+    const after = seen([el('H1 Orders'), el('P 31 orders today', { color: 'red' })]);
+    const looks = await compareLooks(before, after, { words: false });
+    expect(looks.map(look => look.name)).toEqual(['[p: text colour]']);
   });
 });

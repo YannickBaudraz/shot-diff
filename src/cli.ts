@@ -85,6 +85,10 @@ A local file is a file:// URL.`,
     'with --interactive: open both pages as tabs of one window, which you can resize, not a window each',
     false,
   )
+  .option(
+    '--no-words',
+    'do not compare words, for pages whose text differs anyway (random or other data): mark only changes of look, and elements added or removed',
+  )
   .option('--selector <css>', 'only look at changes inside this element; the rest are ignored')
   .option('--padding <px>', 'room around the changes', nonNegativeNumber, 80)
   .addOption(

@@ -211,6 +211,7 @@ async function shootByHand(example: Example, folder: string): Promise<void> {
       after,
       title: example.title,
       markers: 'labels',
+      words: true,
       width: 1280,
       height: 900,
       scale: 2,

@@ -16,6 +16,7 @@ const OPTIONS: Options = {
   after: greeter('Welcome'),
   title: 't',
   markers: 'labels',
+  words: true,
   prepare: null,
   tabs: false,
   width: 800,

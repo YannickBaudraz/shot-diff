@@ -118,6 +118,22 @@ test('a change a scroll area cuts off is listed as hidden, and no box is drawn f
   expect(done.stderr).toMatch(/2 change\(s\) are in a part of the page a scroll area cuts off/);
 });
 
+test('--no-words marks no word change, only changes of look and elements added or removed', () => {
+  const { done, result } = shotDiff(
+    page('words/before.html'),
+    page('words/after.html'),
+    '--title',
+    't',
+    '--no-words',
+  );
+  expect(done.status, done.stderr).toBe(0);
+  expect(result.wordChanges).toBe(0);
+  // The paragraph added is still an element added: its words are not what is compared.
+  expect(result.shots.flatMap((shot: { after: { added: string[] } }) => shot.after.added)).toEqual([
+    '[p: added] Step 13 merges it.',
+  ]);
+});
+
 test('the same page twice marks nothing and says so', () => {
   const { done, result } = shotDiff(page('words/before.html'), page('words/before.html'), '--title', 't');
   expect(done.status, done.stderr).toBe(0);
