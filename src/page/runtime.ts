@@ -346,6 +346,15 @@ export function runtime(properties: string[]) {
     return element;
   };
 
+  /** `box` kept inside the page's width and below its top, its ring included: a box around an
+   * element as wide as the page would otherwise lose its sides off the shot. */
+  const onPage = (box: Box): Box => {
+    const left = Math.max(box.x, BOX.ring);
+    const top = Math.max(box.y, BOX.ring);
+    const right = Math.min(box.x + box.width, document.documentElement.clientWidth - BOX.ring);
+    return { x: left, y: top, width: Math.max(0, right - left), height: box.y + box.height - top };
+  };
+
   /** Rectangles grouped by the line of text they sit on, top to bottom. */
   const linesOf = (rects: DOMRect[]) => {
     const lines: DOMRect[][] = [];
@@ -406,7 +415,7 @@ export function runtime(properties: string[]) {
     drawn: HTMLElement[],
   ): Span | null => {
     const elements = groupsOf(change.changed, tokens).map(rects =>
-      drawBox(layer, color, grow(pageBox(around(rects)), WORD_BOX_MARGIN.x, WORD_BOX_MARGIN.y)),
+      drawBox(layer, color, onPage(grow(pageBox(around(rects)), WORD_BOX_MARGIN.x, WORD_BOX_MARGIN.y))),
     );
     drawn.push(...elements);
     const boxes = elements.map(element => element.getBoundingClientRect());
@@ -497,7 +506,7 @@ export function runtime(properties: string[]) {
     const clipper = getComputedStyle(element).position === 'fixed' ? null : shownIn(element);
     const shown = shownPart(rect, clipper);
     if (!shown) return { ...inPage(pageRegion([rect])), changed: null, inside: true, clipped: true };
-    const box = grow(pageBox(shown), BOX.margin);
+    const box = onPage(grow(pageBox(shown), BOX.margin));
     const boxElement = drawBox(layer, color, box);
     const badge =
       'disc' in badgeOf

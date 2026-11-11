@@ -65,6 +65,14 @@ const EXAMPLES: Example[] = [
     pages: ['layout/before.html', 'layout/after.html'],
   },
   {
+    id: 'navigation',
+    name: 'Top navigation moved to a sidebar',
+    title: 'App shell: navigation in a sidebar',
+    shows:
+      'The same links and content, with the navigation moved from a bar across the top to a column on the left. The shell, the bar and the navigation are each boxed with what changed in their layout; the content beside them only moved, and is not marked.',
+    pages: ['navigation/before.html', 'navigation/after.html'],
+  },
+  {
     id: 'whole-page',
     name: 'A page with both',
     title: 'Dashboard: August figures',

@@ -96,6 +96,24 @@ examples/layout/shot-after.png: 3 part(s) added
 |---|---|
 | ![before](layout/shot-before.png) | ![after](layout/shot-after.png) |
 
+## Top navigation moved to a sidebar
+
+The same links and content, with the navigation moved from a bar across the top to a column on the left. The shell, the bar and the navigation are each boxed with what changed in their layout; the content beside them only moved, and is not marked.
+
+```sh
+shot-diff "file://$PWD/e2e/fixtures/navigation/before.html" "file://$PWD/e2e/fixtures/navigation/after.html" \
+  --title "App shell: navigation in a sidebar"
+```
+
+```
+examples/navigation/shot-before.png: 7 part(s) removed
+examples/navigation/shot-after.png: 7 part(s) added
+```
+
+| Before | After |
+|---|---|
+| ![before](navigation/shot-before.png) | ![after](navigation/shot-after.png) |
+
 ## A page with both
 
 Words and looks changed on one page. Only what changed is marked, not the boxes the layout resized around it.

@@ -213,7 +213,7 @@ describe('mark', () => {
     expect(top.label.top).toBe(top.box.bottom); // no room above: below
     expect(lower.label.bottom).toBe(lower.box.top); // above
     expect(top.label.left).toBe(top.box.left);
-    expect(looks[0].top).toBe(0);
+    expect(looks[0].top).toBe(2); // the box is kept on the page, its ring too
     expect(looks[1].top).toBeLessThan(200 - 4);
   });
 
@@ -282,6 +282,17 @@ describe('mark, a change of look this page has not', () => {
       { top: 72, bottom: 72, ...place },
       { top: 0, bottom: 0, ...place },
     ]);
+  });
+});
+
+describe('mark, at the page edges', () => {
+  test('keeps the box of an element as wide as the page inside it, its ring too', () => {
+    const p = page('<p>aa</p><div style="height:40px;margin:0">x</div>');
+    const index = p.reading.elements.findIndex(e => e.tag === 'div');
+    p.mark(marks({ looks: [{ index, badge: { label: 'layout' } }] }));
+    const box = drawn()[0].getBoundingClientRect();
+    expect(box.left).toBeGreaterThanOrEqual(2);
+    expect(box.right).toBeLessThanOrEqual(document.documentElement.clientWidth - 2);
   });
 });
 
@@ -412,7 +423,7 @@ describe('cut off', () => {
 
   test('a box goes around what shows of an element a scroll area cuts in part', () => {
     const p = page(
-      '<div style="height:30px;overflow:hidden"><section style="height:300px">tall</section></div>',
+      '<div style="height:30px;overflow:hidden;margin-top:40px"><section style="height:300px">tall</section></div>',
     );
     const index = p.reading.elements.findIndex(e => e.tag === 'section');
     const { looks } = p.mark(marks({ looks: [{ index, badge: { disc: { src: 'data:,', size: 10 } } }] }));
