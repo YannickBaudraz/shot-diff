@@ -266,6 +266,7 @@ export function runtime(properties: string[]) {
       paints: PAINTERS.has(element.tagName) || style.backgroundImage.includes('url('),
       seen: element.checkVisibility({ checkOpacity: true }),
       top: pageBox(rect).y,
+      height: rect.height,
       // The computed value, as the CSS gave it: `auto` stays `auto`, where getComputedStyle would give
       // the pixels layout made of it, which change with whatever else changed on the page.
       style: Object.fromEntries(

@@ -98,7 +98,7 @@ examples/layout/shot-after.png: 3 part(s) added
 
 ## Top navigation moved to a sidebar
 
-The same links and content, with the navigation moved from a bar across the top to a column on the left. The shell, the bar and the navigation are each boxed with what changed in their layout; the content beside them only moved, and is not marked.
+The same links and content, with the navigation moved from a bar across the top to a column on the left. The shell, the bar and the navigation are each boxed with what changed in their layout; the four links, which all got more room, are said once, on the box of the navigation. The content beside them only moved, and is not marked.
 
 ```sh
 shot-diff "file://$PWD/e2e/fixtures/navigation/before.html" "file://$PWD/e2e/fixtures/navigation/after.html" \
@@ -106,8 +106,8 @@ shot-diff "file://$PWD/e2e/fixtures/navigation/before.html" "file://$PWD/e2e/fix
 ```
 
 ```
-examples/navigation/shot-before.png: 7 part(s) removed
-examples/navigation/shot-after.png: 7 part(s) added
+examples/navigation/shot-before.png: 3 part(s) removed
+examples/navigation/shot-after.png: 3 part(s) added
 ```
 
 | Before | After |

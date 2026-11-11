@@ -20,6 +20,7 @@ export type ElementInfo = {
   paints: boolean; // draws pixels its style does not describe: an image, a canvas, an SVG, an embedded page, a background image file
   seen: boolean; // not made transparent, by its own opacity or an ancestor's
   top: number; // in page pixels, to number the changes in reading order
+  height: number; // in page pixels, to tell an element too tall to carry its children's change
   style: Record<string, string>; // the PROPERTIES below, as the CSS sets them
 };
 
@@ -46,6 +47,7 @@ export type Look = {
   only?: Side;
   edge?: Edge;
   beside?: boolean;
+  group?: string; // what changed alike on all its children of one kind
 };
 
 /** The top of an element, or its bottom. */
@@ -61,13 +63,17 @@ const RESCALED_TOLERANCE = 0.005;
 
 /** The changes of look between two pages, top to bottom on the before page. Read the pages before
  * anything is drawn over them. */
-export async function compareLooks(before: ComparedPage, after: ComparedPage): Promise<Look[]> {
+export async function compareLooks(
+  before: ComparedPage,
+  after: ComparedPage,
+  maxHeight = Infinity,
+): Promise<Look[]> {
   const paired = pairUp(before.elements, after.elements);
   const { reworded } = paired;
   const pairs = unhollowed(paired.pairs, before.elements, after.elements);
   const { restyles, pictures } = sortPairs(pairs, reworded, before.elements, after.elements);
   const changes = [
-    ...restyles,
+    ...grouped(restyles, pairs, before.elements, after.elements, maxHeight),
     ...(await redrawn(pictures.slice(0, MAX_PICTURES), before, after)),
     ...onOnePage(pairs, { before: before.elements, after: after.elements }),
   ];
@@ -81,9 +87,85 @@ export async function compareLooks(before: ComparedPage, after: ComparedPage): P
     .sort((x, y) => readingOrder(onBefore(x), onBefore(y)))
     .map(change => {
       const { element, words } = own(change);
-      const what = `[${element.tag}: ${change.what.join(', ')}]`;
+      const what = `[${element.tag}: ${labelOf(change)}]`;
       return { ...change, name: change.only ? `${what}${beginning(element, words)}` : what };
     });
+}
+
+/** What a change of look's label says: what changed on the element, then what changed alike on
+ * all its children of one kind. */
+export const labelOf = (look: Pick<Look, 'what' | 'group'>): string =>
+  [look.what.join(', '), look.group].filter(Boolean).join(' · ');
+
+/** What the children of one kind are called in a label, one and several; a tag not here is called
+ * by itself. */
+const KINDS: Record<string, [string, string]> = {
+  a: ['link', 'links'],
+  li: ['item', 'items'],
+  td: ['cell', 'cells'],
+  tr: ['row', 'rows'],
+  button: ['button', 'buttons'],
+  img: ['image', 'images'],
+  p: ['paragraph', 'paragraphs'],
+  ...Object.fromEntries([1, 2, 3, 4, 5, 6].map(n => [`h${n}`, ['heading', 'headings']])),
+};
+
+/** The restyles with the ones of all the children of one kind of an element, changed alike, made
+ * one change on that element: a menu whose links all got more room is one box, not one per link.
+ * The children are those with the same parent and tag on both pages, two or more, all with the same
+ * list of what changed and none of them left out. Their parent carries it, with its own change when
+ * it has one; one that is the page's body, or taller than a shot, would put it far from them, and
+ * leaves them their own boxes. It is done once: a parent that is itself one of a group carries
+ * none. */
+function grouped(
+  restyles: LookChange[],
+  pairs: Pair[],
+  before: readonly ElementInfo[],
+  after: readonly ElementInfo[],
+  maxHeight: number,
+): LookChange[] {
+  const partner = new Map(pairs.map(pair => [pair.before, pair.after]));
+  const byParent = new Map<string, LookChange[]>();
+  for (const change of restyles) {
+    const { parent, tag } = before[change.element.before];
+    const key = `${parent} ${tag}`;
+    byParent.set(key, [...(byParent.get(key) ?? []), change]);
+  }
+  const groups = [...byParent.values()].filter(group => {
+    const first = before[group[0].element.before];
+    const parent = { before: first.parent, after: partner.get(first.parent) ?? -1 };
+    if (group.length < 2 || parent.before < 0 || parent.after < 0) return false;
+    const alike = group.every(change => change.what.join() === group[0].what.join());
+    const kin = (elements: readonly ElementInfo[], side: Side) =>
+      elements.filter(e => e.parent === parent[side] && e.tag === first.tag).length;
+    const all =
+      kin(before, 'before') === group.length &&
+      kin(after, 'after') === group.length &&
+      group.every(change => after[change.element.after].parent === parent.after);
+    const small =
+      before[parent.before].tag !== 'body' &&
+      before[parent.before].height <= maxHeight &&
+      after[parent.after].height <= maxHeight;
+    return alike && all && small;
+  });
+  const members = new Set(groups.flat());
+  const kept = restyles.filter(change => !members.has(change));
+  const parentOf = (group: LookChange[]) => before[group[0].element.before].parent;
+  for (const group of groups) {
+    const parent = parentOf(group);
+    // A parent in a group of its own is boxed with that group: its children keep their boxes.
+    if (groups.some(other => other !== group && other.some(change => change.element.before === parent))) {
+      kept.push(...group);
+      continue;
+    }
+    const tag = before[group[0].element.before].tag;
+    const [, several] = KINDS[tag] ?? [tag, tag];
+    const text = `${group.length} ${several}: ${group[0].what.join(', ')}`;
+    const own = kept.find(change => change.element.before === parent);
+    if (own) own.group = text;
+    else kept.push({ element: { before: parent, after: partner.get(parent)! }, what: [], group: text });
+  }
+  return kept;
 }
 
 /** The longest start of a component's words put in its name, so a long text does not cover the page. */
@@ -251,8 +333,8 @@ function pairUp(
  * with anything in the other. Elements alike (the rows of a table) are paired by their place in the
  * list, so a row added can take the old row's pair, and the cells of that row are paired to the
  * cells of the next one: the pair left is not the same element, and is dropped, so the row added
- * is a component of its own. An element with nothing inside it is never dropped: its words are all
- * that changed. */
+ * is a component of its own; the old row is paired again with the one its cells are in. An element
+ * with nothing inside it is never dropped: its words are all that changed. */
 function unhollowed(pairs: Pair[], before: readonly ElementInfo[], after: readonly ElementInfo[]): Pair[] {
   const partner = new Map(pairs.map(pair => [pair.before, pair.after]));
   const hollow = ({ before: was, after: now }: Pair) => {
@@ -266,7 +348,19 @@ function unhollowed(pairs: Pair[], before: readonly ElementInfo[], after: readon
       !inside.some(i => (partner.get(i) ?? -1) >= there[0] && (partner.get(i) ?? -1) < there[1])
     );
   };
-  return pairs.filter(pair => !hollow(pair));
+  const kept = pairs.filter(pair => !hollow(pair));
+  const used = new Set(kept.map(pair => pair.after));
+  // Each element dropped is paired again with the one its children's partners are in, when that
+  // one has its tag and no pair: the rows below a row added are compared with their own again.
+  for (const { before: was } of pairs.filter(hollow)) {
+    const child = before.findIndex((e, i) => e.parent === was && partner.has(i));
+    const home = child < 0 ? -1 : after[partner.get(child)!].parent;
+    if (home >= 0 && after[home].tag === before[was].tag && !used.has(home)) {
+      kept.push({ before: was, after: home });
+      used.add(home);
+    }
+  }
+  return kept.sort((x, y) => x.before - y.before);
 }
 
 /** The components only one page has: an element with nothing inside it that the other page has too,

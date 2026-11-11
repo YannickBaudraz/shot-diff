@@ -69,7 +69,7 @@ const EXAMPLES: Example[] = [
     name: 'Top navigation moved to a sidebar',
     title: 'App shell: navigation in a sidebar',
     shows:
-      'The same links and content, with the navigation moved from a bar across the top to a column on the left. The shell, the bar and the navigation are each boxed with what changed in their layout; the content beside them only moved, and is not marked.',
+      'The same links and content, with the navigation moved from a bar across the top to a column on the left. The shell, the bar and the navigation are each boxed with what changed in their layout; the four links, which all got more room, are said once, on the box of the navigation. The content beside them only moved, and is not marked.',
     pages: ['navigation/before.html', 'navigation/after.html'],
   },
   {

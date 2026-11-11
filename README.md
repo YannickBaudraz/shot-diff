@@ -243,6 +243,10 @@ opens. To get the Linux one anyway, name it: `--chrome /usr/bin/google-chrome`.
    in a sentence is not, and stays a change of words. One inside another is the outer one's, so a
    card added is boxed once, and what is inside it is not marked. The words of a component are left
    out of the word diff, so they pair with no word on the other page.
+   When all the children of one kind of an element changed alike, the links of a menu, the cells of
+   a row, the change is written once on that element, as "spacing, layout · 4 links: spacing", not
+   on each child; one child that changed otherwise leaves each its own box, and so does a parent
+   that is the page's body or taller than `--max-height`.
    A change of look gets a box with what changed written on it, or a number explained in the band
    with `--markers numbers`. A component added or removed gets a plain box, as changed words do: its
    colour says it, red on the before shot, green on the after. On the page without it, the shot

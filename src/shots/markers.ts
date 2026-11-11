@@ -3,7 +3,7 @@
 // once; the page and the band draw what they are given.
 
 import sharp from 'sharp';
-import type { Look } from '../changes/looks.ts';
+import { labelOf, type Look } from '../changes/looks.ts';
 import { bothSides, COLORS, ON_SIDE_COLOR, type Side } from '../side.ts';
 import { renderText } from './text.ts';
 
@@ -35,7 +35,7 @@ export async function markersFor(looks: Look[], mode: Mode, scale: number): Prom
       const badge: Badge = look.only
         ? { plain: true }
         : mode === 'labels'
-          ? { label: look.what.join(', ') }
+          ? { label: labelOf(look) }
           : { disc: await bothSides(side => disc(number, side, scale)) };
       return { ...look, number, badge };
     }),

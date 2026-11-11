@@ -17,6 +17,7 @@ const el = (
   seen: true,
   paints: false,
   top: 0,
+  height: 0,
   style,
   ...more,
 });
@@ -320,6 +321,25 @@ describe('an element only one page has', () => {
     expect(looks.map(look => [look.element.after, look.what])).toEqual([[1, ['added']]]);
   });
 
+  test('a row added before rows alike leaves the rows below compared with their own', async () => {
+    const row = (name: string, top: number, color = 'white') => [
+      block('TR', 0, 1, { parent: 0, style: { 'background-color': color } }),
+      block(`TD ${name}`, 0, 1, { parent: top }),
+    ];
+    const before = seen([block('TBODY', 0, 1), ...row('Ada', 1), ...row('Alan', 3)]);
+    const after = seen([
+      block('TBODY', 0, 1),
+      ...row('Kate', 1),
+      ...row('Ada', 3, 'yellow'),
+      ...row('Alan', 5),
+    ]);
+    const looks = await compareLooks(before, after);
+    expect(looks.map(look => [look.element.before, look.element.after, look.what])).toEqual([
+      [1, 3, ['background']],
+      [1, 1, ['added']], // placed over the old first row
+    ]);
+  });
+
   test('one that does not show is none', async () => {
     const after = seen([el('H1 Title'), bare('DIV', { seen: false })]);
     expect(await compareLooks(seen([el('H1 Title')]), after)).toEqual([]);
@@ -434,5 +454,41 @@ describe('pictures', () => {
     const before = seen(many);
     await compareLooks(before, seen(many));
     expect(before.pixels).toHaveBeenCalledTimes(MAX_PICTURES);
+  });
+});
+
+describe('children of one kind changed alike', () => {
+  const pad = (p: string) => ({ 'padding-left': p });
+  /** A nav, its own margin `margin`, with links each padded `pads[i]`. */
+  const menu = (margin: string, pads: string[], more: Partial<ElementInfo> = {}) =>
+    seen([
+      el('NAV', { 'margin-top': margin }, { height: 40, ...more }),
+      ...pads.map((p, i) => el(`A link${i}`, pad(p), { parent: 0 })),
+    ]);
+
+  test('are one change on their parent, with its own', async () => {
+    const looks = await compareLooks(menu('0', ['6px', '6px', '6px']), menu('8px', ['8px', '8px', '8px']));
+    expect(looks.map(look => [look.element.before, look.name])).toEqual([
+      [0, '[nav: spacing · 3 links: spacing]'],
+    ]);
+  });
+
+  test('are one change on a parent that changed nothing itself', async () => {
+    const looks = await compareLooks(menu('0', ['6px', '6px']), menu('0', ['8px', '8px']));
+    expect(looks.map(look => look.name)).toEqual(['[nav: 2 links: spacing]']);
+  });
+
+  test('keep their own boxes when one of them changed otherwise, or did not change', async () => {
+    const one = await compareLooks(menu('0', ['6px', '6px', '6px']), menu('0', ['8px', '8px', '6px']));
+    expect(one.map(look => look.element.before)).toEqual([1, 2]);
+  });
+
+  test('keep their own boxes when the parent is taller than a shot', async () => {
+    const tall = await compareLooks(
+      menu('0', ['6px', '6px'], { height: 5000 }),
+      menu('0', ['8px', '8px'], { height: 5000 }),
+      2400,
+    );
+    expect(tall.map(look => look.element.before)).toEqual([1, 2]);
   });
 });

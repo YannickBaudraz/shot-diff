@@ -1,7 +1,7 @@
 // The whole run: load both pages, find what changed, mark it, plan the shots, and draw them.
 
 import type { Browser } from 'playwright-core';
-import { compareLooks, type Look } from './changes/looks.ts';
+import { compareLooks, labelOf, type Look } from './changes/looks.ts';
 import { wordHunks, type Hunk } from './changes/words.ts';
 import type { Box, Span } from './geometry.ts';
 import { open, openTabs, type LoadedPage, type LoadOptions, type OpenedPage } from './page/loaded.ts';
@@ -42,7 +42,7 @@ export type Result = {
 export async function run(browser: Browser, options: Options): Promise<Result> {
   const pages = await loadBoth(browser, options);
   try {
-    const looks = await compareLooks(pages.before, pages.after); // before anything is drawn over the pages
+    const looks = await compareLooks(pages.before, pages.after, options.maxHeight); // before anything is drawn over the pages
     const wordChanges = wordHunks(
       { before: pages.before.words, after: pages.after.words },
       { before: componentWords(looks, pages, 'before'), after: componentWords(looks, pages, 'after') },
@@ -218,7 +218,7 @@ function keyOf(changes: Change[], side: Side): Key[] {
   const numbered: (Key & { number: number })[] = [];
   for (const { marker } of changes) {
     if (marker && 'disc' in marker.badge && (!marker.only || marker.only === side))
-      numbered.push({ number: marker.number, disc: marker.badge.disc[side], what: marker.what.join(', ') });
+      numbered.push({ number: marker.number, disc: marker.badge.disc[side], what: labelOf(marker) });
   }
   return numbered.sort((x, y) => x.number - y.number);
 }
