@@ -171,19 +171,19 @@ examples/far-apart/shot-2-after.png: 1 part(s) added
 | ![before](far-apart/shot-1-before.png) | ![after](far-apart/shot-1-after.png) |
 | ![before](far-apart/shot-2-before.png) | ![after](far-apart/shot-2-after.png) |
 
-## One part of the page
+## One change among several
 
-With `--selector`, only the changes inside the element count. The others are left unmarked, and the terminal says how many.
+A branch that refreshes several parts of a page at once: the search field, the notifications, the avatar, the tabs, and the main button. With `--selector`, only the changes inside the element named count, here the "New project" button: it alone is boxed. The other parts changed too, as the two shots show, and are left unmarked. The terminal says how many changes were left out.
 
 ```sh
-shot-diff "file://$PWD/e2e/fixtures/tall/before.html" "file://$PWD/e2e/fixtures/tall/after.html" \
-  --title "Tall page: bottom line reworded" --selector "#end"
+shot-diff "file://$PWD/e2e/fixtures/projects/before.html" "file://$PWD/e2e/fixtures/projects/after.html" \
+  --title "Projects: primary button in green" --selector "#new-project"
 ```
 
 ```
 examples/selector/shot-before.png: 1 part(s) removed
 examples/selector/shot-after.png: 1 part(s) added
-shot-diff: 2 change(s) outside --selector ignored (listed under "ignored" in --json)
+shot-diff: 13 change(s) outside --selector ignored (listed under "ignored" in --json)
 ```
 
 | Before | After |

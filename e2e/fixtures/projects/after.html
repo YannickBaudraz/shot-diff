@@ -1,0 +1,43 @@
+<!doctype html><meta charset="utf-8"><title>Projects</title>
+<style>
+ * { box-sizing: border-box }
+ body { margin: 0; font: 15px/1.5 system-ui, sans-serif; color: #1f2328; background: #f6f8fa }
+ .top { display: flex; align-items: center; gap: 20px; height: 64px; padding: 0 40px; background: #fff; border-bottom: 1px solid #d0d7de }
+ .logo { font-weight: 700; font-size: 18px }
+ .top nav { display: flex; gap: 4px }
+ .top nav a { padding: 6px 12px; color: #1f2328; text-decoration: none }
+ .search { margin-left: auto; width: 260px; padding: 7px 14px; color: #59636e }
+ .bell { position: relative; width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid #d0d7de; border-radius: 6px; background: #fff }
+ .bell i { display: block; width: 12px; height: 12px; border: 2px solid #59636e; border-radius: 6px 6px 2px 2px }
+ .avatar { width: 34px; height: 34px; display: grid; place-items: center; background: #8250df; color: #fff; font-weight: 600; font-size: 13px }
+ main { padding: 20px 40px 40px }
+ .head { display: flex; align-items: center; justify-content: space-between }
+ h1 { margin: 0; font-size: 24px }
+ #new-project { padding: 7px 16px; border-radius: 6px; font: inherit; font-weight: 600 }
+ .tabs { display: flex; gap: 8px; margin: 16px 0 56px; border-bottom: 1px solid #d0d7de }
+ .tabs a { padding: 8px 12px; color: #1f2328; text-decoration: none }
+ .tabs a.current { font-weight: 600 }
+ .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px }
+ .card { padding: 18px 20px; background: #fff; border: 1px solid #d0d7de; border-radius: 8px }
+ .card h2 { margin: 0 0 4px; font-size: 16px }
+ .card p { margin: 0; color: #59636e }
+
+ .top nav a.current { color: #0969da; font-weight: 600; box-shadow: inset 0 -2px 0 #0969da }
+ .search { border: 1px solid transparent; border-radius: 999px; background: #eaeef2 }
+ .dot { position: absolute; top: -4px; right: -4px; width: 12px; height: 12px; border-radius: 50%; background: #cf222e; border: 2px solid #fff }
+ .avatar { border-radius: 50%; box-shadow: 0 0 0 2px #fff, 0 0 0 4px #8250df }
+ #new-project { background: #1f883d; border: 1px solid #1f883d; color: #fff }
+ .tabs a.current { box-shadow: inset 0 -3px 0 #fd8c73 }
+ .count { padding: 1px 8px; border-radius: 999px; background: #eaeef2; font-size: 12px }
+</style>
+<div class="top"><span class="logo">Northwind</span>
+  <nav><a class="current" href="#">Projects</a><a href="#">Issues</a><a href="#">Members</a></nav>
+  <div class="search">Search projects</div>
+  <div class="bell" role="img" aria-label="Notifications"><i></i><span class="dot"></span></div>
+  <div class="avatar">AL</div>
+</div>
+<main>
+  <div class="head"><h1>Projects</h1><button id="new-project">New project</button></div>
+  <div class="tabs"><a class="current" href="#">Active <span class="count">12</span></a><a href="#">Archived <span class="count">4</span></a><a href="#">Templates</a></div>
+  <div class="grid"><div class="card"><h2>Website</h2><p>12 open issues</p></div><div class="card"><h2>Mobile app</h2><p>4 open issues</p></div><div class="card"><h2>Billing</h2><p>No open issue</p></div></div>
+</main>

@@ -99,12 +99,12 @@ const EXAMPLES: Example[] = [
   },
   {
     id: 'selector',
-    name: 'One part of the page',
-    title: 'Tall page: bottom line reworded',
+    name: 'One change among several',
+    title: 'Projects: primary button in green',
     shows:
-      'With `--selector`, only the changes inside the element count. The others are left unmarked, and the terminal says how many.',
-    pages: ['tall/before.html', 'tall/after.html'],
-    options: ['--selector', '#end'],
+      'A branch that refreshes several parts of a page at once: the search field, the notifications, the avatar, the tabs, and the main button. With `--selector`, only the changes inside the element named count, here the "New project" button: it alone is boxed. The other parts changed too, as the two shots show, and are left unmarked. The terminal says how many changes were left out.',
+    pages: ['projects/before.html', 'projects/after.html'],
+    options: ['--selector', '#new-project'],
   },
   {
     id: 'no-words',
