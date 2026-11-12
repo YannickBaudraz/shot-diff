@@ -41,7 +41,7 @@ const EXAMPLES: Example[] = [
     pages: ['visual/before/index.html', 'visual/after/index.html'],
   },
   {
-    id: 'no-words',
+    id: 'wordless',
     name: 'An element with no words, added or removed',
     title: 'Checkout: progress bar in, divider out',
     shows:
@@ -105,6 +105,15 @@ const EXAMPLES: Example[] = [
       'With `--selector`, only the changes inside the element count. The others are left unmarked, and the terminal says how many.',
     pages: ['tall/before.html', 'tall/after.html'],
     options: ['--selector', '#end'],
+  },
+  {
+    id: 'no-words',
+    name: 'Words not compared',
+    title: 'Orders: table header and cards restyled',
+    shows:
+      'The same page on two servers, with other data: every figure, name and date differs. With `--no-words`, no word is compared, so none of them is marked; only the design changes are: the table header, and the three cards, said once. Without `--no-words`, every figure, name and date would be boxed too.',
+    pages: ['data/before.html', 'data/after.html'],
+    options: ['--no-words'],
   },
   {
     id: 'ignore',

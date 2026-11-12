@@ -15,7 +15,7 @@ expect.extend({ toMatchImageSnapshot });
 const CASES: { name: string; before: string; after: string; args?: string[] }[] = [
   { name: 'words', before: 'words/before.html', after: 'words/after.html' },
   { name: 'pictures-and-looks', before: 'visual/before/index.html', after: 'visual/after/index.html' },
-  { name: 'no-words', before: 'wordless/before.html', after: 'wordless/after.html' },
+  { name: 'wordless', before: 'wordless/before.html', after: 'wordless/after.html' },
   { name: 'components', before: 'components/before.html', after: 'components/after.html' },
   {
     name: 'ignored',

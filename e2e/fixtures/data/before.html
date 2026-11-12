@@ -1,0 +1,18 @@
+<!doctype html><meta charset="utf-8"><title>Orders</title>
+<style>
+ * { box-sizing: border-box }
+ body { margin: 0; padding: 32px 40px; width: 860px; font: 15px/1.5 system-ui, sans-serif; color: #1f2328 }
+ h1 { margin: 0 0 20px; font-size: 24px }
+ .kpis { display: flex; gap: 16px; margin-bottom: 48px }
+ .kpi { flex: 1; padding: 14px 16px; border: 1px solid #d0d7de; border-radius: 8px }
+ .kpi span { display: block; color: #59636e; font-size: 13px }
+ .kpi b { font-size: 22px }
+ table { width: 100%; border-collapse: collapse }
+ th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #d0d7de }
+ td.num { text-align: right }
+ .status { padding: 2px 8px; border-radius: 999px; font-size: 13px }
+ th { color: #59636e; font-weight: 600 }
+ .status { background: #eaeef2; color: #1f2328 }</style>
+<h1>Orders</h1>
+<div class="kpis"><div class="kpi"><span>Orders</span><b>1,284</b></div><div class="kpi"><span>Revenue</span><b>$48,210</b></div><div class="kpi"><span>Refunds</span><b>17</b></div></div>
+<table><thead><tr><th>Order</th><th>Customer</th><th>Date</th><th class="num">Amount</th><th>Status</th></tr></thead><tbody><tr><td>#10421</td><td>Ada Lovelace</td><td>12 Nov</td><td class="num">$199.00</td><td><span class="status">Paid</span></td></tr><tr><td>#10420</td><td>Linus Pauling</td><td>12 Nov</td><td class="num">$49.00</td><td><span class="status">Paid</span></td></tr><tr><td>#10419</td><td>Grace Hopper</td><td>11 Nov</td><td class="num">$249.00</td><td><span class="status">Paid</span></td></tr><tr><td>#10418</td><td>Alan Kay</td><td>11 Nov</td><td class="num">$19.00</td><td><span class="status">Paid</span></td></tr></tbody></table>

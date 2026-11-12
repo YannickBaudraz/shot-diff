@@ -107,6 +107,7 @@ const KINDS: Record<string, [string, string]> = {
   a: ['link', 'links'],
   li: ['item', 'items'],
   td: ['cell', 'cells'],
+  th: ['column heading', 'column headings'],
   tr: ['row', 'rows'],
   button: ['button', 'buttons'],
   img: ['image', 'images'],

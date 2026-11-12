@@ -52,13 +52,13 @@ shot-diff "file://$PWD/e2e/fixtures/wordless/before.html" "file://$PWD/e2e/fixtu
 ```
 
 ```
-examples/no-words/shot-before.png: 1 part(s) removed
-examples/no-words/shot-after.png: 1 part(s) added
+examples/wordless/shot-before.png: 1 part(s) removed
+examples/wordless/shot-after.png: 1 part(s) added
 ```
 
 | Before | After |
 |---|---|
-| ![before](no-words/shot-before.png) | ![after](no-words/shot-after.png) |
+| ![before](wordless/shot-before.png) | ![after](wordless/shot-after.png) |
 
 ## A component added
 
@@ -189,6 +189,24 @@ shot-diff: 2 change(s) outside --selector ignored (listed under "ignored" in --j
 | Before | After |
 |---|---|
 | ![before](selector/shot-before.png) | ![after](selector/shot-after.png) |
+
+## Words not compared
+
+The same page on two servers, with other data: every figure, name and date differs. With `--no-words`, no word is compared, so none of them is marked; only the design changes are: the table header, and the three cards, said once. Without `--no-words`, every figure, name and date would be boxed too.
+
+```sh
+shot-diff "file://$PWD/e2e/fixtures/data/before.html" "file://$PWD/e2e/fixtures/data/after.html" \
+  --title "Orders: table header and cards restyled" --no-words
+```
+
+```
+examples/no-words/shot-before.png: 2 part(s) removed
+examples/no-words/shot-after.png: 2 part(s) added
+```
+
+| Before | After |
+|---|---|
+| ![before](no-words/shot-before.png) | ![after](no-words/shot-after.png) |
 
 ## Parts of the page left out
 
