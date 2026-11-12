@@ -51,7 +51,10 @@ export function runtime(properties: string[], ignore: string[] = [], showIgnored
   // taller than its letters, so a label that only touches it hides nothing.
   const TOUCHING = 2;
   const IMAGE_OUTLINE = { width: 3, offset: 2 };
-  const WORD_BOX_MARGIN = { x: 4, y: 3 }; // between a line of changed words and its box
+  const WORD_BOX_MARGIN = { x: 2, y: 3 }; // between a line of changed words and its box
+  // A word box sits in running text, a few pixels from the next word: a thinner line and no ring,
+  // so it does not cover the end of the word before it.
+  const WORD_BOX = { border: 2, ring: 0 };
   const ANCHOR_REACH = 120; // how far from a change the unchanged words around it still place it
   const SNAP_CLEARANCE = 6; // between a moved shot edge and the line of text it would have cut
   const IGNORED_COLOR = '#6e7781'; // an area --ignore leaves out: grey, so it reads as no change
@@ -350,11 +353,17 @@ export function runtime(properties: string[], ignore: string[] = [], showIgnored
     );
 
   /** A box drawn on `layer` at `box`, in page pixels. */
-  const drawBox = (layer: HTMLElement, color: string, box: Box) => {
+  const drawBox = (
+    layer: HTMLElement,
+    color: string,
+    box: Box,
+    line: { border: number; ring: number } = BOX,
+  ) => {
     const element = document.createElement('div');
     element.style.cssText =
-      `position:absolute;box-sizing:border-box;border:${BOX.border}px solid ${color};border-radius:${BOX.radius}px;` +
-      `box-shadow:0 0 0 ${BOX.ring}px ${ON_COLOR};left:${box.x}px;top:${box.y}px;width:${box.width}px;height:${box.height}px`;
+      `position:absolute;box-sizing:border-box;border:${line.border}px solid ${color};border-radius:${BOX.radius}px;` +
+      (line.ring ? `box-shadow:0 0 0 ${line.ring}px ${ON_COLOR};` : '') +
+      `left:${box.x}px;top:${box.y}px;width:${box.width}px;height:${box.height}px`;
     layer.appendChild(element);
     return element;
   };
@@ -428,7 +437,12 @@ export function runtime(properties: string[], ignore: string[] = [], showIgnored
     drawn: HTMLElement[],
   ): Span | null => {
     const elements = groupsOf(change.changed, tokens).map(rects =>
-      drawBox(layer, color, onPage(grow(pageBox(around(rects)), WORD_BOX_MARGIN.x, WORD_BOX_MARGIN.y))),
+      drawBox(
+        layer,
+        color,
+        onPage(grow(pageBox(around(rects)), WORD_BOX_MARGIN.x, WORD_BOX_MARGIN.y)),
+        WORD_BOX,
+      ),
     );
     drawn.push(...elements);
     const boxes = elements.map(element => element.getBoundingClientRect());

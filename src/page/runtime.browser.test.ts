@@ -223,10 +223,19 @@ describe('mark', () => {
     expect(box.getBoundingClientRect().height).toBeGreaterThan(36); // around every line of the block
   });
 
-  test('gives a box a white ring outside it', () => {
-    const p = page('<p>aa bb</p>');
-    p.mark(marks({ words: [{ changed: [0], anchors: [1] }] }));
-    expect(drawn()[0].style.boxShadow).toContain('255, 255, 255');
+  test("gives an element's box a white ring outside it, and a word box none", () => {
+    const p = page('<p>aa bb</p><button style="position:absolute;top:100px;left:20px">b</button>');
+    const button = p.reading.elements.findIndex(e => e.tag === 'button');
+    p.mark(
+      marks({
+        words: [{ changed: [0], anchors: [1] }],
+        looks: [{ index: button, badge: { label: 'background' } }],
+      }),
+    );
+    const [word, element] = drawn();
+    expect(word.style.boxShadow).toBe('');
+    expect(word.style.borderWidth).toBe('2px');
+    expect(element.style.boxShadow).toContain('255, 255, 255');
   });
 
   const twoButtons =
