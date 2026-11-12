@@ -27,6 +27,7 @@ const OPTIONS: Options = {
   click: [],
   wait: 0,
   ignore: [],
+  showIgnored: false,
   padding: 80,
   maxHeight: 2400,
   selector: null,

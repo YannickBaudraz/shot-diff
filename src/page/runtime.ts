@@ -28,7 +28,7 @@ export type Spans = { words: (Span | null)[]; looks: Span[] };
 
 /** The page's runtime, reading the page's words and the `properties` of its elements before anything
  * is drawn over it. */
-export function runtime(properties: string[], ignore: string[] = []) {
+export function runtime(properties: string[], ignore: string[] = [], showIgnored = false) {
   /** A word, as a stretch of a text node, or an image. */
   type Token = { node: Text; start: number; end: number } | { image: Element };
 
@@ -525,8 +525,8 @@ export function runtime(properties: string[], ignore: string[] = []) {
     return { ...region, changed: region, inside: true, clipped: false };
   };
 
-  /** A dashed grey box, with "ignored" on it, around each area --ignore leaves out, so a reader can
-   * tell it was left out on purpose, not missed. One inside another is the outer one's; one that
+  /** A dashed grey box, with "ignored" on it, around each area --ignore leaves out, with
+   * --show-ignored: so a reader can tell it was left out on purpose, not missed. One inside another is the outer one's; one that
    * does not show gets none. It is no change: it says nothing of where the shots go. */
   const drawIgnored = (layer: HTMLElement, taken: Box[]) => {
     for (const element of ignored) {
@@ -616,7 +616,7 @@ export function runtime(properties: string[], ignore: string[] = []) {
         undo.looks.push(removing(drawn));
         return { ...span, inside: inside(element ? [element] : []) };
       });
-      drawIgnored(under, taken);
+      if (showIgnored) drawIgnored(under, taken);
       return { words, looks };
     },
 

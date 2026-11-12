@@ -111,9 +111,18 @@ const EXAMPLES: Example[] = [
     name: 'Parts of the page left out',
     title: 'Team activity: export renamed, plan highlighted',
     shows:
-      'With `--ignore`, the elements named are left out of the comparison: here the time of the last update and the list of recent activity, which differ on every load. They get a dashed grey box saying they were ignored, not missed; the button renamed and the plan restyled around them are marked as usual. Without `--ignore`, the time and every name in the list would be boxed.',
+      'With `--ignore`, the elements named are left out of the comparison: here the time of the last update and the list of recent activity, which differ on every load. They show as they are, with no mark; the button renamed and the plan restyled around them are marked as usual. Without `--ignore`, the time and every name in the list would be boxed.',
     pages: ['activity/before.html', 'activity/after.html'],
     options: ['--ignore', '.updated', '--ignore', '.activity'],
+  },
+  {
+    id: 'show-ignored',
+    name: 'Parts of the page left out, and shown',
+    title: 'Team activity: export renamed, plan highlighted',
+    shows:
+      'The same, with `--show-ignored`: each part left out gets a dashed grey box saying it was ignored, so a reader can tell it was left out on purpose, not missed.',
+    pages: ['activity/before.html', 'activity/after.html'],
+    options: ['--ignore', '.updated', '--ignore', '.activity', '--show-ignored'],
   },
   {
     id: 'scroll-area',
@@ -229,6 +238,7 @@ async function shootByHand(example: Example, folder: string): Promise<void> {
       click: [],
       wait: 300,
       ignore: [],
+      showIgnored: false,
       padding: 80,
       maxHeight: 2400,
       selector: null,

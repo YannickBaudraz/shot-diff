@@ -21,7 +21,7 @@ const CASES: { name: string; before: string; after: string; args?: string[] }[] 
     name: 'ignored',
     before: 'activity/before.html',
     after: 'activity/after.html',
-    args: ['--ignore', '.updated', '--ignore', '.activity'],
+    args: ['--ignore', '.updated', '--ignore', '.activity', '--show-ignored'],
   },
   { name: 'dashboard-labels', before: 'dashboard/before.html', after: 'dashboard/after.html' },
   {

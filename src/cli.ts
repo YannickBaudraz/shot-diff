@@ -95,6 +95,7 @@ A local file is a file:// URL.`,
     append,
     [],
   )
+  .option('--show-ignored', 'box what --ignore leaves out in dashed grey, saying it is ignored', false)
   .option('--selector <css>', 'only look at changes inside this element; the rest are ignored')
   .option('--padding <px>', 'room around the changes', nonNegativeNumber, 80)
   .addOption(

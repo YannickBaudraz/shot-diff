@@ -27,6 +27,7 @@ export type LoadOptions = {
   click: string[]; // selectors to click after loading, in order
   wait: number; // milliseconds to wait after loading and clicking
   ignore: string[]; // selectors of the elements left out of the comparison, all inside them included
+  showIgnored: boolean; // box each of them in dashed grey, saying it is ignored
 };
 
 /** A page opened for one side: loaded, clicked and waited for, and not read yet. */
@@ -102,7 +103,7 @@ export async function open(
       read: async handled => {
         const [page] = context.pages();
         if (!page) throw new Error(`the ${side} page's window was closed before it was shot`);
-        return read(page, side, options.ignore, handled, close, work => work());
+        return read(page, side, options, handled, close, work => work());
       },
       close,
     };
@@ -152,7 +153,7 @@ export async function openTabs(
         if (!page) throw new Error(`the ${side} page's tab was closed before it was shot`);
         // Chrome draws the tab in front only: each shot waits its turn, with its tab brought forward.
         const inFront = <T>(work: () => Promise<T>) => inTurn(() => page.bringToFront().then(work));
-        return read(page, side, options.ignore, handled, close, inFront);
+        return read(page, side, options, handled, close, inFront);
       },
       close,
     }));
@@ -259,14 +260,14 @@ async function visit(page: Page, url: string, options: LoadOptions): Promise<voi
 async function read(
   page: Page,
   side: Side,
-  ignore: string[],
+  { ignore, showIgnored }: Pick<LoadOptions, 'ignore' | 'showIgnored'>,
   handled: boolean,
   close: () => Promise<void>,
   shooting: <T>(shot: () => Promise<T>) => Promise<T>,
 ): Promise<LoadedPage> {
   if (handled) await page.mouse.move(-1, -1);
   await page.evaluate(
-    `window.__shotDiff = (${runtime.toString()})(${JSON.stringify(Object.keys(PROPERTIES))}, ${JSON.stringify(ignore)})`,
+    `window.__shotDiff = (${runtime.toString()})(${JSON.stringify(Object.keys(PROPERTIES))}, ${JSON.stringify(ignore)}, ${showIgnored})`,
   );
   const { words, elements, width, ignored } = await page.evaluate(() => window.__shotDiff.reading);
   return {

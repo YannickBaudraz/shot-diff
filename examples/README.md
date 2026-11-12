@@ -192,7 +192,7 @@ shot-diff: 2 change(s) outside --selector ignored (listed under "ignored" in --j
 
 ## Parts of the page left out
 
-With `--ignore`, the elements named are left out of the comparison: here the time of the last update and the list of recent activity, which differ on every load. They get a dashed grey box saying they were ignored, not missed; the button renamed and the plan restyled around them are marked as usual. Without `--ignore`, the time and every name in the list would be boxed.
+With `--ignore`, the elements named are left out of the comparison: here the time of the last update and the list of recent activity, which differ on every load. They show as they are, with no mark; the button renamed and the plan restyled around them are marked as usual. Without `--ignore`, the time and every name in the list would be boxed.
 
 ```sh
 shot-diff "file://$PWD/e2e/fixtures/activity/before.html" "file://$PWD/e2e/fixtures/activity/after.html" \
@@ -207,6 +207,24 @@ examples/ignore/shot-after.png: 2 part(s) added
 | Before | After |
 |---|---|
 | ![before](ignore/shot-before.png) | ![after](ignore/shot-after.png) |
+
+## Parts of the page left out, and shown
+
+The same, with `--show-ignored`: each part left out gets a dashed grey box saying it was ignored, so a reader can tell it was left out on purpose, not missed.
+
+```sh
+shot-diff "file://$PWD/e2e/fixtures/activity/before.html" "file://$PWD/e2e/fixtures/activity/after.html" \
+  --title "Team activity: export renamed, plan highlighted" --ignore .updated --ignore .activity --show-ignored
+```
+
+```
+examples/show-ignored/shot-before.png: 2 part(s) removed
+examples/show-ignored/shot-after.png: 2 part(s) added
+```
+
+| Before | After |
+|---|---|
+| ![before](show-ignored/shot-before.png) | ![after](show-ignored/shot-after.png) |
 
 ## A change a scroll area cuts off
 
