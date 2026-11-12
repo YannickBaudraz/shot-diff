@@ -52,9 +52,10 @@ export function runtime(properties: string[], ignore: string[] = [], showIgnored
   const TOUCHING = 2;
   const IMAGE_OUTLINE = { width: 3, offset: 2 };
   const WORD_BOX_MARGIN = { x: 2, y: 3 }; // between a line of changed words and its box
-  // A word box sits in running text, a few pixels from the next word: a thinner line and no ring,
-  // so it does not cover the end of the word before it.
-  const WORD_BOX = { border: 2, ring: 0 };
+  // A word box sits in running text, a few pixels from the next word: a thinner line and a thinner
+  // ring, so it does not cover the end of the word before it. The ring stays: without it a green
+  // box on a green button does not show.
+  const WORD_BOX = { border: 2, ring: 1 };
   const ANCHOR_REACH = 120; // how far from a change the unchanged words around it still place it
   const SNAP_CLEARANCE = 6; // between a moved shot edge and the line of text it would have cut
   const IGNORED_COLOR = '#6e7781'; // an area --ignore leaves out: grey, so it reads as no change
