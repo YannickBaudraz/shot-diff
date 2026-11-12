@@ -488,7 +488,8 @@ export function runtime(properties: string[], ignore: string[] = [], showIgnored
   /** Where the label of `box` goes, as a box in page pixels: of the places around the box that are
    * on the page, the one that covers the fewest of `taken`, the page's words and the labels before
    * it. Above the box, on its left, comes first; then below it, then the same two on its right,
-   * then beside it. At the top of the page there is no place above. */
+   * then inside it at the top, then beside it. At the top of the page there is no place above, and
+   * a place that would run off the page's side is none. */
   const labelPlace = (box: Box, width: number, height: number, avoid: Avoid): Box => {
     const pageWidth = document.documentElement.clientWidth;
     // Along the box's edge, kept on the page: a box at the page's edge starts a little outside it.
@@ -502,7 +503,7 @@ export function runtime(properties: string[], ignore: string[] = [], showIgnored
       left: box.x + BOX.border,
       right: box.x + box.width - BOX.border - width,
     };
-    const places = [
+    const all = [
       ...(above >= 0 ? [{ x: left, y: above }] : []),
       { x: left, y: below },
       ...(above >= 0 ? [{ x: right, y: above }] : []),
@@ -511,6 +512,10 @@ export function runtime(properties: string[], ignore: string[] = [], showIgnored
       ...(inside.right > inside.left ? [{ x: inside.right, y: inside.y }] : []),
       ...(beside + width <= pageWidth ? [{ x: beside, y: Math.max(0, box.y) }] : []),
     ].map(corner => ({ ...corner, width, height }));
+    // A place that runs off the page's side would cut the label: one beside a box at the page's
+    // right edge, started at the box's left. Such places are left out, unless all of them do.
+    const onThePage = all.filter(place => place.x >= 0 && place.x + width <= pageWidth);
+    const places = onThePage.length ? onThePage : all;
     // Hiding a word or a label loses what it says; crossing another box's line leaves it a box.
     const own = keyOf(box);
     const cost = (place: Box) =>

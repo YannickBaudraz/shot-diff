@@ -339,6 +339,15 @@ describe('mark', () => {
     expect(label.bottom).toBeLessThanOrEqual(box.bottom);
   });
 
+  test("a label stays on the page beside a box at the page's right edge", () => {
+    const p = page('<button style="position:absolute;top:100px;right:10px">b</button>');
+    const index = p.reading.elements.findIndex(e => e.tag === 'button');
+    p.mark(marks({ looks: [{ index, badge: { label: 'text colour, background, border colour' } }] }));
+    const label = drawn()[0].firstElementChild!.getBoundingClientRect();
+    expect(label.right).toBeLessThanOrEqual(document.documentElement.clientWidth);
+    expect(label.left).toBeGreaterThanOrEqual(0);
+  });
+
   test('a disc is the image it is given, on the box, with no label', () => {
     const p = page(twoButtons);
     const src = 'data:image/png;base64,iVBORw0KGgo=';
