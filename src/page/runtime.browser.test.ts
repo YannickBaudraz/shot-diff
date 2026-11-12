@@ -52,6 +52,18 @@ describe('read, with elements ignored', () => {
     expect(p.reading.elements.map(e => e.signature)).toEqual(['P keep']);
     expect(p.reading.ignored).toEqual([2, 0]);
   });
+
+  test('gets a dashed box saying so when the page is marked, one for an area in another', () => {
+    document.body.innerHTML = STYLE + '<p>keep</p><div class="data"><p class="data">12</p></div>';
+    const p = new Function(
+      `return (${runtime.toString()})(${JSON.stringify(PROPS)}, ${JSON.stringify(['.data'])})`,
+    )() as Runtime;
+    p.mark(marks({}));
+    const [box, ...more] = drawn();
+    expect(more).toHaveLength(0);
+    expect(box.style.borderStyle).toBe('dashed');
+    expect(box.textContent).toBe('ignored');
+  });
 });
 
 describe('read', () => {

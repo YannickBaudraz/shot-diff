@@ -47,6 +47,8 @@ export function runtime(properties: string[], ignore: string[] = []) {
   const IMAGE_OUTLINE = { width: 3, offset: 2 };
   const WORD_BOX_MARGIN = { x: 4, y: 3 }; // between a line of changed words and its box
   const SNAP_CLEARANCE = 6; // between a moved shot edge and the line of text it would have cut
+  const IGNORED_COLOR = '#6e7781'; // an area --ignore leaves out: grey, so it reads as no change
+  const IGNORED_MARGIN = 2; // close around it, so areas next to each other keep apart
   const ON_COLOR = '#ffffff'; // a label's words and a box's ring: ON_SIDE_COLOR in side.ts, which this code cannot import
 
   const rangeOf = (token: Token) => {
@@ -523,6 +525,21 @@ export function runtime(properties: string[], ignore: string[] = []) {
     return { ...region, changed: region, inside: true, clipped: false };
   };
 
+  /** A dashed grey box, with "ignored" on it, around each area --ignore leaves out, so a reader can
+   * tell it was left out on purpose, not missed. One inside another is the outer one's; one that
+   * does not show gets none. It is no change: it says nothing of where the shots go. */
+  const drawIgnored = (layer: HTMLElement, taken: Box[]) => {
+    for (const element of ignored) {
+      const inner = [...ignored].some(other => other !== element && inTreeOf(other, element));
+      const rect = element.getBoundingClientRect();
+      if (inner || !rect.width || !rect.height) continue;
+      const box = onPage(grow(pageBox(rect), IGNORED_MARGIN));
+      const boxElement = drawBox(layer, IGNORED_COLOR, box);
+      boxElement.style.borderStyle = 'dashed';
+      drawLabel(boxElement, 'ignored', IGNORED_COLOR, box, taken);
+    }
+  };
+
   /** Where a change of look is on a page that has not its element: at that `edge` of `element`,
    * which is not boxed, or at the top of the page with none. An element `beside` it is taken in
    * whole, so the shot shows what both pages have around the place, not a cut through it. */
@@ -571,6 +588,7 @@ export function runtime(properties: string[], ignore: string[] = []) {
     mark(marks: Marks): Spans {
       marked = true;
       const outlines = outlineImages(marks, tokens);
+      const under = overlay(); // the areas left out, under the changes' marks
       const layer = overlay();
       const removing = (drawn: HTMLElement[]) => drawn.map(element => () => element.remove());
       // In the element's tree, the shadow trees inside it included, wherever layout puts it: an
@@ -598,6 +616,7 @@ export function runtime(properties: string[], ignore: string[] = []) {
         undo.looks.push(removing(drawn));
         return { ...span, inside: inside(element ? [element] : []) };
       });
+      drawIgnored(under, taken);
       return { words, looks };
     },
 

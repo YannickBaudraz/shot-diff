@@ -109,11 +109,11 @@ const EXAMPLES: Example[] = [
   {
     id: 'ignore',
     name: 'Parts of the page left out',
-    title: 'Dashboard: August figures, orders left out',
+    title: 'Team activity: export renamed, plan highlighted',
     shows:
-      'With `--ignore`, the elements named are left out of the comparison: here the table of orders, whose rows are data that differs from one page to the other. The row added and the badge restyled in it are not marked; with nothing else changed below, the shot stops above the table. The rest of the page is compared as usual.',
-    pages: ['dashboard/before.html', 'dashboard/after.html'],
-    options: ['--ignore', 'table'],
+      'With `--ignore`, the elements named are left out of the comparison: here the time of the last update and the list of recent activity, which differ on every load. They get a dashed grey box saying they were ignored, not missed; the button renamed and the plan restyled around them are marked as usual. Without `--ignore`, the time and every name in the list would be boxed.',
+    pages: ['activity/before.html', 'activity/after.html'],
+    options: ['--ignore', '.updated', '--ignore', '.activity'],
   },
   {
     id: 'scroll-area',
