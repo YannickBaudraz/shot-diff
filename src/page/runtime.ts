@@ -46,6 +46,7 @@ export function runtime(properties: string[], ignore: string[] = [], showIgnored
   const TOUCHING = 2;
   const IMAGE_OUTLINE = { width: 3, offset: 2 };
   const WORD_BOX_MARGIN = { x: 4, y: 3 }; // between a line of changed words and its box
+  const ANCHOR_REACH = 120; // how far from a change the unchanged words around it still place it
   const SNAP_CLEARANCE = 6; // between a moved shot edge and the line of text it would have cut
   const IGNORED_COLOR = '#6e7781'; // an area --ignore leaves out: grey, so it reads as no change
   const IGNORED_MARGIN = 2; // close around it, so areas next to each other keep apart
@@ -424,7 +425,13 @@ export function runtime(properties: string[], ignore: string[] = [], showIgnored
     );
     drawn.push(...elements);
     const boxes = elements.map(element => element.getBoundingClientRect());
-    const shown = [...boxes, ...change.anchors.flatMap(i => rectsOf(tokens[i]))];
+    const shown = [
+      ...boxes,
+      ...near(
+        boxes,
+        change.anchors.map(i => rectsOf(tokens[i])),
+      ),
+    ];
     if (!shown.length) return null;
     return {
       ...inPage(pageRegion(shown)),
@@ -432,6 +439,18 @@ export function runtime(properties: string[], ignore: string[] = [], showIgnored
       inside: true,
       clipped: change.changed.length > 0 && !boxes.length,
     };
+  };
+
+  /** The rectangles of the unchanged words around a change that are near it, each word's given
+   * nearest first: those within ANCHOR_REACH of the change's boxes, or with none, of the nearest
+   * word. A word far off, past a gap in the page, would stretch the shot over all the gap. */
+  const near = (boxes: DOMRect[], words: DOMRect[][]): DOMRect[] => {
+    const rects = words.flat();
+    const from = boxes.length ? boxes : (words.find(word => word.length) ?? []);
+    if (!from.length) return rects;
+    const top = Math.min(...from.map(r => r.top)) - ANCHOR_REACH;
+    const bottom = Math.max(...from.map(r => r.bottom)) + ANCHOR_REACH;
+    return rects.filter(r => r.bottom >= top && r.top <= bottom);
   };
 
   /** Where a disc goes: on a box's top left corner, kept inside the page. */

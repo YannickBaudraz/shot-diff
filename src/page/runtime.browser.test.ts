@@ -209,6 +209,12 @@ describe('mark', () => {
     expect(changed!.top).toBeLessThan(changed!.bottom);
   });
 
+  test('a change is placed by the unchanged words near it, not by those past a gap', () => {
+    const p = page('<p>aa bb</p><div style="height:2000px"></div><p>cc dd</p>');
+    const { words } = p.mark(marks({ words: [{ changed: [1], anchors: [0, 2, 3] }] }));
+    expect(words[0]!.bottom).toBeLessThan(200); // not down to "cc dd", 2000px below
+  });
+
   test('boxes a block whose words all changed once, however many lines it wraps to', () => {
     const p = page('<p style="width:120px">aa bb cc dd ee ff gg hh</p><p>ii jj</p>');
     p.mark(marks({ words: [{ changed: [0, 1, 2, 3, 4, 5, 6, 7], anchors: [8] }] }));
