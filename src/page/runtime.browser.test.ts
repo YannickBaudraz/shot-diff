@@ -291,6 +291,45 @@ describe('mark', () => {
     expect(second.right).toBe(box.right);
   });
 
+  test("a label does not cross another box's line when a place keeps clear of it", () => {
+    // Two boxes 12px apart: above the lower one, its label would cross the upper one's bottom line.
+    const p = page(
+      '<div style="height:40px;margin:60px 20px 0;width:200px" id="a"></div>' +
+        '<div style="height:40px;margin:12px 20px 0;width:200px" id="b"></div>',
+    );
+    const index = (id: string) => p.reading.elements.findIndex(e => e.signature.includes(`#${id}`));
+    p.mark(
+      marks({
+        looks: [
+          { index: index('a'), badge: { label: 'size' } },
+          { index: index('b'), badge: { label: 'corners' } },
+        ],
+      }),
+    );
+    const [upper, lower] = drawn().map(box => box.getBoundingClientRect());
+    const label = drawn()[1].firstElementChild!.getBoundingClientRect();
+    const crossesUpper = label.top < upper.bottom && label.bottom > upper.bottom - 3;
+    expect(crossesUpper).toBe(false);
+    expect(label.top).toBeGreaterThanOrEqual(lower.top - 1);
+  });
+
+  test('a label goes inside its box, at the top, when every place outside hides words', () => {
+    const line = (text: string) =>
+      `<p style="margin:0;width:300px;text-align-last:justify">${text} ${text} ${text} ${text} ${text}</p>`;
+    const p = page(
+      line('above') +
+        '<div id="x" style="height:60px;width:300px;margin:10px 0"></div>' +
+        line('below') +
+        '<span style="position:absolute;left:300px;top:30px">beside beside beside beside</span>',
+    );
+    const index = p.reading.elements.findIndex(e => e.signature.includes('#x'));
+    p.mark(marks({ looks: [{ index, badge: { label: 'size' } }] }));
+    const box = drawn()[0].getBoundingClientRect();
+    const label = drawn()[0].firstElementChild!.getBoundingClientRect();
+    expect(label.top).toBeGreaterThanOrEqual(box.top);
+    expect(label.bottom).toBeLessThanOrEqual(box.bottom);
+  });
+
   test('a disc is the image it is given, on the box, with no label', () => {
     const p = page(twoButtons);
     const src = 'data:image/png;base64,iVBORw0KGgo=';

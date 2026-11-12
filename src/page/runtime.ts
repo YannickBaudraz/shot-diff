@@ -29,6 +29,12 @@ export type Spans = { words: (Span | null)[]; looks: Span[] };
 /** The page's runtime, reading the page's words and the `properties` of its elements before anything
  * is drawn over it. */
 export function runtime(properties: string[], ignore: string[] = [], showIgnored = false) {
+  /** A box's line, as a thin box, with the box it is of (keyOf), which its own label may cross. */
+  type Line = Box & { of: string };
+  /** What a label avoids: what it would hide (words, images, labels), and the boxes' lines. */
+  type Avoid = { taken: Box[]; lines: Line[] };
+  const keyOf = (box: Box) => `${box.x} ${box.y} ${box.width} ${box.height}`;
+
   /** A word, as a stretch of a text node, or an image. */
   type Token = { node: Text; start: number; end: number } | { image: Element };
 
@@ -50,6 +56,7 @@ export function runtime(properties: string[], ignore: string[] = [], showIgnored
   const SNAP_CLEARANCE = 6; // between a moved shot edge and the line of text it would have cut
   const IGNORED_COLOR = '#6e7781'; // an area --ignore leaves out: grey, so it reads as no change
   const IGNORED_MARGIN = 2; // close around it, so areas next to each other keep apart
+  const HIDING = 10; // how much worse a label hiding a word or a label is than one crossing a box's line
   const ON_COLOR = '#ffffff'; // a label's words and a box's ring: ON_SIDE_COLOR in side.ts, which this code cannot import
 
   const rangeOf = (token: Token) => {
@@ -468,7 +475,7 @@ export function runtime(properties: string[], ignore: string[] = [], showIgnored
    * on the page, the one that covers the fewest of `taken`, the page's words and the labels before
    * it. Above the box, on its left, comes first; then below it, then the same two on its right,
    * then beside it. At the top of the page there is no place above. */
-  const labelPlace = (box: Box, width: number, height: number, taken: Box[]): Box => {
+  const labelPlace = (box: Box, width: number, height: number, avoid: Avoid): Box => {
     const pageWidth = document.documentElement.clientWidth;
     // Along the box's edge, kept on the page: a box at the page's edge starts a little outside it.
     const left = Math.max(0, box.x);
@@ -476,16 +483,58 @@ export function runtime(properties: string[], ignore: string[] = [], showIgnored
     const above = box.y + BOX.border - LABEL.gap - height;
     const below = box.y + box.height - BOX.border + LABEL.gap;
     const beside = box.x + box.width + LABEL.gap;
+    const inside = {
+      y: box.y + BOX.border,
+      left: box.x + BOX.border,
+      right: box.x + box.width - BOX.border - width,
+    };
     const places = [
       ...(above >= 0 ? [{ x: left, y: above }] : []),
       { x: left, y: below },
       ...(above >= 0 ? [{ x: right, y: above }] : []),
       { x: right, y: below },
+      { x: inside.left, y: inside.y },
+      ...(inside.right > inside.left ? [{ x: inside.right, y: inside.y }] : []),
       ...(beside + width <= pageWidth ? [{ x: beside, y: Math.max(0, box.y) }] : []),
     ].map(corner => ({ ...corner, width, height }));
-    const hides = (place: Box) => taken.filter(other => covers(place, other)).length;
-    return places.reduce((best, place) => (hides(place) < hides(best) ? place : best));
+    // Hiding a word or a label loses what it says; crossing another box's line leaves it a box.
+    const own = keyOf(box);
+    const cost = (place: Box) =>
+      HIDING * avoid.taken.filter(other => covers(place, other)).length +
+      avoid.lines.filter(line => line.of !== own && covers(place, line)).length;
+    return places.reduce((best, place) => (cost(place) < cost(best) ? place : best));
   };
+
+  /** A box's four lines, each as a thin box, with the box they are of. */
+  const edgesOf = (box: Box): Line[] => {
+    const of = keyOf(box);
+    const t = BOX.border;
+    return [
+      { x: box.x, y: box.y, width: box.width, height: t, of },
+      { x: box.x, y: box.y + box.height - t, width: box.width, height: t, of },
+      { x: box.x, y: box.y, width: t, height: box.height, of },
+      { x: box.x + box.width - t, y: box.y, width: t, height: box.height, of },
+    ];
+  };
+
+  /** The box around what shows of an element whose look changed, or null when a scroll area shows
+   * none of it. */
+  const lookBox = (element: Element): Box | null => {
+    const rect = element.getBoundingClientRect();
+    const clipper = getComputedStyle(element).position === 'fixed' ? null : shownIn(element);
+    const shown = shownPart(rect, clipper);
+    return shown && onPage(grow(pageBox(shown), BOX.margin));
+  };
+
+  /** The areas --ignore leaves out that get a dashed box, each with its box: one inside another is
+   * the outer one's, and one that does not show gets none. */
+  const ignoredBoxes = (): { element: Element; box: Box }[] =>
+    [...ignored].flatMap(element => {
+      const inner = [...ignored].some(other => other !== element && inTreeOf(other, element));
+      const rect = element.getBoundingClientRect();
+      if (inner || !rect.width || !rect.height) return [];
+      return [{ element, box: onPage(grow(pageBox(rect), IGNORED_MARGIN)) }];
+    });
 
   /** A numbered disc on a box's top left corner. */
   const drawDisc = (layer: HTMLElement, disc: { src: string; size: number }, box: Box) => {
@@ -498,7 +547,7 @@ export function runtime(properties: string[], ignore: string[] = [], showIgnored
   };
 
   /** What changed, on a tag by the box, where it hides the least of `taken`: it is added to them. */
-  const drawLabel = (boxElement: HTMLElement, label: string, color: string, box: Box, taken: Box[]) => {
+  const drawLabel = (boxElement: HTMLElement, label: string, color: string, box: Box, avoid: Avoid) => {
     const tag = document.createElement('div');
     tag.textContent = label;
     tag.style.cssText =
@@ -506,11 +555,11 @@ export function runtime(properties: string[], ignore: string[] = [], showIgnored
       `border-radius:${BOX.radius}px;white-space:nowrap;background:${color};color:${ON_COLOR};font:${LABEL.font}`;
     boxElement.appendChild(tag);
     const { width, height } = tag.getBoundingClientRect();
-    const place = labelPlace(box, width, height, taken);
+    const place = labelPlace(box, width, height, avoid);
     // From the inside of the box's border, which is what a tag inside the box is placed from.
     tag.style.left = `${place.x - box.x - BOX.border}px`;
     tag.style.top = `${place.y - box.y - BOX.border}px`;
-    taken.push(place);
+    avoid.taken.push(place);
     return tag;
   };
 
@@ -524,19 +573,22 @@ export function runtime(properties: string[], ignore: string[] = [], showIgnored
     layer: HTMLElement,
     color: string,
     drawn: HTMLElement[],
-    taken: Box[],
+    avoid: Avoid,
   ): Span => {
-    const rect = element.getBoundingClientRect();
-    const clipper = getComputedStyle(element).position === 'fixed' ? null : shownIn(element);
-    const shown = shownPart(rect, clipper);
-    if (!shown) return { ...inPage(pageRegion([rect])), changed: null, inside: true, clipped: true };
-    const box = onPage(grow(pageBox(shown), BOX.margin));
+    const box = lookBox(element);
+    if (!box)
+      return {
+        ...inPage(pageRegion([element.getBoundingClientRect()])),
+        changed: null,
+        inside: true,
+        clipped: true,
+      };
     const boxElement = drawBox(layer, color, box);
     const badge =
       'disc' in badgeOf
         ? drawDisc(layer, badgeOf.disc, box)
         : 'label' in badgeOf
-          ? drawLabel(boxElement, badgeOf.label, color, box, taken)
+          ? drawLabel(boxElement, badgeOf.label, color, box, avoid)
           : boxElement;
     drawn.push(boxElement);
     if (badge.parentElement !== boxElement && badge !== boxElement) drawn.push(badge);
@@ -547,15 +599,11 @@ export function runtime(properties: string[], ignore: string[] = [], showIgnored
   /** A dashed grey box, with "ignored" on it, around each area --ignore leaves out, with
    * --show-ignored: so a reader can tell it was left out on purpose, not missed. One inside another is the outer one's; one that
    * does not show gets none. It is no change: it says nothing of where the shots go. */
-  const drawIgnored = (layer: HTMLElement, taken: Box[]) => {
-    for (const element of ignored) {
-      const inner = [...ignored].some(other => other !== element && inTreeOf(other, element));
-      const rect = element.getBoundingClientRect();
-      if (inner || !rect.width || !rect.height) continue;
-      const box = onPage(grow(pageBox(rect), IGNORED_MARGIN));
+  const drawIgnored = (layer: HTMLElement, avoid: Avoid) => {
+    for (const { box } of ignoredBoxes()) {
       const boxElement = drawBox(layer, IGNORED_COLOR, box);
       boxElement.style.borderStyle = 'dashed';
-      drawLabel(boxElement, 'ignored', IGNORED_COLOR, box, taken);
+      drawLabel(boxElement, 'ignored', IGNORED_COLOR, box, avoid);
     }
   };
 
@@ -614,28 +662,40 @@ export function runtime(properties: string[], ignore: string[] = [], showIgnored
       // ancestor around it, or a column beside it, is outside.
       const scope = marks.within ? document.querySelector(marks.within) : null;
       const inside = (nodes: Node[]) => !marks.within || nodes.some(node => !!scope && inTreeOf(scope, node));
+      const wordBoxes: HTMLElement[] = [];
       const words = marks.words.map((change, i) => {
         const drawn: HTMLElement[] = [];
         const span = boxWords(change, tokens, layer, marks.color, drawn);
+        wordBoxes.push(...drawn);
         undo.words.push([...outlines[i], ...removing(drawn)]);
         const nodes = change.changed
           .map(t => tokens[t])
           .map(token => ('image' in token ? token.image : token.node));
         return span && { ...span, inside: inside(nodes) };
       });
-      // What a label should not hide: the page's words and images, and the labels placed before it.
-      const taken = tokens.flatMap(rectsOf).map(pageBox);
+      // What a label should not hide: the page's words and images, and the labels placed before it;
+      // and, less, the lines of every box: the words', the looks', and the areas left out.
+      const boxes = [
+        ...wordBoxes.map(element => pageBox(element.getBoundingClientRect())),
+        ...marks.looks.flatMap(look => {
+          const element = domElements[look.index];
+          const box = look.badge && element ? lookBox(element) : null;
+          return box ? [box] : [];
+        }),
+        ...(showIgnored ? ignoredBoxes().map(area => area.box) : []),
+      ];
+      const avoid: Avoid = { taken: tokens.flatMap(rectsOf).map(pageBox), lines: boxes.flatMap(edgesOf) };
       const looks = marks.looks.map(look => {
         const drawn: HTMLElement[] = [];
         const element: Element | undefined = domElements[look.index];
         const span =
           look.badge && element
-            ? boxLook(look.badge, element, layer, marks.color, drawn, taken)
+            ? boxLook(look.badge, element, layer, marks.color, drawn, avoid)
             : placeAt(element, look.edge ?? 'top', look.beside);
         undo.looks.push(removing(drawn));
         return { ...span, inside: inside(element ? [element] : []) };
       });
-      if (showIgnored) drawIgnored(under, taken);
+      if (showIgnored) drawIgnored(under, avoid);
       return { words, looks };
     },
 
