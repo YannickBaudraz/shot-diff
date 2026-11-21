@@ -1,6 +1,6 @@
 // The images themselves, compared with the reference images in __image_snapshots__: a box in the
 // wrong place, a label hiding a word or a band drawn wrong fails here, where the JSON would pass.
-// Update the references with `npx vitest run -u` after a change meant to alter them.
+// Update the references with `npm run test:e2e -- -u` after a change meant to alter them.
 //
 // Text renders with the machine's fonts, which differ from one machine to another; the references
 // are made on a developer's machine, so these tests do not run on CI.

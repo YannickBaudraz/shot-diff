@@ -352,11 +352,11 @@ opens. To get the Linux one anyway, name it: `--chrome /usr/bin/google-chrome`.
 
 ```sh
 npm install
-npm test          # vitest, needs Chrome: units in Node, src/page/runtime.ts in Chrome (browser mode),
-                  # the command on fixture pages, and its images against e2e/__image_snapshots__
-npx vitest run -u # update the reference images after a change meant to alter them
-npm run check     # types
-npm run build     # vite: dist/cli.js
+npm test                  # vitest, needs Chrome: units in Node, src/page/runtime.ts in Chrome (browser mode)
+npm run test:e2e          # the command on fixture pages, and its images against e2e/__image_snapshots__
+npm run test:e2e -- -u    # update the reference images after a change meant to alter them
+npm run check             # types
+npm run build             # vite: dist/cli.js
 ```
 
 The reference images depend on the fonts of the machine that made them, so CI does not compare them.

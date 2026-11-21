@@ -22,7 +22,8 @@
     "build": "vite build",
     "prepare": "vite build",
     "check": "tsc",
-    "test": "vitest run",
+    "test": "vitest run --project node --project browser",
+    "test:e2e": "vitest run --project e2e",
     "examples": "node examples/generate.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
