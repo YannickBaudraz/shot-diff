@@ -17,10 +17,8 @@ export default defineConfig({
         extends: true,
         test: {
           name: 'node',
-          include: ['src/**/*.test.ts', 'e2e/**/*.test.ts'],
+          include: ['src/**/*.test.ts'],
           exclude: ['src/**/*.browser.test.ts'],
-          // The command tests open Chrome.
-          testTimeout: 60_000,
         },
       },
       {
@@ -35,6 +33,15 @@ export default defineConfig({
             provider: playwright({ launchOptions: { channel: 'chrome' } }),
             instances: [{ browser: 'chromium', viewport: { width: 1000, height: 700 } }],
           },
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: 'e2e',
+          include: ['e2e/**/*.test.ts'],
+          // The command tests open Chrome.
+          testTimeout: 60_000,
         },
       },
     ],

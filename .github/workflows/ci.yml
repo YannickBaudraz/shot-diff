@@ -22,5 +22,6 @@ jobs:
       - run: npm run format:check
       # GitHub's Ubuntu runners come with Google Chrome, which the tool uses by default.
       - run: npm test
+      - run: npm run test:e2e
       # The built command, as it is installed: bundling must keep the page's runtime self-contained.
       - run: node dist/cli.js "file://$PWD/e2e/fixtures/dashboard/before.html" "file://$PWD/e2e/fixtures/dashboard/after.html" --title CI --out "$RUNNER_TEMP/shots"
