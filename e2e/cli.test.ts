@@ -232,6 +232,24 @@ describe('--dry-run', () => {
     ]);
   });
 
+  test('says that changes in no part need one more run without --selector, when no change is in a part', () => {
+    const dry = shotDiffText(page('parts/none-before.html'), page('parts/none-after.html'), '--dry-run');
+    expect(dry.status, dry.stderr).toBe(0);
+    expect(dry.stdout).toMatch(
+      /^1 change\(s\) are in no part narrower than the page: shoot them with one more run, without --selector$/m,
+    );
+    expect(dry.stdout).not.toContain('part(s) of the page changed');
+  });
+
+  test('says that changes in no part need one more run without --selector, after the parts', () => {
+    const dry = shotDiffText(page('parts/mixed-before.html'), page('parts/mixed-after.html'), '--dry-run');
+    expect(dry.status, dry.stderr).toBe(0);
+    expect(dry.stdout).toMatch(/--selector '#b' +1 change\(s\)/);
+    expect(dry.stdout).toMatch(
+      /^1 change\(s\) are in no part narrower than the page: shoot them with one more run, without --selector$/m,
+    );
+  });
+
   test('gives no selector by position that names another element on the before page: the id above it instead', () => {
     // A card inserted first: the second card of the before page is the third of the after page. The
     // new card's own place is first on both: on the before page, where it goes in.

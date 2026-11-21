@@ -121,8 +121,9 @@ would write shot-1-after.png: 4 part(s) added, 1280x1343 px
 ```
 
 A part is the widest element around a change that is still clearly narrower than the page, a card
-or a column, so its shot is narrow; with none, the nearest element with an `id`. It needs no
-`--title`, as it writes no image; `--json` gives the same list under `areas`.
+or a column, so its shot is narrow; with none, the nearest element with an `id`. Changes in no part
+are listed last: a run with `--selector` leaves them out, so they need one more run without it. It
+needs no `--title`, as it writes no image; `--json` gives the same list under `areas`.
 
 ## Read the result
 

@@ -269,19 +269,24 @@ function printLines(shots: WrittenShot[], { areas }: Result, dryRun: boolean) {
   if (dryRun) printParts(areas);
 }
 
-/** On a dry run: the parts of the page that changed, each as the --selector that shoots it alone. */
+/** On a dry run: the parts of the page that changed, each as the --selector that shoots it alone,
+ * then the changes in no part, which a run with --selector leaves out. */
 function printParts(areas: Result['areas']) {
   const parts = areas.filter(area => area.selector !== null);
-  if (!parts.length) return;
-  console.log(
-    `${parts.length} part(s) of the page changed; for a pair of images of each, run once per part with its --selector:`,
-  );
-  // In single quotes for a shell; a quote inside is closed, escaped and opened again.
-  const named = parts.map(area => `--selector '${area.selector!.replaceAll("'", "'\\''")}'`);
-  const width = Math.max(...named.map(text => text.length));
-  parts.forEach((area, i) => console.log(`  ${named[i].padEnd(width)}  ${area.changes} change(s)`));
+  if (parts.length) {
+    console.log(
+      `${parts.length} part(s) of the page changed; for a pair of images of each, run once per part with its --selector:`,
+    );
+    // In single quotes for a shell; a quote inside is closed, escaped and opened again.
+    const named = parts.map(area => `--selector '${area.selector!.replaceAll("'", "'\\''")}'`);
+    const width = Math.max(...named.map(text => text.length));
+    parts.forEach((area, i) => console.log(`  ${named[i].padEnd(width)}  ${area.changes} change(s)`));
+  }
   const rest = areas.find(area => area.selector === null);
-  if (rest) console.log(`  in no part narrower than the page: ${rest.changes} change(s)`);
+  if (rest)
+    console.log(
+      `${rest.changes} change(s) are in no part narrower than the page: shoot them with one more run, without --selector`,
+    );
 }
 
 const sizeOf = (box: Box) => `${Math.round(box.width)}x${Math.round(box.height)} px`;
