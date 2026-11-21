@@ -113,10 +113,11 @@ To find a selector, open the page in your browser, right-click the part you want
 - **Several numbered pairs** (`shot-1-before.png`, `shot-1-after.png`, `shot-2-…`) when changes are
   far apart. The band says "1 of 3", and so on.
 - **"N change(s) are cut from every image"** on the terminal: a change is taller than one image may
-  be. Raise `--max-height`, or narrow the shot with `--selector`.
+  be, which is 1.5 windows by default. Raise `--max-height`, or narrow the shot with `--selector`.
 - **"N image(s) are taller than two windows"**: an image more than twice as tall as `--height`. In a
   pull request it is shrunk to the width of the text and is a lot of scrolling, so the before and the
-  after cannot be compared by eye. Lower `--max-height`, or shoot one part with `--selector`.
+  after cannot be compared by eye. The default `--max-height`, 1.5 windows, never gives one: it comes
+  up when you raised it. Lower it, or shoot one part with `--selector`.
 - **"N change(s) outside --selector ignored"**: changes it found outside the element you named. That
   is expected; `--json` lists them under `ignored` if you want to check.
 - **"N change(s) are in a part of the page a scroll area cuts off"**: the change is on the page, but
@@ -208,7 +209,7 @@ The same every time, with nobody there:
 | `--no-words` | | compare no words, for pages whose text differs anyway (random text, other data): only changes of look, and elements added or removed, are marked; elements are paired by what they are, not by what they say |
 | `--markers labels\|numbers` | `labels` | on a box around a change of look: what changed written on it, or a number explained in the band |
 | `--padding <px>` | 80 | room kept around the changes |
-| `--max-height <px>` | 2400 | the tallest an image gets; changes further apart get their own pair |
+| `--max-height <px>` | 1.5 × `--height` | the tallest an image gets (1350 at the default `--height`); changes further apart get their own pair |
 | `--chrome <path>` | Google Chrome, or `$CHROME` | another Chrome or Chromium to use |
 | `--download`, `--no-download` | ask | without Chrome: download one without asking, or stop |
 | `--json` | | print what was marked, where, and what was left out or ignored |

@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import sharp from 'sharp';
-import { expect, test } from 'vitest';
+import { describe, expect, test } from 'vitest';
 import { cli, page, shotDiff, shotDiffText } from './helpers.ts';
 
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
@@ -160,6 +160,35 @@ test('a shot opens at the top of an item, not inside the one the padding falls i
     expect(y).toBeGreaterThan(1000);
   }
   expect(result.leftOut).toEqual({ removed: [], added: [] });
+});
+
+describe('--max-height, when not given', () => {
+  // Nine changes, 300px apart, from 300px to 2,700px down: more than one shot's height at any maximum here.
+  const run = (...args: string[]) =>
+    shotDiff(page('items/before.html'), page('items/after-many.html'), '--title', 't', ...args);
+  const heights = (result: { shots: Record<'before' | 'after', { box: { height: number } }>[] }) =>
+    result.shots.flatMap(shot => [shot.before.box.height, shot.after.box.height]);
+
+  test('is one and a half windows: about what a pull request shows without much scrolling', () => {
+    const { done, result } = run();
+    expect(done.status, done.stderr).toBe(0);
+    expect(result.shots.length).toBeGreaterThan(1);
+    expect(Math.max(...heights(result))).toBeLessThanOrEqual(900 * 1.5);
+    expect(result.leftOut).toEqual({ removed: [], added: [] });
+  });
+
+  test('goes with --height', () => {
+    const { done, result } = run('--height', '600');
+    expect(done.status, done.stderr).toBe(0);
+    expect(Math.max(...heights(result))).toBeLessThanOrEqual(600 * 1.5);
+    expect(Math.max(...heights(result))).toBeGreaterThan(600); // more than a window: it is not --height itself
+  });
+
+  test('is what --max-height says, when given', () => {
+    const { done, result } = run('--max-height', '2400');
+    expect(done.status, done.stderr).toBe(0);
+    expect(Math.max(...heights(result))).toBeGreaterThan(900 * 1.5);
+  });
 });
 
 test('a change cut from its shot is listed as left out, not as in the shot', () => {

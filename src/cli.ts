@@ -12,8 +12,9 @@ import type { Mode } from './shots/markers.ts';
 import type { Side } from './side.ts';
 
 /** The options as commander gives them, by their camel-cased names: the run's, and the command's own. */
-type CliValues = Omit<Options, 'before' | 'after' | 'selector' | 'prepare'> & {
+type CliValues = Omit<Options, 'before' | 'after' | 'selector' | 'prepare' | 'maxHeight'> & {
   selector?: string;
+  maxHeight?: number; // undefined when not given: MAX_HEIGHT_IN_WINDOWS windows
   interactive: boolean;
   out: string;
   name: string;
@@ -108,9 +109,8 @@ A local file is a file:// URL.`,
   )
   .option(
     '--max-height <px>',
-    'the tallest a shot gets; changes farther apart get a pair each',
+    'the tallest a shot gets; changes farther apart get a pair each (default: 1.5 times --height)',
     nonNegativeNumber,
-    2400,
   )
   .addOption(
     new Option('--chrome <path>', 'the Chrome or Chromium to use (default: the installed Google Chrome)').env(
@@ -195,12 +195,17 @@ function downloadChoice(download: boolean | undefined): Download {
   return 'ask';
 }
 
-/** The run's options: the command's own left out, no --selector as null, and --interactive as the
- * wait for the pages to be set up. */
+/** How tall a shot may be, in windows, when --max-height is not given: about what a pull request
+ * shows without much scrolling, with the before and the after still to compare by eye. */
+const MAX_HEIGHT_IN_WINDOWS = 1.5;
+
+/** The run's options: the command's own left out, no --selector as null, no --max-height as so many
+ * windows, and --interactive as the wait for the pages to be set up. */
 function options(before: string, after: string, values: CliValues): Options {
-  const { out, name, chrome, download, json, selector, interactive, ...run } = values;
+  const { out, name, chrome, download, json, selector, interactive, maxHeight, ...run } = values;
   return {
     ...run,
+    maxHeight: maxHeight ?? run.height * MAX_HEIGHT_IN_WINDOWS,
     before,
     after,
     selector: selector ?? null,

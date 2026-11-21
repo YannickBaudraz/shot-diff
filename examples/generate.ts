@@ -257,7 +257,7 @@ async function shootByHand(example: Example, folder: string): Promise<void> {
       ignore: [],
       showIgnored: false,
       padding: 80,
-      maxHeight: 2400,
+      maxHeight: 1350, // 1.5 windows, what the command gives without --max-height
       selector: null,
       tabs: false,
       prepare: async () => {
