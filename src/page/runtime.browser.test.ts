@@ -406,6 +406,30 @@ describe('mark', () => {
     expect((disc as HTMLImageElement).src).toBe(src);
     expect(disc.style.width).toBe('24px');
   });
+
+  test('a word change says how far across its box goes, where the page has a box for it', () => {
+    const p = page('<p style="margin-left:100px;width:200px">aa bb cc</p>');
+    const { words } = p.mark(marks({ words: [{ changed: [1], anchors: [0, 2] }] }));
+    const [box] = drawn();
+    const { left, right } = box.getBoundingClientRect();
+    expect(left).toBeGreaterThan(100);
+    expect(words[0]!.across).toEqual({ left, right });
+    // No box on a page with nothing of the change: none to say.
+    const none = page('<p>aa bb</p>').mark(marks({ words: [{ changed: [], anchors: [0] }] }));
+    expect(none.words[0]!.across).toBeUndefined();
+  });
+
+  test('a change of look says how far across its box and its label go: a label can run past the box', () => {
+    const p = page('<button style="position:absolute;top:100px;left:20px">x</button>');
+    const { looks } = p.mark(marks({ looks: [{ index: 0, badge: { label: 'background-color' } }] }));
+    const [box] = drawn();
+    const label = box.firstElementChild!.getBoundingClientRect();
+    expect(label.right).toBeGreaterThan(box.getBoundingClientRect().right);
+    expect(looks[0].across).toEqual({
+      left: Math.min(label.left, box.getBoundingClientRect().left),
+      right: label.right,
+    });
+  });
 });
 
 describe('mark, a change of look this page has not', () => {
@@ -562,6 +586,17 @@ describe('mark, inside a shadow tree', () => {
     expect(words.map(w => w!.clipped)).toEqual([false, true]);
     expect(looks[0].clipped).toBe(true);
     expect(drawn()).toHaveLength(1); // the box on "Top"
+  });
+});
+
+describe('region', () => {
+  test("is where the element is, across as well as down, in the page's pixels", () => {
+    const p = page('<div id="card" style="margin:30px 0 0 100px;width:300px;height:50px"></div>');
+    expect(p.region('#card')).toEqual({ top: 30, bottom: 80, left: 100, right: 400 });
+  });
+
+  test('is null for an element the page has not', () => {
+    expect(page('<p>text</p>').region('#none')).toBeNull();
   });
 });
 

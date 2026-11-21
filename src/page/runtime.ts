@@ -3,7 +3,7 @@
 // reads the page and returns the page's interface; loaded.ts installs it once per page and calls it.
 
 import type { ElementInfo } from '../changes/looks.ts';
-import type { Box, Region, Span } from '../geometry.ts';
+import type { Area, Box, Region, Span } from '../geometry.ts';
 
 /** What to draw on a page. */
 export type Marks = {
@@ -85,6 +85,12 @@ export function runtime(properties: string[], ignore: string[] = [], showIgnored
   const pageRegion = (rects: DOMRect[]): Region => ({
     top: Math.min(...rects.map(r => r.top)) + window.scrollY,
     bottom: Math.max(...rects.map(r => r.bottom)) + window.scrollY,
+  });
+
+  /** How far across the page rectangles on screen go, in page pixels. */
+  const pageAcross = (rects: DOMRect[]) => ({
+    left: Math.min(...rects.map(r => r.left)) + window.scrollX,
+    right: Math.max(...rects.map(r => r.right)) + window.scrollX,
   });
 
   /** `region`, its top kept inside the page. */
@@ -605,6 +611,7 @@ export function runtime(properties: string[], ignore: string[] = [], showIgnored
       changed: boxes.length ? inPage(pageRegion(boxes)) : null,
       inside: true,
       clipped: change.changed.length > 0 && !boxes.length,
+      ...(boxes.length && { across: pageAcross(boxes) }),
     };
   };
 
@@ -757,8 +764,9 @@ export function runtime(properties: string[], ignore: string[] = [], showIgnored
           : boxElement;
     drawn.push(boxElement);
     if (badge.parentElement !== boxElement && badge !== boxElement) drawn.push(badge);
-    const region = inPage(pageRegion([boxElement, badge].map(drawn => drawn.getBoundingClientRect())));
-    return { ...region, changed: region, inside: true, clipped: false };
+    const rects = [boxElement, badge].map(drawn => drawn.getBoundingClientRect());
+    const region = inPage(pageRegion(rects));
+    return { ...region, changed: region, inside: true, clipped: false, across: pageAcross(rects) };
   };
 
   /** A dashed grey box, with "ignored" on it, around each area --ignore leaves out, with
@@ -925,10 +933,12 @@ export function runtime(properties: string[], ignore: string[] = [], showIgnored
       for (const i of changes.looks) for (const take of undo.looks[i] ?? []) take();
     },
 
-    /** Where `selector`'s element is, or null when it is not there. */
-    region(selector: string): Region | null {
+    /** Where `selector`'s element is, across and down, or null when it is not there. */
+    region(selector: string): Area | null {
       const rect = document.querySelector(selector)?.getBoundingClientRect();
-      return rect ? pageRegion([rect]) : null;
+      return rect
+        ? { ...pageRegion([rect]), left: rect.left + window.scrollX, right: rect.right + window.scrollX }
+        : null;
     },
 
     /** The region with its edges moved out of any line of text they would cut: the top up, the

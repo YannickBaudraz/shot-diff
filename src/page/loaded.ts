@@ -6,7 +6,7 @@
 import { errors, type Browser, type BrowserContext, type Page } from 'playwright-core';
 import { PROPERTIES, type ElementInfo } from '../changes/looks.ts';
 import type { Hunk } from '../changes/words.ts';
-import type { Box, Region } from '../geometry.ts';
+import type { Area, Box, Region } from '../geometry.ts';
 import { DISC, type Marker } from '../shots/markers.ts';
 import { runtime, type Marks, type Runtime, type Spans } from './runtime.ts';
 import { COLORS, SIDES, type Side } from '../side.ts';
@@ -57,7 +57,7 @@ export type LoadedPage = {
   mark(hunks: Hunk[], markers: Marker[], within: string | null): Promise<Spans>;
   /** Take back the marks of these word changes and changes of look, indexes into what mark() got. */
   unmark(changes: { words: number[]; looks: number[] }): Promise<void>;
-  region(selector: string): Promise<Region | null>;
+  region(selector: string): Promise<Area | null>;
   snap(region: Region): Promise<Region>;
   shoot(clip: Box): Promise<Buffer>;
   close(): Promise<void>;

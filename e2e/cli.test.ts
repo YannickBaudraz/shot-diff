@@ -83,6 +83,27 @@ test('--selector: only the changes inside the element are shot, the others ignor
   expect(done.stderr).toMatch(/2 change\(s\) outside --selector ignored/);
 });
 
+test('--selector: each image is as wide as the element and its padding, not the page', async () => {
+  // #end is 600px wide, from 40px; with 80px of padding the shot starts at the page's edge, 760px wide.
+  const { done, result } = shotDiff(
+    page('tall/before.html'),
+    page('tall/after.html'),
+    '--title',
+    't',
+    '--selector',
+    '#end',
+  );
+  expect(done.status, done.stderr).toBe(0);
+  const [shot] = result.shots;
+  for (const side of ['before', 'after']) {
+    expect(shot[side].box).toMatchObject({ x: 0, width: 760 });
+    // The image is the box at the scale, in its frame: not the page's 1280px.
+    const { width } = await sharp(readFileSync(shot[side].file)).metadata();
+    expect(width).toBeGreaterThan(760 * 2);
+    expect(width).toBeLessThan(760 * 2 + 20);
+  }
+});
+
 test('a change cut from its shot is listed as left out, not as in the shot', () => {
   const { done, result } = shotDiff(
     page('words/before.html'),

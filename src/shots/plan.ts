@@ -3,7 +3,7 @@
 // to the maximum height. With --selector, only the changes inside that element count. What still
 // falls outside every shot is said, not dropped.
 
-import type { Box, Region, Span } from '../geometry.ts';
+import type { Area, Box, Region, Span } from '../geometry.ts';
 import { bothSides, SIDES, type Side } from '../side.ts';
 
 /** Where a change sits on each page; null on a page it has no place on. */
@@ -19,7 +19,7 @@ export type PlanOptions = {
 /** What planning needs from a loaded page; loaded.ts gives the real one. */
 export type PlanPage = {
   width: number;
-  region(selector: string): Promise<Region | null>;
+  region(selector: string): Promise<Area | null>;
   snap(region: Region): Promise<Region>;
 };
 
@@ -64,6 +64,8 @@ export async function plan(
       before: { top: regions.before.top, bottom: regions.before.bottom },
       after: { top: regions.after.top, bottom: regions.after.bottom },
     });
+  const marks = order.flatMap(i => SIDES.flatMap(side => kept[i][side]?.across ?? []));
+  const widths = shotWidths(regions, marks, pages, options);
   for (const group of groups) {
     const pad = (region: Region | null) => region && padded(region, options.padding);
     const grown = lineUp({ before: pad(group.before), after: pad(group.after) }, unchanged, options, regions);
@@ -79,8 +81,8 @@ export async function plan(
     }
     const shot = {
       changes: group.changes,
-      before: boxOf(edges.before, pages.before, options),
-      after: boxOf(edges.after, pages.after, options),
+      before: boxOf(edges.before, widths.before, options),
+      after: boxOf(edges.after, widths.after, options),
     };
     for (const side of SIDES)
       leftOut[side].push(...group.changes.filter(i => isOutside(kept[i][side], shot[side])));
@@ -96,7 +98,7 @@ async function within(
   places: Place[],
   selector: string,
   pages: Record<Side, PlanPage>,
-): Promise<{ kept: Place[]; outside: number[]; regions: Record<Side, Region> }> {
+): Promise<{ kept: Place[]; outside: number[]; regions: Record<Side, Area> }> {
   const regions = bothFound(await bothSides(side => pages[side].region(selector)), selector);
   const kept: Place[] = [];
   const outside: number[] = [];
@@ -110,7 +112,7 @@ async function within(
   return { kept, outside, regions };
 }
 
-function bothFound(found: Record<Side, Region | null>, selector: string): Record<Side, Region> {
+function bothFound(found: Record<Side, Area | null>, selector: string): Record<Side, Area> {
   const { before, after } = found;
   if (!before) throw new Error(`--selector ${selector} matches nothing on the before page`);
   if (!after) throw new Error(`--selector ${selector} matches nothing on the after page`);
@@ -236,12 +238,42 @@ function across(y: number, edge: 'top' | 'bottom', side: Side, unchanged: Unchan
 /** `region`, already padded, with its edges off any line of text; none with none. */
 const snapped = async (region: Region | null, page: PlanPage) => region && page.snap(region);
 
-/** The part of a page a shot shows: `edges`, cut to the maximum height. With none, the top of the
- * page, the viewport high. */
-function boxOf(edges: Region | null, page: PlanPage, options: PlanOptions): Box {
-  if (!edges) return { x: 0, y: 0, width: page.width, height: options.height };
+/** The narrowest a shot cut to an element gets: its band holds a title and what the colour means. */
+const MIN_WIDTH = 400;
+
+/** Where a shot starts and how wide it is, on each page: the whole page, or with --selector the
+ * element's width and the padding on each side, at least MIN_WIDTH. A change is inside the element
+ * in the page's HTML but can be drawn past it, a dropdown say: the crop takes in the `marks` of the
+ * changes shot. Both pages get the same crop, around the element wherever either page has it, so
+ * the two shots of a pair show the same part. */
+function shotWidths(
+  regions: Record<Side, Area> | null,
+  marks: { left: number; right: number }[],
+  pages: Record<Side, PlanPage>,
+  options: PlanOptions,
+): Record<Side, Pick<Box, 'x' | 'width'>> {
+  if (!regions) return { before: whole(pages.before), after: whole(pages.after) };
+  const left = Math.min(regions.before.left, regions.after.left, ...marks.map(m => m.left)) - options.padding;
+  const right =
+    Math.max(regions.before.right, regions.after.right, ...marks.map(m => m.right)) + options.padding;
+  const widthOn = (page: PlanPage) => {
+    const wide = Math.min(page.width, Math.max(right - left, MIN_WIDTH));
+    const start = Math.min(Math.max(0, (left + right - wide) / 2), page.width - wide);
+    // Out to whole pixels, so both images are cut alike and the element is not clipped by a fraction.
+    const x = Math.floor(start);
+    return { x, width: Math.min(page.width, Math.ceil(start + wide)) - x };
+  };
+  return { before: widthOn(pages.before), after: widthOn(pages.after) };
+}
+
+const whole = (page: PlanPage) => ({ x: 0, width: page.width });
+
+/** The part of a page a shot shows: `edges`, cut to the maximum height, `sides` wide. With none,
+ * the top of the page, the viewport high. */
+function boxOf(edges: Region | null, sides: Pick<Box, 'x' | 'width'>, options: PlanOptions): Box {
+  if (!edges) return { ...sides, y: 0, height: options.height };
   const { top, bottom } = edges;
-  return { x: 0, y: top, width: page.width, height: Math.max(1, Math.min(bottom - top, options.maxHeight)) };
+  return { ...sides, y: top, height: Math.max(1, Math.min(bottom - top, options.maxHeight)) };
 }
 
 /** Whether a change's changed part falls outside the shot's box; a page with none of it never does.

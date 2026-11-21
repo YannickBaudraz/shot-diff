@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import type { Region, Span } from '../geometry.ts';
+import type { Area, Region, Span } from '../geometry.ts';
 import { plan, type Place, type PlanOptions, type PlanPage } from './plan.ts';
 
 /** A change from `top` to `bottom`, the unchanged words around it included. */
@@ -20,11 +20,14 @@ const both = (s: Span | null): Place => ({ before: s, after: s });
 const OPTIONS: PlanOptions = { padding: 80, maxHeight: 2400, height: 900, selector: null };
 
 /** A page 1000px wide, whose snap moves edges as `snap` says (not at all by default), and whose
- * elements are where `regions` says. */
-const fakePage = (snap: (r: Region) => Region = r => r, regions: Record<string, Region> = {}): PlanPage => ({
+ * elements are where `regions` says, as wide as the page unless they say otherwise. */
+const fakePage = (
+  snap: (r: Region) => Region = r => r,
+  regions: Record<string, Region | Area> = {},
+): PlanPage => ({
   width: 1000,
   snap: async r => snap(r),
-  region: async s => regions[s] ?? null,
+  region: async s => (regions[s] ? { left: 0, right: 1000, ...regions[s] } : null),
 });
 const pages = (page: PlanPage = fakePage()) => ({ before: page, after: page });
 
@@ -87,6 +90,70 @@ describe('plan', () => {
       pages(fakePage(r => ({ top: r.top - 10, bottom: r.bottom + 10 }))),
     );
     expect(p.shots[0].before).toEqual({ x: 0, y: 210, width: 1000, height: 200 });
+  });
+});
+
+describe('--selector, the width of a shot', () => {
+  const options = { ...OPTIONS, selector: '#card' };
+  /** The element, from `left` to `right` across, and from 900 to 1400 down. */
+  const card = (left: number, right: number): Area => ({ top: 900, bottom: 1400, left, right });
+
+  test('is the element and the padding on each side, not the whole page', async () => {
+    const page = fakePage(undefined, { '#card': card(200, 900) });
+    const p = await plan([both(at(1000))], options, pages(page));
+    expect(p.shots[0].before).toMatchObject({ x: 120, width: 860 });
+    expect(p.shots[0].after).toMatchObject({ x: 120, width: 860 });
+  });
+
+  test('is the same on both pages, taking in the element wherever each page has it', async () => {
+    const p = await plan([both(at(1000))], options, {
+      before: fakePage(undefined, { '#card': card(200, 800) }),
+      after: fakePage(undefined, { '#card': card(300, 900) }),
+    });
+    // From the before page's left to the after page's right, padded.
+    expect(p.shots[0].before).toMatchObject({ x: 120, width: 860 });
+    expect(p.shots[0].after).toMatchObject({ x: 120, width: 860 });
+  });
+
+  test('takes in the marks of a change drawn past the element, as a dropdown can be', async () => {
+    const page = fakePage(undefined, { '#card': card(200, 600) });
+    const dropdown = { ...at(1000), across: { left: 550, right: 800 } };
+    const p = await plan([both(dropdown)], options, pages(page));
+    // From the element's left to the marks' right, padded.
+    expect(p.shots[0].before).toMatchObject({ x: 120, width: 760 });
+    expect(p.shots[0].after).toMatchObject({ x: 120, width: 760 });
+  });
+
+  test('takes in no marks of a change outside the element, which is not shot', async () => {
+    const page = fakePage(undefined, { '#card': card(200, 600) });
+    const outside = { ...at(1000), inside: false, across: { left: 50, right: 990 } };
+    const p = await plan([both(at(1000)), both(outside)], options, pages(page));
+    expect(p.shots[0].before).toMatchObject({ x: 120, width: 560 });
+  });
+
+  test('is in whole pixels, rounded out so the element stays whole', async () => {
+    const page = fakePage(undefined, { '#card': card(100.5, 400.25) });
+    const p = await plan([both(at(1000))], options, pages(page));
+    expect(p.shots[0].before).toMatchObject({ x: 20, width: 461 });
+    expect(p.shots[0].after).toMatchObject({ x: 20, width: 461 });
+  });
+
+  test('is never narrower than the title band needs: a narrow element is centred in it', async () => {
+    // 200px and the padding is 360px; the band needs 400.
+    const page = fakePage(undefined, { '#card': card(400, 600) });
+    const p = await plan([both(at(1000))], options, pages(page));
+    expect(p.shots[0].before).toMatchObject({ x: 300, width: 400 });
+  });
+
+  test('stays on the page: a narrow element at its edge is not centred past it', async () => {
+    const left = await plan([both(at(1000))], options, pages(fakePage(undefined, { '#card': card(0, 100) })));
+    expect(left.shots[0].before).toMatchObject({ x: 0, width: 400 });
+    const right = await plan(
+      [both(at(1000))],
+      options,
+      pages(fakePage(undefined, { '#card': card(900, 1000) })),
+    );
+    expect(right.shots[0].before).toMatchObject({ x: 600, width: 400 });
   });
 });
 

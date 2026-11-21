@@ -94,7 +94,11 @@ do not care about (a rotating ad, a date, a menu), name the part you do care abo
 Only the changes inside that element count: in it in the page's HTML, not just drawn over it.
 Everything else is ignored, a menu above it, a column beside it, a wrapper around it: it is in no
 image and left unmarked, and the command says how many changes it ignored. The shots are still cut
-around the changes inside the element, not the whole element.
+around the changes inside the element, not the whole element, and as wide as the element with
+`--padding` on each side (never narrower than 400 pixels, so the title fits): a column of a page is
+shot as a column. The width follows the element you name, not where the changes are: `#rules`, a
+section across the page, gives a shot across the page; name the column inside it to narrow it. A
+change drawn past the element (a dropdown, a tooltip) widens the shot to take it in.
 
 To find a selector, open the page in your browser, right-click the part you want, choose
 **Inspect**, and use the element's `id` (`#name`) or a class (`.name`) shown there.
@@ -185,7 +189,7 @@ The same every time, with nobody there:
 | `--title <text>` | required | the title in the band |
 | `--out <dir>` | `.` | the folder the images go in |
 | `--name <name>` | `shot` | the start of the file names: `<name>-before.png`, `<name>-after.png` |
-| `--selector <css>` | | only count the changes inside this element |
+| `--selector <css>` | | only count the changes inside this element, and cut the images to its width |
 | `--width`, `--height` | 1280, 900 | the browser window, in pixels |
 | `--scale` | 2 | pixel density: 2 makes sharp images, 1 smaller files |
 | `--dark` | | dark colour scheme |
@@ -262,7 +266,8 @@ opens. To get the Linux one anyway, name it: `--chrome /usr/bin/google-chrome`.
    window high above it. Both shots of a pair show the same place: each edge of one is put on the
    other page by the unchanged words near it, so a row of cards that grew on one page is shot from
    the same card titles on both, even when one side of a change is empty. With `--selector`, it first
-   drops the changes outside the element's tree, and takes their marks off. A box goes around what
+   drops the changes outside the element's tree, and takes their marks off, and the shots are as wide
+   as the element, the same on both pages. A box goes around what
    a scroll area shows of a change; a change it shows none of gets no box and is listed instead.
    Changes far apart are shot apart, and an edge of a shot never cuts a line of text in half: it
    goes to the room before or after that line.
