@@ -260,14 +260,15 @@ async function shootByHand(example: Example, folder: string): Promise<void> {
       maxHeight: 1350, // 1.5 windows, what the command gives without --max-height
       selector: null,
       tabs: false,
+      dryRun: false,
       prepare: async () => {
         for (const page of browser.contexts().flatMap(context => context.pages()))
           await example.hands?.follow(page);
       },
     });
     const [shot] = result.shots;
-    writeFileSync(join(folder, 'shot-before.png'), shot.before.png);
-    writeFileSync(join(folder, 'shot-after.png'), shot.after.png);
+    writeFileSync(join(folder, 'shot-before.png'), shot.before.png!);
+    writeFileSync(join(folder, 'shot-after.png'), shot.after.png!);
   } finally {
     await browser.close();
   }

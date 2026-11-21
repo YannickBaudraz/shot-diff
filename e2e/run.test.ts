@@ -19,6 +19,7 @@ const OPTIONS: Options = {
   words: true,
   prepare: null,
   tabs: false,
+  dryRun: false,
   width: 800,
   height: 600,
   scale: 1,

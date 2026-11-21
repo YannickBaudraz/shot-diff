@@ -132,6 +132,63 @@ export function runtime(properties: string[], ignore: string[] = [], showIgnored
     return node.parentElement ?? (node.parentNode instanceof ShadowRoot ? node.parentNode.host : null);
   };
 
+  // A part of the page a change is in, to name with --selector: no wider than this share of the
+  // page, so a shot of it is narrower than the page, and no narrower than a small card.
+  const AREA = { share: 0.6, min: 200 };
+
+  /** A selector that finds `element` alone: its id, or its way down from the nearest id above it, or
+   * from the body. None for an element in a shadow tree, which no selector reaches from the page. */
+  const selectorOf = (element: Element): string | null => {
+    const alone = (selector: string, target: Element) => {
+      try {
+        const found = document.querySelectorAll(selector);
+        return found.length === 1 && found[0] === target;
+      } catch {
+        return false; // not a selector the page takes: there is none to give
+      }
+    };
+    const byId = (target: Element) => {
+      const selector = target.id ? `#${CSS.escape(target.id)}` : null;
+      return selector && alone(selector, target) ? selector : null;
+    };
+    const steps: string[] = [];
+    for (let at: Element | null = element; at; at = at.parentElement) {
+      const start = at === document.body ? 'body' : byId(at);
+      if (start) {
+        const selector = [start, ...steps].join(' > ');
+        return alone(selector, element) ? selector : null;
+      }
+      const index = [...(at.parentElement?.children ?? [])].indexOf(at) + 1;
+      steps.unshift(`${CSS.escape(at.localName)}:nth-child(${index})`); // a tag can have a colon in it, as o:p
+    }
+    return null;
+  };
+
+  /** The part of the page `node` is in, as a selector: the widest element around it that is still
+   * narrower than the page, a card or a column, whose shot is cut to it; with none, the nearest
+   * element around it with an id. Undefined when there is neither. */
+  const areaOf = (node: Node): string | undefined => {
+    const around: Element[] = [];
+    for (
+      let at = node instanceof Element ? node : shownIn(node);
+      at && at !== document.body;
+      at = shownIn(at)
+    )
+      if (at.getRootNode() === document) around.push(at);
+    const page = document.documentElement.clientWidth;
+    const narrow = around.filter(element => {
+      const { width } = element.getBoundingClientRect();
+      const inLine = ['inline', 'contents'].includes(getComputedStyle(element).display);
+      return !inLine && width >= AREA.min && width <= page * AREA.share;
+    });
+    const named = around.filter(element => element.id);
+    for (const element of [...narrow.reverse(), ...named]) {
+      const selector = selectorOf(element);
+      if (selector) return selector;
+    }
+    return undefined;
+  };
+
   /** Call `visit` on every node laid out in `node`, parents first; it says whether to go inside. */
   const walk = (node: Node, visit: (node: Node) => boolean) => {
     for (const child of shownChildren(node)) if (visit(child)) walk(child, visit);
@@ -959,7 +1016,14 @@ export function runtime(properties: string[], ignore: string[] = [], showIgnored
         const at = change.changed[0] ?? change.anchors[0];
         const token: Token | undefined = tokens[at];
         const node = token && ('image' in token ? token.image : token.node);
-        return span && { ...span, inside: inside(nodes), heading: node && headingAbove(node) };
+        return (
+          span && {
+            ...span,
+            inside: inside(nodes),
+            heading: node && headingAbove(node),
+            area: node && areaOf(node),
+          }
+        );
       });
       // What a label should not hide: the page's words and images, and the labels placed before it;
       // and, less, the lines of every box: the words', the looks', and the areas left out.
@@ -985,6 +1049,7 @@ export function runtime(properties: string[], ignore: string[] = [], showIgnored
           ...span,
           inside: inside(element ? [element] : []),
           heading: element && headingAbove(element),
+          area: element && areaOf(element),
         };
       });
       if (showIgnored) drawIgnored(under, avoid);

@@ -17,7 +17,8 @@ export type Area = Region & { left: number; right: number };
  * top of the heading of what the change is in, a card's title, a section's heading, when there is
  * one before it: what a shot takes in, where it can, to say where the change is. `across` is where
  * the marks drawn for the change are, from left to right, when this page has any: a shot cut to an
- * element takes them in, for a change can be drawn past its element. */
+ * element takes them in, for a change can be drawn past its element. `area` is a selector of the
+ * part of the page the change is in, a card, a column: what --selector can be given to shoot it. */
 export type Span = Region & {
   changed: Region | null;
   inside: boolean;
@@ -25,4 +26,5 @@ export type Span = Region & {
   byTop?: boolean;
   heading?: number;
   across?: { left: number; right: number };
+  area?: string;
 };

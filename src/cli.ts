@@ -12,7 +12,8 @@ import type { Mode } from './shots/markers.ts';
 import type { Side } from './side.ts';
 
 /** The options as commander gives them, by their camel-cased names: the run's, and the command's own. */
-type CliValues = Omit<Options, 'before' | 'after' | 'selector' | 'prepare' | 'maxHeight'> & {
+type CliValues = Omit<Options, 'before' | 'after' | 'selector' | 'prepare' | 'maxHeight' | 'title'> & {
+  title?: string; // needed unless --dry-run
   selector?: string;
   maxHeight?: number; // undefined when not given: MAX_HEIGHT_IN_WINDOWS windows
   interactive: boolean;
@@ -56,7 +57,12 @@ A local file is a file:// URL.`,
   )
   .argument('<before-url>')
   .argument('<after-url>')
-  .requiredOption('--title <text>', "the band's title")
+  .option('--title <text>', "the band's title; needed, unless with --dry-run")
+  .option(
+    '--dry-run',
+    'do all of a run but the screenshots: list the images it would write, and the parts of the page that changed, with a --selector for each',
+    false,
+  )
   .option('--out <dir>', 'where to write the images', '.')
   .option('--name <name>', "the files' prefix", 'shot')
   .option('--width <px>', 'viewport width', nonNegativeNumber, 1280)
@@ -122,6 +128,8 @@ A local file is a file:// URL.`,
   .option('--json', 'print what was marked as JSON', false)
   .showHelpAfterError()
   .action(async (beforeUrl: string, afterUrl: string, values: CliValues) => {
+    if (values.title === undefined && !values.dryRun)
+      throw new Error("required option '--title <text>' not specified: it is written on each image");
     if (values.interactive && !ask)
       throw new Error('--interactive needs a terminal, to wait there while you set the pages up');
     if (values.tabs && !values.interactive)
@@ -131,8 +139,8 @@ A local file is a file:// URL.`,
       const pages = options(chrome.locate(beforeUrl), chrome.locate(afterUrl), values);
       const result = await run(chrome.browser, pages);
       const shots = write(result, values.out, values.name);
-      if (values.json) printJson(result, shots);
-      else printLines(shots);
+      if (values.json) printJson(result, shots, values.dryRun);
+      else printLines(shots, result, values.dryRun);
       warn(result, shots, values.height);
     } finally {
       await chrome.close();
@@ -202,9 +210,10 @@ const MAX_HEIGHT_IN_WINDOWS = 1.5;
 /** The run's options: the command's own left out, no --selector as null, no --max-height as so many
  * windows, and --interactive as the wait for the pages to be set up. */
 function options(before: string, after: string, values: CliValues): Options {
-  const { out, name, chrome, download, json, selector, interactive, maxHeight, ...run } = values;
+  const { out, name, chrome, download, json, selector, interactive, maxHeight, title, ...run } = values;
   return {
     ...run,
+    title: title ?? '',
     maxHeight: maxHeight ?? run.height * MAX_HEIGHT_IN_WINDOWS,
     before,
     after,
@@ -213,14 +222,18 @@ function options(before: string, after: string, values: CliValues): Options {
   };
 }
 
-/** Write each shot's two images; a page with several shots numbers them in the file names. */
+/** Write each shot's two images; a page with several shots numbers them in the file names. A dry
+ * run has no image to write: its shots are named as they would be. */
 function write(result: Result, out: string, name: string): WrittenShot[] {
-  mkdirSync(out, { recursive: true });
   return result.shots.map((shot, n) => {
     const prefix = result.shots.length > 1 ? `${name}-${n + 1}` : name;
     const files = { before: join(out, `${prefix}-before.png`), after: join(out, `${prefix}-after.png`) };
-    writeFileSync(files.before, shot.before.png);
-    writeFileSync(files.after, shot.after.png);
+    for (const side of ['before', 'after'] as const) {
+      const { png } = shot[side];
+      if (!png) continue;
+      mkdirSync(out, { recursive: true });
+      writeFileSync(files[side], png);
+    }
     return {
       before: { file: files.before, removed: shot.before.changed, box: shot.before.box },
       after: { file: files.after, added: shot.after.changed, box: shot.after.box },
@@ -229,22 +242,46 @@ function write(result: Result, out: string, name: string): WrittenShot[] {
 }
 
 /** What was marked, where, and what was left out, as JSON on stdout. */
-function printJson(result: Result, shots: WrittenShot[]) {
-  const { wordChanges, lookChanges, leftOut, hidden, ignored, ignoredAreas } = result;
+function printJson(result: Result, shots: WrittenShot[], dryRun: boolean) {
+  const { wordChanges, lookChanges, leftOut, hidden, ignored, ignoredAreas, areas } = result;
   console.log(
-    JSON.stringify({ wordChanges, lookChanges, shots, leftOut, hidden, ignored, ignoredAreas }, null, 2),
+    JSON.stringify(
+      // dryRun: the files the shots name were not written
+      { dryRun, wordChanges, lookChanges, shots, leftOut, hidden, ignored, ignoredAreas, areas },
+      null,
+      2,
+    ),
   );
 }
 
 /** A line per image written, how many parts it marks, and its size in the CSS pixels that --height
  * and --max-height count in: the file is that at --scale, with its band. */
-function printLines(shots: WrittenShot[]) {
+function printLines(shots: WrittenShot[], { areas }: Result, dryRun: boolean) {
+  const wrote = dryRun ? 'would write ' : '';
   for (const shot of shots) {
     console.log(
-      `${shot.before.file}: ${shot.before.removed.length} part(s) removed, ${sizeOf(shot.before.box)}`,
+      `${wrote}${shot.before.file}: ${shot.before.removed.length} part(s) removed, ${sizeOf(shot.before.box)}`,
     );
-    console.log(`${shot.after.file}: ${shot.after.added.length} part(s) added, ${sizeOf(shot.after.box)}`);
+    console.log(
+      `${wrote}${shot.after.file}: ${shot.after.added.length} part(s) added, ${sizeOf(shot.after.box)}`,
+    );
   }
+  if (dryRun) printParts(areas);
+}
+
+/** On a dry run: the parts of the page that changed, each as the --selector that shoots it alone. */
+function printParts(areas: Result['areas']) {
+  const parts = areas.filter(area => area.selector !== null);
+  if (!parts.length) return;
+  console.log(
+    `${parts.length} part(s) of the page changed; for a pair of images of each, run once per part with its --selector:`,
+  );
+  // In single quotes for a shell; a quote inside is closed, escaped and opened again.
+  const named = parts.map(area => `--selector '${area.selector!.replaceAll("'", "'\\''")}'`);
+  const width = Math.max(...named.map(text => text.length));
+  parts.forEach((area, i) => console.log(`  ${named[i].padEnd(width)}  ${area.changes} change(s)`));
+  const rest = areas.find(area => area.selector === null);
+  if (rest) console.log(`  in no part narrower than the page: ${rest.changes} change(s)`);
 }
 
 const sizeOf = (box: Box) => `${Math.round(box.width)}x${Math.round(box.height)} px`;

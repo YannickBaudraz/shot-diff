@@ -545,6 +545,53 @@ describe('mark, the heading of what a change is in', () => {
   });
 });
 
+describe('mark, the part of the page a change is in', () => {
+  const change = { words: [{ changed: [1], anchors: [0] }] };
+
+  test('is the card around it, by its id: the widest thing around the change that is still narrower than the page', () => {
+    const p = page(
+      '<div id="row" style="display:flex"><div id="card" style="width:300px"><p>aa bb</p></div></div>',
+    );
+    expect(p.mark(marks(change)).words[0]!.area).toBe('#card');
+  });
+
+  test('is a column with no id, by its way down from the nearest id', () => {
+    const p = page(
+      '<section id="rules"><div style="display:flex">' +
+        '<div style="width:300px"><p>aa bb</p></div><div style="width:300px"><p>cc</p></div>' +
+        '</div></section>',
+    );
+    const { area } = p.mark(marks(change)).words[0]!;
+    expect(area).toBe('#rules > div:nth-child(1) > div:nth-child(1)');
+    expect(document.querySelector(area!)).toBe(document.querySelector('p')!.parentElement);
+  });
+
+  test('is not a link or a word in a line as wide as the page: with nothing narrow around it, the nearest id', () => {
+    const p = page('<main id="main"><p>aa <a href="#x">bb</a></p></main>');
+    expect(p.mark(marks(change)).words[0]!.area).toBe('#main');
+  });
+
+  test('is none where nothing around the change is narrow or has an id', () => {
+    const p = page('<p>aa bb</p>');
+    expect(p.mark(marks(change)).words[0]!.area).toBeUndefined();
+  });
+
+  test('is found through a tag no selector can be written with as it is, and the run goes on', () => {
+    document.body.innerHTML = STYLE;
+    const odd = document.body.appendChild(document.createElement('o:p'));
+    odd.innerHTML = '<div style="width:300px"><p>aa bb</p></div>';
+    const p = install();
+    const { area } = p.mark(marks(change)).words[0]!;
+    expect(document.querySelector(area!)).toBe(odd.firstElementChild);
+  });
+
+  test('is said for a change of look too', () => {
+    const p = page('<div id="card" style="width:300px"><button>x</button></div>');
+    const { looks } = p.mark(marks({ looks: [{ index: 1, badge: { plain: true } }] }));
+    expect(looks[0].area).toBe('#card');
+  });
+});
+
 describe('mark, at the page edges', () => {
   test('keeps the box of an element as wide as the page inside it, its ring too', () => {
     const p = page('<p>aa</p><div style="height:40px;margin:0">x</div>');

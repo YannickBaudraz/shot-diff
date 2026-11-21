@@ -22,5 +22,9 @@ export function shotDiff(...args: string[]) {
 /** The command's exit and what it printed, as a person reads it: no --json. */
 export function shotDiffText(...args: string[]) {
   const out = mkdtempSync(join(tmpdir(), 'shot-diff-'));
-  return spawnSync(process.execPath, [cli, ...args, '--out', out], { encoding: 'utf8', timeout: 60_000 });
+  const done = spawnSync(process.execPath, [cli, ...args, '--out', out], {
+    encoding: 'utf8',
+    timeout: 60_000,
+  });
+  return Object.assign(done, { out });
 }

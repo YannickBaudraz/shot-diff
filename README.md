@@ -101,7 +101,28 @@ section across the page, gives a shot across the page; name the column inside it
 change drawn past the element (a dropdown, a tooltip) widens the shot to take it in.
 
 To find a selector, open the page in your browser, right-click the part you want, choose
-**Inspect**, and use the element's `id` (`#name`) or a class (`.name`) shown there.
+**Inspect**, and use the element's `id` (`#name`) or a class (`.name`) shown there. Or let the
+command find them:
+
+```sh
+shot-diff <before> <after> --dry-run
+```
+
+`--dry-run` does all a run does but the screenshots, with every other option taking effect: it lists
+the images it would write, with their sizes, and then the parts of the page that changed, each as a
+`--selector` to run it with:
+
+```
+would write shot-1-before.png: 3 part(s) removed, 1280x1304 px
+would write shot-1-after.png: 4 part(s) added, 1280x1343 px
+2 part(s) of the page changed; for a pair of images of each, run once per part with its --selector:
+  --selector '#step-14'                                      2 change(s)
+  --selector '#rules > div:nth-child(2) > div:nth-child(1)'  13 change(s)
+```
+
+A part is the widest element around a change that is still clearly narrower than the page, a card
+or a column, so its shot is narrow; with none, the nearest element with an `id`. It needs no
+`--title`, as it writes no image; `--json` gives the same list under `areas`.
 
 ## Read the result
 
@@ -192,10 +213,11 @@ The same every time, with nobody there:
 
 | Option | Default | What it does |
 |---|---|---|
-| `--title <text>` | required | the title in the band |
+| `--title <text>` | required, unless `--dry-run` | the title in the band |
 | `--out <dir>` | `.` | the folder the images go in |
 | `--name <name>` | `shot` | the start of the file names: `<name>-before.png`, `<name>-after.png` |
 | `--selector <css>` | | only count the changes inside this element, and cut the images to its width |
+| `--dry-run` | | do all of a run but the screenshots: list the images it would write, and the parts of the page that changed with a `--selector` for each |
 | `--width`, `--height` | 1280, 900 | the browser window, in pixels |
 | `--scale` | 2 | pixel density: 2 makes sharp images, 1 smaller files |
 | `--dark` | | dark colour scheme |

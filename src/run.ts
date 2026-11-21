@@ -24,11 +24,14 @@ export type Options = LoadOptions &
     prepare: Prepare | null;
     /** Open both pages as tabs of one window, not a window each (--tabs): for pages set up by hand. */
     tabs: boolean;
+    /** Do all of a run but the screenshots (--dry-run): the shots are planned, and none is taken. */
+    dryRun: boolean;
   };
 
 export type Prepare = (crowded: Side[]) => Promise<void>;
 
-export type ShotSide = { png: Buffer; changed: string[]; box: Box };
+/** One image of a shot: its PNG (none on a dry run), what it shows changed, and the part of its page it is of. */
+export type ShotSide = { png: Buffer | null; changed: string[]; box: Box };
 export type Shot = { before: ShotSide; after: ShotSide };
 /** How many word changes and changes of look were found, the shots, the changes found but cut from
  * every image, the changes a scroll area cuts off on the page itself, and the changes outside
@@ -42,6 +45,9 @@ export type Result = {
   ignored: { removed: string[]; added: string[] };
   /** How many elements each --ignore selector matched on each page. */
   ignoredAreas: { selector: string; before: number; after: number }[];
+  /** The parts of the page the changes shot are in, top to bottom, each with a selector --selector
+   * takes on both pages and how many changes it has; null for the changes in no such part. */
+  areas: { selector: string | null; changes: number }[];
 };
 
 export async function run(browser: Browser, options: Options): Promise<Result> {
@@ -88,6 +94,7 @@ export async function run(browser: Browser, options: Options): Promise<Result> {
         added: planned.outside.map(i => changes[i].text.after).filter(Boolean),
       },
       ignoredAreas,
+      areas: await areasOf(changes, planned.outside, pages),
     };
   } finally {
     await bothSides(side => pages[side].close());
@@ -216,9 +223,7 @@ async function draw(
       shot.changes
         .filter(i => !planned.leftOut[side].includes(i) && !planned.hidden[side].includes(i))
         .map(i => changes[i]);
-    shots.push(
-      await bothSides(side => picture(pages[side], shot[side], shown(side), heading, options.scale)),
-    );
+    shots.push(await bothSides(side => picture(pages[side], shot[side], shown(side), heading, options)));
   }
   return shots;
 }
@@ -229,14 +234,55 @@ async function picture(
   box: Box,
   changes: Change[],
   heading: Heading,
-  scale: number,
+  { scale, dryRun }: Pick<Options, 'scale' | 'dryRun'>,
 ): Promise<ShotSide> {
   const content = { ...heading, side: page.side, key: keyOf(changes, page.side) };
   return {
-    png: await band(await page.shoot(box), content, scale),
+    png: dryRun ? null : await band(await page.shoot(box), content, scale),
     box,
     changed: changes.map(change => change.text[page.side]).filter(Boolean),
   };
+}
+
+/** The parts of the page the changes are in, top to bottom, with how many changes each has: for a
+ * change, the part its after page says, or its before page, that a selector finds on both pages, as
+ * --selector needs. The changes `outside` --selector's element are not counted; those in no part
+ * come last, under no selector. */
+async function areasOf(
+  changes: Change[],
+  outside: number[],
+  pages: Record<Side, LoadedPage>,
+): Promise<Result['areas']> {
+  const onBoth = new Map<string, boolean>();
+  const found = async (selector: string) => {
+    if (!onBoth.has(selector)) {
+      const regions = await bothSides(side => pages[side].region(selector));
+      onBoth.set(selector, !!regions.before && !!regions.after);
+    }
+    return onBoth.get(selector)!;
+  };
+  const topOf = ({ place }: Change) => place.after?.top ?? place.before?.top ?? 0;
+  const counts = new Map<string | null, number>();
+  const counted = changes.filter((_, i) => !outside.includes(i)).sort((x, y) => topOf(x) - topOf(y));
+  for (const { place } of counted) {
+    const said = [place.after?.area, place.before?.area];
+    // A selector by position names what is at that place on each page: with an element put in or
+    // taken out before it, another one. It is given only where both pages say the same; else the
+    // id it starts from, which is the same element on both.
+    const agreed = said[0] === said[1] || !said[0] || !said[1];
+    const sure = (selector: string) => agreed || !selector.includes(':nth-child(');
+    const fromId = (selector: string) => selector.split(' > ')[0];
+    let area: string | null = null;
+    for (const selector of said) {
+      if (area || !selector) continue;
+      const given = sure(selector) ? selector : fromId(selector);
+      if (given !== 'body' && (await found(given))) area = given;
+    }
+    counts.set(area, (counts.get(area) ?? 0) + 1);
+  }
+  const named = [...counts].filter(([selector]) => selector !== null);
+  const rest = counts.has(null) ? [[null, counts.get(null)!] as const] : [];
+  return [...named, ...rest].map(([selector, n]) => ({ selector, changes: n }));
 }
 
 /** The band's key: the numbered markers among `changes` that `side` shows, by number, with its disc. */
