@@ -1,3 +1,4 @@
+import { availableParallelism } from 'node:os';
 import { playwright } from '@vitest/browser-playwright';
 import { defineConfig } from 'vitest/config';
 
@@ -12,6 +13,13 @@ export default defineConfig({
     rolldownOptions: { output: { entryFileNames: 'cli.js' } },
   },
   test: {
+    // Each end-to-end test starts the command and a Chrome. Measured, running the end-to-end files:
+    //   24 cores: 1 at once 122 s, 2 80 s, 3 65 s, 4 67 s, 5 57 s, all 7 57 s
+    //   4 cores: 1 at once 105 s, 2 90 s, 3 77 s, 4 65 s
+    //   2 cores: 1 at once 133 s, 2 98 s
+    // The run is fastest with as many files at once as the machine has cores. Vitest's default
+    // is one fewer, which costs about 12 s on a 4-core CI runner.
+    maxWorkers: availableParallelism(),
     projects: [
       {
         extends: true,
