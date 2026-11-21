@@ -426,6 +426,31 @@ export function runtime(properties: string[], ignore: string[] = [], showIgnored
     });
   };
 
+  /** The box around changed words, `rects`, in page pixels: WORD_BOX_MARGIN from them, its sides
+   * kept off the words beside them on their line that are not theirs, `others`. A word written
+   * against a changed one, as "8" is in "8, 10", would otherwise be under its line. Only the thin
+   * ring outside the line may go on such a word's rectangle, which ends with a margin of its letter. */
+  const wordBox = (rects: DOMRect[], others: DOMRect[]): Box => {
+    const words = around(rects);
+    const right = words.left + words.width;
+    const level = others.filter(
+      other => Math.min(other.bottom, words.top + words.height) - Math.max(other.top, words.top) > TOUCHING,
+    );
+    // Never inside the changed words either, where a neighbour's rectangle runs into theirs.
+    const left = Math.max(
+      words.left - WORD_BOX_MARGIN.x,
+      ...level
+        .filter(other => other.right <= words.left + TOUCHING)
+        .map(other => Math.min(other.right, words.left)),
+    );
+    const end = Math.min(
+      right + WORD_BOX_MARGIN.x,
+      ...level.filter(other => other.left >= right - TOUCHING).map(other => Math.max(other.left, right)),
+    );
+    const top = words.top - WORD_BOX_MARGIN.y;
+    return onPage(pageBox({ left, top, width: end - left, height: words.height + 2 * WORD_BOX_MARGIN.y }));
+  };
+
   /** Box a word change, one box per line, so a change that wraps gets no box through the words
    * between, or one box for the block it takes entirely; and say where it is, with the unchanged
    * words around it. Each box drawn goes in `drawn`. A changed word that a scroll area cuts off gets
@@ -433,17 +458,15 @@ export function runtime(properties: string[], ignore: string[] = [], showIgnored
   const boxWords = (
     change: Marks['words'][number],
     tokens: Token[],
+    tokenRects: DOMRect[][],
     layer: HTMLElement,
     color: string,
     drawn: HTMLElement[],
   ): Span | null => {
+    const changed = new Set(change.changed);
+    const others = tokenRects.flatMap((rects, i) => (changed.has(i) ? [] : rects));
     const elements = groupsOf(change.changed, tokens).map(rects =>
-      drawBox(
-        layer,
-        color,
-        onPage(grow(pageBox(around(rects)), WORD_BOX_MARGIN.x, WORD_BOX_MARGIN.y)),
-        WORD_BOX,
-      ),
+      drawBox(layer, color, wordBox(rects, others), WORD_BOX),
     );
     drawn.push(...elements);
     const boxes = elements.map(element => element.getBoundingClientRect());
@@ -682,10 +705,11 @@ export function runtime(properties: string[], ignore: string[] = [], showIgnored
       // ancestor around it, or a column beside it, is outside.
       const scope = marks.within ? document.querySelector(marks.within) : null;
       const inside = (nodes: Node[]) => !marks.within || nodes.some(node => !!scope && inTreeOf(scope, node));
+      const tokenRects = tokens.map(rectsOf);
       const wordBoxes: HTMLElement[] = [];
       const words = marks.words.map((change, i) => {
         const drawn: HTMLElement[] = [];
-        const span = boxWords(change, tokens, layer, marks.color, drawn);
+        const span = boxWords(change, tokens, tokenRects, layer, marks.color, drawn);
         wordBoxes.push(...drawn);
         undo.words.push([...outlines[i], ...removing(drawn)]);
         const nodes = change.changed
@@ -704,7 +728,7 @@ export function runtime(properties: string[], ignore: string[] = [], showIgnored
         }),
         ...(showIgnored ? ignoredBoxes().map(area => area.box) : []),
       ];
-      const avoid: Avoid = { taken: tokens.flatMap(rectsOf).map(pageBox), lines: boxes.flatMap(edgesOf) };
+      const avoid: Avoid = { taken: tokenRects.flat().map(pageBox), lines: boxes.flatMap(edgesOf) };
       const looks = marks.looks.map(look => {
         const drawn: HTMLElement[] = [];
         const element: Element | undefined = domElements[look.index];

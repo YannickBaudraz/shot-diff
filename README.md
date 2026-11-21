@@ -228,9 +228,10 @@ opens. To get the Linux one anyway, name it: `--chrome /usr/bin/google-chrome`.
 2. It diffs the two word lists (Myers' algorithm, as `git diff` uses for lines, from the
    [`diff`](https://github.com/kpdecker/jsdiff) package).
 3. On the before page it boxes the removed words in red; on the after page it boxes the added words
-   in green, one box per line of text, or one box around a block whose words all changed. The
-   boxes are drawn over the page in an overlay, with a white ring outside them, so nothing on it
-   moves and a box shows on a background close to its colour.
+   in green, one box per line of text, or one box around a block whose words all changed. The side
+   of a box stays off an unchanged word written against the changed one. The boxes are drawn over
+   the page in an overlay, with a white ring outside them, so nothing on it moves and a box shows
+   on a background close to its colour.
 4. It pairs the elements of the two pages the same way, by tag, id, role, own words and image file,
    and an element with no words of its own (a list item, a row, a card) by its first words, so an
    item inserted in a list does not take the place of the one it pushed down; then, between two elements it paired, the ones left over on both pages by their tag alone, so an
@@ -283,6 +284,9 @@ opens. To get the Linux one anyway, name it: `--chrome /usr/bin/google-chrome`.
 - Pseudo-elements (`::before`, `::after`) and position on the page are not compared: an element
   pushed down by text added above it is not a change.
 - Moved text shows as removed in one place and added in another.
+- A changed word written against an unchanged one, with no space between, as a comma after a link:
+  the line of its box goes between them, over the edge of the changed one, so the unchanged one
+  stays whole.
 - `--no-words` leaves out the words only. Where the data differs, the structure often does too:
   rows, items or cards that only one page has are still marked added or removed, and a chart or
   an image drawn from other data is still marked redrawn. Leave such areas out with `--ignore`, or

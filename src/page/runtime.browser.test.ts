@@ -223,6 +223,18 @@ describe('mark', () => {
     expect(box.getBoundingClientRect().height).toBeGreaterThan(36); // around every line of the block
   });
 
+  test('keeps the line of a word box off an unchanged word written against it', () => {
+    // "8" ends the link and "," starts the text after it, with no space between them.
+    const p = page('<p><a href="#4">Steps 4 to 8</a>, 10 and 13 have one, <a href="#8">step 8</a></p>');
+    p.mark(marks({ words: [{ changed: [4, 5], anchors: [2, 3, 6, 7] }] }));
+    const range = document.createRange();
+    range.selectNodeContents(document.querySelector('a')!);
+    const eight = range.getBoundingClientRect();
+    const [box] = drawn();
+    // The 1px ring outside the line may touch the rectangle of the "8", which ends with a margin of its letter.
+    expect(box.getBoundingClientRect().left).toBeGreaterThanOrEqual(eight.right);
+  });
+
   test('gives every box a white ring outside it, thinner on a word box, which is close to other words', () => {
     const p = page('<p>aa bb</p><button style="position:absolute;top:100px;left:20px">b</button>');
     const button = p.reading.elements.findIndex(e => e.tag === 'button');
