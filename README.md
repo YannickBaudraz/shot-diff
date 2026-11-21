@@ -231,8 +231,9 @@ opens. To get the Linux one anyway, name it: `--chrome /usr/bin/google-chrome`.
    in green, one box per line of text, or one box around a block whose words all changed. The
    boxes are drawn over the page in an overlay, with a white ring outside them, so nothing on it
    moves and a box shows on a background close to its colour.
-4. It pairs the elements of the two pages the same way, by tag, id, role, own words and image file;
-   then, between two elements it paired, the ones left over on both pages by their tag alone, so an
+4. It pairs the elements of the two pages the same way, by tag, id, role, own words and image file,
+   and an element with no words of its own (a list item, a row, a card) by its first words, so an
+   item inserted in a list does not take the place of the one it pushed down; then, between two elements it paired, the ones left over on both pages by their tag alone, so an
    element whose words changed is still paired with the one in its place. It compares what the
    browser computed for each pair: colours, borders, corners, shadow, font,
    spacing, alignment, and the size of elements with nothing inside them. A border or an outline
@@ -263,11 +264,11 @@ opens. To get the Linux one anyway, name it: `--chrome /usr/bin/google-chrome`.
 
 ## Limits
 
-- An element is matched across the pages by its tag, id, role, own words and image file. One whose
-  words changed is matched with the element of the same tag in its place, and a change of its look
-  is marked beside its words; where elements were also added or removed around it, that match can
-  be with a neighbour. One that moved elsewhere in the page is not matched, and with no words in it
-  is marked removed where it was and added where it is.
+- An element is matched across the pages by its tag, id, role, own words (its first words, with
+  none of its own) and image file. One whose words changed is matched with the element of the same
+  tag in its place, and a change of its look is marked beside its words; where elements were also
+  added or removed around it, that match can be with a neighbour. One that moved elsewhere in the
+  page is not matched, and with no words in it is marked removed where it was and added where it is.
 - Among elements alike, with no words to tell them apart, the one added or removed cannot be told
   from its neighbours: of three dividers where there were two, the box may go on another than the
   new one.

@@ -370,6 +370,34 @@ describe('an element only one page has', () => {
     );
     expect(inside.beside).toBe(false); // the element around it is not taken in whole
   });
+
+  test('an item inserted among items alike, each a bullet and words, is one change: the bullet of the item it pushed down is none', async () => {
+    /** A list item from word `from`, its bullet with no words, then its words, which start with `first`. */
+    const item = (first: string, from: number, at: number) => [
+      block('LI', from, from + 2, { parent: 0 }),
+      bare('SPAN', { parent: at }),
+      el(`SPAN ${first}`, {}, { parent: at, tokens: [from, from + 2] }),
+    ];
+    const words = {
+      before: ['Steps', 'four', 'A', 'later'],
+      after: ['Steps', 'four', 'Step', 'ten', 'A', 'later'],
+    };
+    const before = seen(
+      [block('UL', 0, 4), ...item('Steps four', 0, 1), ...item('A later', 2, 4)],
+      {},
+      {},
+      words.before,
+    );
+    const after = seen(
+      [block('UL', 0, 6), ...item('Steps four', 0, 1), ...item('Step ten', 2, 4), ...item('A later', 4, 7)],
+      {},
+      {},
+      words.after,
+    );
+    expect((await compareLooks(before, after)).map(look => [look.element.after, look.name])).toEqual([
+      [4, '[li: added] Step ten'],
+    ]);
+  });
 });
 
 describe('pictures', () => {

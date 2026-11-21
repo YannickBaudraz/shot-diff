@@ -71,8 +71,16 @@ export async function compareLooks(
 ): Promise<Look[]> {
   // Without words, elements are paired by what they are, not by what they say: words that differ
   // from one load to the next, or from one set of data to another, do not unpair them.
-  const key = (element: ElementInfo) => (words ? element.signature : element.shape);
-  const paired = pairUp(before.elements, after.elements, key);
+  const alike = new Set([...repeated(before.elements), ...repeated(after.elements)]);
+  const keys = (page: ComparedPage) =>
+    page.elements.map(element =>
+      !words
+        ? element.shape
+        : alike.has(element.signature)
+          ? withFirstWords(element, page.words)
+          : element.signature,
+    );
+  const paired = pairUp(before.elements, after.elements, { before: keys(before), after: keys(after) });
   const { reworded } = paired;
   const pairs = unhollowed(paired.pairs, before.elements, after.elements);
   const { restyles, pictures } = sortPairs(pairs, reworded, before.elements, after.elements);
@@ -287,8 +295,35 @@ type Pair = Record<Side, number>;
  * has, with the element next to its place on the other page. */
 type LookChange = Omit<Look, 'name'>;
 
+/** The signatures that several children of one element have: list items, rows, cards side by side. */
+function repeated(elements: readonly ElementInfo[]): string[] {
+  const seen = new Set<string>();
+  const found = new Set<string>();
+  for (const element of elements) {
+    const key = `${element.parent} ${element.signature}`;
+    if (seen.has(key)) found.add(element.signature);
+    seen.add(key);
+  }
+  return [...found];
+}
+
+/** How many of its first words an element with none of its own is paired by. */
+const FIRST_WORDS = 5;
+
+/** What pairs an element alike its siblings with its match on the other page, words compared: its
+ * signature, and for one with words inside it but none of its own, a list item, a row, a card, its
+ * first words. Without them, elements alike are paired by their place alone: an item inserted in a
+ * list would take the place of the one it pushed down, whose bullet, with no word to pair it, would
+ * be marked added. An element with none alike, as the body or a page's main, keeps its signature:
+ * a first word changed would otherwise unpair it, and all around it that starts with that word. */
+function withFirstWords(element: ElementInfo, words: readonly string[]): string {
+  if (!element.worded || element.signature !== element.shape) return element.signature;
+  const [from, to] = element.tokens;
+  return [element.signature, ...words.slice(from, Math.min(to, from + FIRST_WORDS))].join(' ');
+}
+
 /** The elements that are the same on both pages: each page's elements, in document order, diffed on
- * their signatures as the words are, and the ones the diff keeps. Between two of those, the elements
+ * their `keys` as the words are, and the ones the diff keeps. Between two of those, the elements
  * left over on both pages are diffed again on their tags alone, those with words apart from those
  * without: an element whose words, id or label changed is the same element in the same place, not
  * one removed and another added, and its look may have changed too. The pairs `reworded` are the
@@ -296,7 +331,7 @@ type LookChange = Omit<Look, 'name'>;
 function pairUp(
   before: readonly ElementInfo[],
   after: readonly ElementInfo[],
-  key: (element: ElementInfo) => string,
+  keys: Record<Side, string[]>,
 ): { pairs: Pair[]; reworded: Set<Pair> } {
   const pairs: Pair[] = [];
   const reworded = new Set<Pair>();
@@ -319,7 +354,7 @@ function pairUp(
     pairs.push(...withWords, ...sameTags(false));
     left = { before: [], after: [] };
   };
-  const ops = diff(before.map(key), after.map(key));
+  const ops = diff(keys.before, keys.after);
   for (const op of ops) {
     if (op.type === 'remove') left.before.push(op.before);
     else if (op.type === 'add') left.after.push(op.after);
