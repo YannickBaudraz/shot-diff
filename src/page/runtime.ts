@@ -839,6 +839,49 @@ export function runtime(properties: string[], ignore: string[] = [], showIgnored
   /** Whether a shot edge at `y` would cut through `line`. */
   const cuts = (line: Region, y: number) => line.top < y && y < line.bottom;
 
+  /** Where a shot's top goes to start above the line at `lineTop`: SNAP_CLEARANCE off it, or halfway
+   * to the line above when that is nearer. */
+  const clearAbove = (lineTop: number, lines: Region[]) => {
+    let above = lineTop - 2 * SNAP_CLEARANCE;
+    for (const l of lines) if (l.bottom <= lineTop && l.bottom > above) above = l.bottom;
+    return (above + lineTop) / 2;
+  };
+
+  /** The stretch of each item: a run of lines of text of one block, one right after the other, from
+   * its first line to its last. A block with text before and after something it holds, a list
+   * say, is an item for each, not one that takes in all the list. */
+  const itemsOfText = (): Region[] => {
+    const byBlock = new Map<Element, Region[]>();
+    for (const token of allTokens) {
+      const block = blockOf(token);
+      if (block) byBlock.set(block, [...(byBlock.get(block) ?? []), ...textLines([token])]);
+    }
+    return [...byBlock.values()].flatMap(lines => {
+      const items: Region[] = [];
+      for (const line of lines.sort((p, q) => p.top - q.top)) {
+        const last = items.at(-1);
+        // The next line of the same item starts within a line's height of the one before it ends.
+        if (last && line.top - last.bottom <= line.bottom - line.top)
+          last.bottom = Math.max(last.bottom, line.bottom);
+        else items.push({ ...line });
+      }
+      return items;
+    });
+  };
+
+  /** A shot's top `y` moved off the inside of an item: up to the item's start when the shot has `room`
+   * for that, the clearance above it included, or else down to the start of the next item, when that
+   * is no lower than `keep`, the top of what the shot is of. Where neither goes, the item is the
+   * change's own: `y` stays. */
+  const outOfItem = (y: number, room: number, keep: number, lines: Region[]): number => {
+    const items = itemsOfText();
+    const inside = items.filter(item => item.top < y && y < item.bottom);
+    const reach = inside.filter(item => y - clearAbove(item.top, lines) <= room);
+    if (reach.length) return clearAbove(Math.min(...reach.map(item => item.top)), lines);
+    const next = items.filter(item => item.top > y && item.top <= keep).map(item => item.top);
+    return inside.length && next.length ? clearAbove(Math.min(...next), lines) : y;
+  };
+
   // The elements --ignore names, each selector's: they, and all inside them, are not read, so
   // nothing in them is compared or marked.
   const ignoredBy = ignore.map(selector => [...document.querySelectorAll(selector)]);
@@ -945,19 +988,19 @@ export function runtime(properties: string[], ignore: string[] = [], showIgnored
      * bottom down, SNAP_CLEARANCE off the line, or halfway to the next line when that is nearer:
      * lines of text often leave less room than that between them, and an edge moved into the next
      * line would go on down the whole paragraph. Moving an edge can land it inside another line, of
-     * another column, so it repeats until neither moves. */
-    snap(region: Region): Region {
+     * another column, so it repeats until neither moves. With `room` and `keep`, the top also leaves
+     * the inside of an item, so a shot does not open on the tail of one: see outOfItem(). */
+    snap(shot: Region & { room?: number; keep?: number }): Region {
       const lines = textLines(allTokens);
-      let { top, bottom } = region;
+      let { top, bottom } = shot;
+      if (shot.room !== undefined && shot.keep !== undefined)
+        top = outOfItem(top, shot.room, shot.keep, lines);
       let moved: boolean;
       do {
         moved = false;
         for (const line of lines) {
           if (cuts(line, top)) {
-            // The nearest line above, within SNAP_CLEARANCE.
-            let above = line.top - 2 * SNAP_CLEARANCE;
-            for (const l of lines) if (l.bottom <= line.top && l.bottom > above) above = l.bottom;
-            top = (above + line.top) / 2;
+            top = clearAbove(line.top, lines);
             moved = true;
           }
           if (cuts(line, bottom)) {

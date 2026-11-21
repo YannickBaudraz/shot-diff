@@ -58,7 +58,7 @@ export type LoadedPage = {
   /** Take back the marks of these word changes and changes of look, indexes into what mark() got. */
   unmark(changes: { words: number[]; looks: number[] }): Promise<void>;
   region(selector: string): Promise<Area | null>;
-  snap(region: Region): Promise<Region>;
+  snap(region: Region, limits?: { room: number; keep: number }): Promise<Region>;
   shoot(clip: Box): Promise<Buffer>;
   close(): Promise<void>;
 };
@@ -282,7 +282,7 @@ async function read(
     name: index => accessibleName(page, index),
     mark: (hunks, markers, within) => call(page, 'mark', marksFor(side, hunks, markers, within)),
     region: selector => call(page, 'region', selector),
-    snap: region => call(page, 'snap', region),
+    snap: (region, limits) => call(page, 'snap', { ...region, ...limits }),
     unmark: changes => call(page, 'unmark', changes),
     shoot: clip => shooting(() => page.screenshot({ clip, fullPage: true, animations: 'disabled' })),
     close,

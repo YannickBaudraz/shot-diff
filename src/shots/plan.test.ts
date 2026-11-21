@@ -188,6 +188,34 @@ describe('the heading of what a change is in', () => {
   });
 });
 
+describe('the top of a shot, which snap moves out of an item', () => {
+  /** A page that notes what snap was asked, and moves nothing. */
+  const asking = () => {
+    const asked: { region: Region; limits?: { room: number; keep: number } }[] = [];
+    const page: PlanPage = {
+      ...fakePage(),
+      snap: async (region, limits) => (asked.push({ region, limits }), region),
+    };
+    return { asked, page };
+  };
+
+  test('may go up as far as the shot has room for under --max-height, and no lower than what it is of', async () => {
+    const { asked, page } = asking();
+    await plan([both(at(1000, 1040))], { ...OPTIONS, maxHeight: 600 }, pages(page));
+    // Padded, 920 to 1120: 200px high, 400px under the maximum; it must still start by 1000.
+    expect(asked.map(a => a.limits)).toEqual([
+      { room: 400, keep: 1000 },
+      { room: 400, keep: 1000 },
+    ]);
+  });
+
+  test('has no room when the shot is already as tall as it may be', async () => {
+    const { asked, page } = asking();
+    await plan([both(at(1000, 1040))], { ...OPTIONS, maxHeight: 200 }, pages(page));
+    expect(asked[0].limits).toEqual({ room: 0, keep: 1000 });
+  });
+});
+
 describe('both shots of a pair', () => {
   test('show the same place: an edge on one page takes in what the other shows, by the unchanged words near it', async () => {
     // On the after page, what is above the change sits 200px higher, what is below it 280px lower.

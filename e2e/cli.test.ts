@@ -141,6 +141,27 @@ test('an image taller than two windows is said, with what to do about it', () =>
   expect(done.stderr).toMatch(/--selector/);
 });
 
+test('a shot opens at the top of an item, not inside the one the padding falls in', () => {
+  // 30 items of three lines, 100px apart; the change is in item 12, whose padding above falls in item 11.
+  const { done, result } = shotDiff(
+    page('items/before.html'),
+    page('items/after.html'),
+    '--title',
+    't',
+    '--height',
+    '400',
+  );
+  expect(done.status, done.stderr).toBe(0);
+  for (const side of ['before', 'after']) {
+    const { y } = result.shots[0][side].box;
+    // An item's text runs from 100n to 100n + 60: the shot starts between two items.
+    expect(y % 100 < 1 || y % 100 > 60, `starts at ${y}`).toBe(true);
+    expect(y).toBeLessThan(1100);
+    expect(y).toBeGreaterThan(1000);
+  }
+  expect(result.leftOut).toEqual({ removed: [], added: [] });
+});
+
 test('a change cut from its shot is listed as left out, not as in the shot', () => {
   const { done, result } = shotDiff(
     page('words/before.html'),

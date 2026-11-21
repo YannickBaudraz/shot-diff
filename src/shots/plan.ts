@@ -20,7 +20,10 @@ export type PlanOptions = {
 export type PlanPage = {
   width: number;
   region(selector: string): Promise<Area | null>;
-  snap(region: Region): Promise<Region>;
+  /** `region`, its edges moved off the text they would cut. With `limits`, its top also leaves the
+   * inside of an item: up to the item's start within `room`, or down to the next one's no lower
+   * than `keep`, the top of what the shot is of. */
+  snap(region: Region, limits?: { room: number; keep: number }): Promise<Region>;
 };
 
 /** A shot: its changes (indexes into the places, top to bottom), and the part of each page it shows. */
@@ -69,7 +72,7 @@ export async function plan(
   for (const group of groups) {
     const pad = (region: Region | null) => region && padded(region, options.padding);
     const grown = lineUp({ before: pad(group.before), after: pad(group.after) }, unchanged, options, regions);
-    let edges = await bothSides(side => snapped(grown[side], pages[side]));
+    let edges = await bothSides(side => snapped(grown[side], pages[side], group[side]?.top, options));
     // Headings and lining up grow a shot up to the maximum height; snap can still push it past, and
     // the cut would fall on the changes. The shot is then the one around the changes alone.
     if (SIDES.some(side => edges[side] && height(edges[side]!) > options.maxHeight)) {
@@ -77,7 +80,7 @@ export async function plan(
         group.changes.length
           ? group.changes.reduce<Region | null>((region, i) => extend(region, kept[i][side]), null)
           : group[side];
-      edges = await bothSides(side => snapped(pad(bare(side)), pages[side]));
+      edges = await bothSides(side => snapped(pad(bare(side)), pages[side], bare(side)?.top, options));
     }
     const shot = {
       changes: group.changes,
@@ -235,8 +238,17 @@ function across(y: number, edge: 'top' | 'bottom', side: Side, unchanged: Unchan
   return nearest && nearest[other][edge] + (y - nearest[side][edge]);
 }
 
-/** `region`, already padded, with its edges off any line of text; none with none. */
-const snapped = async (region: Region | null, page: PlanPage) => region && page.snap(region);
+/** `region`, already padded, with its edges off any line of text, and its top out of any item, as far
+ * up as the shot has room for under the maximum height and no lower than `keep`, the top of what it
+ * is of (its own with none); none with none. */
+const snapped = async (
+  region: Region | null,
+  page: PlanPage,
+  keep: number | undefined,
+  options: PlanOptions,
+) =>
+  region &&
+  page.snap(region, { room: Math.max(0, options.maxHeight - height(region)), keep: keep ?? region.top });
 
 /** The narrowest a shot cut to an element gets: its band holds a title and what the colour means. */
 const MIN_WIDTH = 400;

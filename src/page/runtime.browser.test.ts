@@ -721,3 +721,78 @@ describe('snap', () => {
     expect(top).toBeGreaterThanOrEqual(first.bottom);
   });
 });
+
+describe('snap, the top of a shot inside an item', () => {
+  // Three items of three lines each, 24px a line and 24px between them.
+  const items = () => page('<p>a1<br>a2<br>a3</p><p>b1<br>b2<br>b3</p><p>c1<br>c2<br>c3</p>');
+  /** The lines of text of the item at `index`, top to bottom. */
+  const lines = (index: number) => {
+    const range = document.createRange();
+    range.selectNodeContents(document.querySelectorAll('p')[index]);
+    return [...range.getClientRects()].filter(r => r.width);
+  };
+
+  test('goes to the top of the item when there is room for it, not mid-item between two lines', () => {
+    const p = items();
+    const [b1, b2] = lines(1);
+    const between = (b1.bottom + b2.top) / 2;
+    const { top } = p.snap({ top: between, bottom: 400, room: 500, keep: 400 });
+    expect(top).toBeGreaterThanOrEqual(lines(0)[2].bottom); // not up into the item before
+    expect(top).toBeLessThanOrEqual(b1.top);
+  });
+
+  test('goes down to the top of the next item when the item is too tall to take in, if the change stays in', () => {
+    const p = items();
+    const [b1, b2] = lines(1);
+    const [c1] = lines(2);
+    const { top } = p.snap({ top: (b1.bottom + b2.top) / 2, bottom: 400, room: 10, keep: c1.top });
+    expect(top).toBeGreaterThanOrEqual(lines(1)[2].bottom);
+    expect(top).toBeLessThanOrEqual(c1.top);
+  });
+
+  test('stays where the change itself is in the item: only a line of text is not cut', () => {
+    const p = items();
+    const [b1, b2] = lines(1);
+    const between = (b1.bottom + b2.top) / 2;
+    expect(p.snap({ top: between, bottom: 400, room: 10, keep: between }).top).toBe(between);
+    const middle = (b2.top + b2.bottom) / 2; // in a line: off it, as before
+    const { top } = p.snap({ top: middle, bottom: 400, room: 10, keep: middle });
+    expect(top).toBeLessThanOrEqual(b2.top);
+    expect(top).toBeGreaterThanOrEqual(b1.bottom);
+  });
+
+  test('counts the clearance above the item in the room: the shot is no taller than it was given room for', () => {
+    const p = items();
+    const [b1, b2] = lines(1);
+    const between = (b1.bottom + b2.top) / 2;
+    const exactly = between - b1.top; // reaches the first line, but not the clearance above it
+    expect(p.snap({ top: between, bottom: 400, room: exactly, keep: between }).top).toBe(between);
+    const { top } = p.snap({ top: between, bottom: 400, room: exactly + 12, keep: between });
+    expect(between - top).toBeLessThanOrEqual(exactly + 12);
+    expect(top).toBeLessThanOrEqual(b1.top);
+  });
+
+  test('is the item the edge is in, not a block whose text runs on both sides of a list it holds', () => {
+    // The block's own lines, d1 d2 and d3, run from the top to the bottom, with a list in between.
+    const p = page(
+      '<div>d1<br>d2<ul style="margin:24px 0;padding:0;list-style:none"><li>a1<br>a2</li><li style="margin-top:24px">b1<br>b2</li></ul>d3</div>',
+    );
+    const range = (el: Element) => {
+      const r = document.createRange();
+      r.selectNodeContents(el);
+      return [...r.getClientRects()].filter(x => x.width);
+    };
+    const [li1, li2] = [...document.querySelectorAll('li')].map(range);
+    const between = (li2[0].bottom + li2[1].top) / 2;
+    const { top } = p.snap({ top: between, bottom: 600, room: 600, keep: 600 });
+    expect(top).toBeGreaterThanOrEqual(li1[1].bottom); // the second list item's start, not "d1"
+    expect(top).toBeLessThanOrEqual(li2[0].top);
+  });
+
+  test('is as before with no room given', () => {
+    const p = items();
+    const [b1, b2] = lines(1);
+    const between = (b1.bottom + b2.top) / 2;
+    expect(p.snap({ top: between, bottom: 400 }).top).toBe(between);
+  });
+});

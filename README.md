@@ -275,7 +275,10 @@ opens. To get the Linux one anyway, name it: `--chrome /usr/bin/google-chrome`.
    as the element, the same on both pages. A box goes around what
    a scroll area shows of a change; a change it shows none of gets no box and is listed instead.
    Changes far apart are shot apart, and an edge of a shot never cuts a line of text in half: it
-   goes to the room before or after that line.
+   goes to the room before or after that line. A shot never opens inside an item (a list item, a
+   paragraph) either: its top goes up to the top of the item, or down to the top of the next one when
+   going up would make the shot taller than `--max-height` and the change stays in. The bottom is cut
+   on a line only.
 6. It draws the band on each shot with [sharp](https://sharp.pixelplumbing.com).
 
 ## Limits
