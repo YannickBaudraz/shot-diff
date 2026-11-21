@@ -407,6 +407,47 @@ describe('mark', () => {
     expect(disc.style.width).toBe('24px');
   });
 
+  test('tints the inside of a word box faintly in its colour, so unchanged words between two changes stay plain', () => {
+    const p = page('<p>aa bb cc</p>');
+    p.mark(marks({ words: [{ changed: [1], anchors: [0, 2] }] }));
+    const [box] = drawn();
+    // The colour at 14%: see-through, the words under it still read.
+    expect(getComputedStyle(box).backgroundColor).toMatch(/^color\(srgb 1 0 0 \/ 0\.14\)$/);
+  });
+
+  test('tints the inside of an outline over several lines the same, and not its white ring', () => {
+    const p = page('<p style="width:150px">aa bb cc dd ee ff gg hh ii jj kk ll mm nn oo pp qq rr</p>');
+    p.mark(marks({ words: [{ changed: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12], anchors: [2, 13] }] }));
+    const [ring, line] = [...drawn()[0].querySelectorAll('path')];
+    expect(line.getAttribute('fill')).toBe('red');
+    expect(line.getAttribute('fill-opacity')).toBe('0.14');
+    expect(ring.getAttribute('fill')).toBe('none');
+  });
+
+  test('does not tint a changed picture: the tint would change the very thing the shot shows', () => {
+    const src =
+      'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2240%22 height=%2240%22/%3E';
+    const p = page(`<p>aa <img src="${src}" alt="logo" width="40" height="40"> bb</p>`);
+    p.mark(marks({ words: [{ changed: [1], anchors: [0, 2] }] }));
+    for (const box of drawn()) expect(getComputedStyle(box).backgroundColor).toBe('rgba(0, 0, 0, 0)');
+  });
+
+  test('still tints the words of a change that also has a picture: only the box on the picture is plain', () => {
+    const src =
+      'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2240%22 height=%2240%22/%3E';
+    const p = page(`<p>aa <img src="${src}" alt="logo" width="40" height="40"> bb<br>cc dd<br>ee ff gg</p>`);
+    p.mark(marks({ words: [{ changed: [1, 5, 6], anchors: [0, 7] }] }));
+    const [onPicture, onWords] = drawn();
+    expect(getComputedStyle(onPicture).backgroundColor).toBe('rgba(0, 0, 0, 0)');
+    expect(getComputedStyle(onWords).backgroundColor).toMatch(/0\.14\)$/);
+  });
+
+  test('does not tint the box of a change of look: it is around an element, which shows as it is', () => {
+    const p = page('<button style="position:absolute;top:100px;left:20px">x</button>');
+    p.mark(marks({ looks: [{ index: 0, badge: { plain: true } }] }));
+    expect(getComputedStyle(drawn()[0]).backgroundColor).toBe('rgba(0, 0, 0, 0)');
+  });
+
   test('a word change says how far across its box goes, where the page has a box for it', () => {
     const p = page('<p style="margin-left:100px;width:200px">aa bb cc</p>');
     const { words } = p.mark(marks({ words: [{ changed: [1], anchors: [0, 2] }] }));

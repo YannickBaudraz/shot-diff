@@ -55,7 +55,9 @@ export function runtime(properties: string[], ignore: string[] = [], showIgnored
   // A word box sits in running text, a few pixels from the next word: a thinner line and a thinner
   // ring, so it does not cover the end of the word before it. The ring stays: without it a green
   // box on a green button does not show.
-  const WORD_BOX = { border: 2, ring: 1 };
+  // tint: how much of its colour fills a word box. Two changes a line apart box the unchanged words
+  // between them on three sides; filled, what changed tells itself from what its lines only go round.
+  const WORD_BOX = { border: 2, ring: 1, tint: 0.14 };
   const ANCHOR_REACH = 120; // how far from a change the unchanged words around it still place it
   const SNAP_CLEARANCE = 6; // between a moved shot edge and the line of text it would have cut
   const IGNORED_COLOR = '#6e7781'; // an area --ignore leaves out: grey, so it reads as no change
@@ -364,12 +366,13 @@ export function runtime(properties: string[], ignore: string[] = [], showIgnored
     layer: HTMLElement,
     color: string,
     box: Box,
-    line: { border: number; ring: number } = BOX,
+    line: { border: number; ring: number; tint?: number } = BOX,
   ) => {
     const element = document.createElement('div');
     element.style.cssText =
       `position:absolute;box-sizing:border-box;border:${line.border}px solid ${color};border-radius:${BOX.radius}px;` +
       (line.ring ? `box-shadow:0 0 0 ${line.ring}px ${ON_COLOR};` : '') +
+      (line.tint ? `background:color-mix(in srgb, ${color} ${line.tint * 100}%, transparent);` : '') +
       `left:${box.x}px;top:${box.y}px;width:${box.width}px;height:${box.height}px`;
     layer.appendChild(element);
     return element;
@@ -545,7 +548,7 @@ export function runtime(properties: string[], ignore: string[] = [], showIgnored
 
   /** One outline around `boxes`, in page pixels, one under the other, each side by side with the
    * next: an SVG on `layer`, its line inside their edge and its ring outside it, as a word box has. */
-  const drawOutline = (layer: HTMLElement, color: string, boxes: Box[]) => {
+  const drawOutline = (layer: HTMLElement, color: string, boxes: Box[], tint: number) => {
     const left = Math.min(...boxes.map(box => box.x));
     const right = Math.max(...boxes.map(box => box.x + box.width));
     const top = boxes[0].y;
@@ -557,13 +560,14 @@ export function runtime(properties: string[], ignore: string[] = [], showIgnored
       `width:${right - left}px;height:${bottom - top}px`;
     const local = boxes.map(box => ({ ...box, x: box.x - left, y: box.y - top }));
     const strokes = [
-      { color: ON_COLOR, width: WORD_BOX.ring, at: WORD_BOX.ring / 2 },
-      { color, width: WORD_BOX.border, at: -WORD_BOX.border / 2 },
+      { color: ON_COLOR, width: WORD_BOX.ring, at: WORD_BOX.ring / 2, tint: 0 },
+      { color, width: WORD_BOX.border, at: -WORD_BOX.border / 2, tint },
     ];
     for (const stroke of strokes.filter(stroke => stroke.width)) {
       const path = document.createElementNS(ns, 'path');
       path.setAttribute('d', roundedPath(outlineCorners(local, stroke.at), BOX.radius + stroke.at));
-      path.setAttribute('fill', 'none');
+      path.setAttribute('fill', stroke.tint ? stroke.color : 'none');
+      if (stroke.tint) path.setAttribute('fill-opacity', `${stroke.tint}`);
       path.setAttribute('stroke', stroke.color);
       path.setAttribute('stroke-width', `${stroke.width}`);
       svg.appendChild(path);
@@ -586,15 +590,23 @@ export function runtime(properties: string[], ignore: string[] = [], showIgnored
   ): Span | null => {
     const changed = new Set(change.changed);
     const others = tokenRects.flatMap((rects, i) => (changed.has(i) ? [] : rects));
+    // A box on a changed picture gets no tint: tinted, the picture would not show as the page has it.
+    const pictures = change.changed
+      .filter(i => 'image' in tokens[i])
+      .flatMap(i => shownRectsOf(tokens[i]).map(pageBox));
+    const lineFor = (boxes: Box[]) =>
+      boxes.some(box => pictures.some(picture => covers(box, picture))) ? { ...WORD_BOX, tint: 0 } : WORD_BOX;
+    const draw = (run: Box[]) =>
+      run.length === 1
+        ? drawBox(layer, color, run[0], lineFor(run))
+        : drawOutline(layer, color, run, lineFor(run).tint);
     const elements = blocksOf(change.changed, tokens).flatMap(({ lines, whole }) => {
       // All the words of a block: one box around them, as there is no unchanged word for it to run through.
-      if (whole) return [drawBox(layer, color, wordBox(lines.flat(), others), WORD_BOX)];
+      if (whole) return [draw([wordBox(lines.flat(), others)])];
       return runsOf(
         lines.map(line => wordBox(line, others)),
         others,
-      ).map(run =>
-        run.length === 1 ? drawBox(layer, color, run[0], WORD_BOX) : drawOutline(layer, color, run),
-      );
+      ).map(draw);
     });
     drawn.push(...elements);
     const boxes = elements.map(element => element.getBoundingClientRect());
