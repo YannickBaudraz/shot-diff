@@ -16,8 +16,8 @@ shot-diff "file://$PWD/e2e/fixtures/words/before.html" "file://$PWD/e2e/fixtures
 ```
 
 ```
-examples/words/shot-before.png: 1 part(s) removed
-examples/words/shot-after.png: 2 part(s) added
+examples/words/shot-before.png: 1 part(s) removed, 1280x293 px
+examples/words/shot-after.png: 2 part(s) added, 1280x339 px
 ```
 
 | Before | After |
@@ -34,8 +34,8 @@ shot-diff "file://$PWD/e2e/fixtures/visual/before/index.html" "file://$PWD/e2e/f
 ```
 
 ```
-examples/looks/shot-before.png: 3 part(s) removed
-examples/looks/shot-after.png: 3 part(s) added
+examples/looks/shot-before.png: 3 part(s) removed, 1280x556 px
+examples/looks/shot-after.png: 3 part(s) added, 1280x556 px
 ```
 
 | Before | After |
@@ -52,8 +52,8 @@ shot-diff "file://$PWD/e2e/fixtures/wordless/before.html" "file://$PWD/e2e/fixtu
 ```
 
 ```
-examples/wordless/shot-before.png: 1 part(s) removed
-examples/wordless/shot-after.png: 1 part(s) added
+examples/wordless/shot-before.png: 1 part(s) removed, 1280x246 px
+examples/wordless/shot-after.png: 1 part(s) added, 1280x247 px
 ```
 
 | Before | After |
@@ -70,8 +70,8 @@ shot-diff "file://$PWD/e2e/fixtures/components/before.html" "file://$PWD/e2e/fix
 ```
 
 ```
-examples/component/shot-before.png: 0 part(s) removed
-examples/component/shot-after.png: 1 part(s) added
+examples/component/shot-before.png: 0 part(s) removed, 1280x300 px
+examples/component/shot-after.png: 1 part(s) added, 1280x300 px
 ```
 
 | Before | After |
@@ -88,10 +88,10 @@ shot-diff "file://$PWD/e2e/fixtures/workflow/before.html" "file://$PWD/e2e/fixtu
 ```
 
 ```
-examples/workflow/shot-1-before.png: 1 part(s) removed
-examples/workflow/shot-1-after.png: 1 part(s) added
-examples/workflow/shot-2-before.png: 2 part(s) removed
-examples/workflow/shot-2-after.png: 2 part(s) added
+examples/workflow/shot-1-before.png: 1 part(s) removed, 1280x542 px
+examples/workflow/shot-1-after.png: 1 part(s) added, 1280x542 px
+examples/workflow/shot-2-before.png: 2 part(s) removed, 1280x704 px
+examples/workflow/shot-2-after.png: 2 part(s) added, 1280x817 px
 ```
 
 | Before | After |
@@ -109,8 +109,8 @@ shot-diff "file://$PWD/e2e/fixtures/layout/before.html" "file://$PWD/e2e/fixture
 ```
 
 ```
-examples/layout/shot-before.png: 2 part(s) removed
-examples/layout/shot-after.png: 3 part(s) added
+examples/layout/shot-before.png: 2 part(s) removed, 1280x883 px
+examples/layout/shot-after.png: 3 part(s) added, 1280x706 px
 ```
 
 | Before | After |
@@ -127,8 +127,8 @@ shot-diff "file://$PWD/e2e/fixtures/navigation/before.html" "file://$PWD/e2e/fix
 ```
 
 ```
-examples/navigation/shot-before.png: 3 part(s) removed
-examples/navigation/shot-after.png: 3 part(s) added
+examples/navigation/shot-before.png: 3 part(s) removed, 1280x639 px
+examples/navigation/shot-after.png: 3 part(s) added, 1280x1005 px
 ```
 
 | Before | After |
@@ -145,8 +145,8 @@ shot-diff "file://$PWD/e2e/fixtures/dashboard/before.html" "file://$PWD/e2e/fixt
 ```
 
 ```
-examples/whole-page/shot-before.png: 7 part(s) removed
-examples/whole-page/shot-after.png: 8 part(s) added
+examples/whole-page/shot-before.png: 7 part(s) removed, 1280x756 px
+examples/whole-page/shot-after.png: 8 part(s) added, 1280x794 px
 ```
 
 | Before | After |
@@ -163,8 +163,8 @@ shot-diff "file://$PWD/e2e/fixtures/dashboard/before.html" "file://$PWD/e2e/fixt
 ```
 
 ```
-examples/numbers/shot-before.png: 7 part(s) removed
-examples/numbers/shot-after.png: 8 part(s) added
+examples/numbers/shot-before.png: 7 part(s) removed, 1280x756 px
+examples/numbers/shot-after.png: 8 part(s) added, 1280x794 px
 ```
 
 | Before | After |
@@ -181,10 +181,10 @@ shot-diff "file://$PWD/e2e/fixtures/tall/before.html" "file://$PWD/e2e/fixtures/
 ```
 
 ```
-examples/far-apart/shot-1-before.png: 1 part(s) removed
-examples/far-apart/shot-1-after.png: 1 part(s) added
-examples/far-apart/shot-2-before.png: 1 part(s) removed
-examples/far-apart/shot-2-after.png: 1 part(s) added
+examples/far-apart/shot-1-before.png: 1 part(s) removed, 1280x212 px
+examples/far-apart/shot-1-after.png: 1 part(s) added, 1280x212 px
+examples/far-apart/shot-2-before.png: 1 part(s) removed, 1280x183 px
+examples/far-apart/shot-2-after.png: 1 part(s) added, 1280x183 px
 ```
 
 | Before | After |
@@ -202,8 +202,8 @@ shot-diff "file://$PWD/e2e/fixtures/projects/before.html" "file://$PWD/e2e/fixtu
 ```
 
 ```
-examples/selector/shot-before.png: 1 part(s) removed
-examples/selector/shot-after.png: 1 part(s) added
+examples/selector/shot-before.png: 1 part(s) removed, 400x199 px
+examples/selector/shot-after.png: 1 part(s) added, 400x199 px
 shot-diff: 13 change(s) outside --selector ignored (listed under "ignored" in --json)
 ```
 
@@ -221,8 +221,8 @@ shot-diff "file://$PWD/e2e/fixtures/data/before.html" "file://$PWD/e2e/fixtures/
 ```
 
 ```
-examples/no-words/shot-before.png: 2 part(s) removed
-examples/no-words/shot-after.png: 2 part(s) added
+examples/no-words/shot-before.png: 2 part(s) removed, 1280x348 px
+examples/no-words/shot-after.png: 2 part(s) added, 1280x343 px
 ```
 
 | Before | After |
@@ -239,8 +239,8 @@ shot-diff "file://$PWD/e2e/fixtures/activity/before.html" "file://$PWD/e2e/fixtu
 ```
 
 ```
-examples/ignore/shot-before.png: 2 part(s) removed
-examples/ignore/shot-after.png: 2 part(s) added
+examples/ignore/shot-before.png: 2 part(s) removed, 1280x481 px
+examples/ignore/shot-after.png: 2 part(s) added, 1280x513 px
 ```
 
 | Before | After |
@@ -257,8 +257,8 @@ shot-diff "file://$PWD/e2e/fixtures/activity/before.html" "file://$PWD/e2e/fixtu
 ```
 
 ```
-examples/show-ignored/shot-before.png: 2 part(s) removed
-examples/show-ignored/shot-after.png: 2 part(s) added
+examples/show-ignored/shot-before.png: 2 part(s) removed, 1280x500 px
+examples/show-ignored/shot-after.png: 2 part(s) added, 1280x532 px
 ```
 
 | Before | After |
@@ -275,8 +275,8 @@ shot-diff "file://$PWD/e2e/fixtures/clipped/before.html" "file://$PWD/e2e/fixtur
 ```
 
 ```
-examples/scroll-area/shot-before.png: 1 part(s) removed
-examples/scroll-area/shot-after.png: 1 part(s) added
+examples/scroll-area/shot-before.png: 1 part(s) removed, 1280x266 px
+examples/scroll-area/shot-after.png: 1 part(s) added, 1280x266 px
 shot-diff: 2 change(s) are in a part of the page a scroll area cuts off, so no image can show them:
   removed: as it was.
   added: changed.
@@ -296,12 +296,12 @@ shot-diff "file://$PWD/e2e/fixtures/dashboard/before.html" "file://$PWD/e2e/fixt
 ```
 
 ```
-examples/too-tall/shot-1-before.png: 5 part(s) removed
-examples/too-tall/shot-1-after.png: 5 part(s) added
-examples/too-tall/shot-2-before.png: 1 part(s) removed
-examples/too-tall/shot-2-after.png: 1 part(s) added
-examples/too-tall/shot-3-before.png: 1 part(s) removed
-examples/too-tall/shot-3-after.png: 2 part(s) added
+examples/too-tall/shot-1-before.png: 5 part(s) removed, 1280x328 px
+examples/too-tall/shot-1-after.png: 5 part(s) added, 1280x328 px
+examples/too-tall/shot-2-before.png: 1 part(s) removed, 1280x396 px
+examples/too-tall/shot-2-after.png: 1 part(s) added, 1280x396 px
+examples/too-tall/shot-3-before.png: 1 part(s) removed, 1280x314 px
+examples/too-tall/shot-3-after.png: 2 part(s) added, 1280x352 px
 ```
 
 | Before | After |
@@ -320,8 +320,8 @@ shot-diff "file://$PWD/e2e/fixtures/shadow/before.html" "file://$PWD/e2e/fixture
 ```
 
 ```
-examples/web-component/shot-before.png: 3 part(s) removed
-examples/web-component/shot-after.png: 3 part(s) added
+examples/web-component/shot-before.png: 3 part(s) removed, 1280x359 px
+examples/web-component/shot-after.png: 3 part(s) added, 1280x359 px
 ```
 
 | Before | After |
@@ -338,8 +338,8 @@ shot-diff "file://$PWD/e2e/fixtures/frame/before/index.html" "file://$PWD/e2e/fi
 ```
 
 ```
-examples/embedded-page/shot-before.png: 1 part(s) removed
-examples/embedded-page/shot-after.png: 1 part(s) added
+examples/embedded-page/shot-before.png: 1 part(s) removed, 1280x381 px
+examples/embedded-page/shot-after.png: 1 part(s) added, 1280x381 px
 ```
 
 | Before | After |
@@ -356,8 +356,8 @@ shot-diff "file://$PWD/e2e/fixtures/phone/before.html" "file://$PWD/e2e/fixtures
 ```
 
 ```
-examples/phone/shot-before.png: 5 part(s) removed
-examples/phone/shot-after.png: 5 part(s) added
+examples/phone/shot-before.png: 5 part(s) removed, 390x746 px
+examples/phone/shot-after.png: 5 part(s) added, 390x746 px
 ```
 
 | Before | After |
@@ -374,8 +374,8 @@ shot-diff "file://$PWD/e2e/fixtures/words/before.html" "file://$PWD/e2e/fixtures
 ```
 
 ```
-examples/no-difference/shot-before.png: 0 part(s) removed
-examples/no-difference/shot-after.png: 0 part(s) added
+examples/no-difference/shot-before.png: 0 part(s) removed, 1280x900 px
+examples/no-difference/shot-after.png: 0 part(s) added, 1280x900 px
 shot-diff: no difference in the pages' words, images or looks; the shots show the top of each page
 ```
 

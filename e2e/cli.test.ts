@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import sharp from 'sharp';
 import { expect, test } from 'vitest';
-import { cli, page, shotDiff } from './helpers.ts';
+import { cli, page, shotDiff, shotDiffText } from './helpers.ts';
 
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
 
@@ -102,6 +102,43 @@ test('--selector: each image is as wide as the element and its padding, not the 
     expect(width).toBeGreaterThan(760 * 2);
     expect(width).toBeLessThan(760 * 2 + 20);
   }
+});
+
+test('each image is listed with its size, in the pixels --height and --max-height count in', () => {
+  const done = shotDiffText(
+    page('tall/before.html'),
+    page('tall/after.html'),
+    '--title',
+    't',
+    '--selector',
+    '#end',
+  );
+  expect(done.status, done.stderr).toBe(0);
+  // 760px wide (see the --selector test above); the height is the change and its padding.
+  expect(done.stdout).toMatch(/shot-before\.png: 1 part\(s\) removed, 760x\d+ px$/m);
+  expect(done.stdout).toMatch(/shot-after\.png: 1 part\(s\) added, 760x\d+ px$/m);
+  expect(done.stderr).not.toMatch(/taller than/);
+});
+
+test('an image taller than two windows is said, with what to do about it', () => {
+  // A window 80px high: the change and its padding make a shot of about 184px, over two windows.
+  const done = shotDiffText(
+    page('tall/before.html'),
+    page('tall/after.html'),
+    '--title',
+    't',
+    '--selector',
+    '#end',
+    '--height',
+    '80',
+    '--max-height',
+    '2400',
+  );
+  expect(done.status, done.stderr).toBe(0);
+  expect(done.stderr).toMatch(/2 image\(s\) are taller than two windows \(--height 80\)/);
+  expect(done.stderr).toMatch(/shot-before\.png/);
+  expect(done.stderr).toMatch(/--max-height/);
+  expect(done.stderr).toMatch(/--selector/);
 });
 
 test('a change cut from its shot is listed as left out, not as in the shot', () => {

@@ -133,7 +133,7 @@ A local file is a file:// URL.`,
       const shots = write(result, values.out, values.name);
       if (values.json) printJson(result, shots);
       else printLines(shots);
-      warn(result);
+      warn(result, shots, values.height);
     } finally {
       await chrome.close();
     }
@@ -231,17 +231,27 @@ function printJson(result: Result, shots: WrittenShot[]) {
   );
 }
 
-/** A line per image written, and how many parts it marks. */
+/** A line per image written, how many parts it marks, and its size in the CSS pixels that --height
+ * and --max-height count in: the file is that at --scale, with its band. */
 function printLines(shots: WrittenShot[]) {
   for (const shot of shots) {
-    console.log(`${shot.before.file}: ${shot.before.removed.length} part(s) removed`);
-    console.log(`${shot.after.file}: ${shot.after.added.length} part(s) added`);
+    console.log(
+      `${shot.before.file}: ${shot.before.removed.length} part(s) removed, ${sizeOf(shot.before.box)}`,
+    );
+    console.log(`${shot.after.file}: ${shot.after.added.length} part(s) added, ${sizeOf(shot.after.box)}`);
   }
 }
 
+const sizeOf = (box: Box) => `${Math.round(box.width)}x${Math.round(box.height)} px`;
+
+/** An image taller than this many windows is a lot of scrolling, and in a pull request, shrunk to the
+ * width of its text, no longer one to compare a pair by eye. */
+const TALL_IN_WINDOWS = 2;
+
 /** On stderr, so stdout stays the --json output: when nothing changed, when changes were outside
- * --selector, when a change is cut from every image, or cut off on the page itself. */
-function warn(result: Result) {
+ * --selector, when a change is cut from every image, or cut off on the page itself, or when an image
+ * is taller than TALL_IN_WINDOWS windows of `height`. */
+function warn(result: Result, shots: WrittenShot[], height: number) {
   if (!result.wordChanges && !result.lookChanges)
     console.error(
       "shot-diff: no difference in the pages' words, images or looks; the shots show the top of each page",
@@ -268,6 +278,15 @@ function warn(result: Result) {
       `shot-diff: ${hidden.length} change(s) are in a part of the page a scroll area cuts off, so no image can show them:`,
     );
     for (const line of hidden) console.error(`  ${line}`);
+  }
+  const tall = shots
+    .flatMap(shot => [shot.before, shot.after])
+    .filter(image => image.box.height > TALL_IN_WINDOWS * height);
+  if (tall.length) {
+    console.error(
+      `shot-diff: ${tall.length} image(s) are taller than two windows (--height ${height}), more than can be compared by eye in a pull request; lower --max-height, or shoot one part with --selector:`,
+    );
+    for (const image of tall) console.error(`  ${image.file}: ${sizeOf(image.box)}`);
   }
 }
 

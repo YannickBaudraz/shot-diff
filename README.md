@@ -107,11 +107,16 @@ To find a selector, open the page in your browser, right-click the part you want
 
 [examples/](examples/README.md) shows each of these: the command, what it prints, and its images.
 
+- **A size on each image's line**, such as `shot-after.png: 2 part(s) added, 640x1350 px`: in the CSS
+  pixels `--height` and `--max-height` count in (the file is that at `--scale`, with its band).
 - **One pair of images** when all the changes fit in one image.
 - **Several numbered pairs** (`shot-1-before.png`, `shot-1-after.png`, `shot-2-…`) when changes are
   far apart. The band says "1 of 3", and so on.
 - **"N change(s) are cut from every image"** on the terminal: a change is taller than one image may
   be. Raise `--max-height`, or narrow the shot with `--selector`.
+- **"N image(s) are taller than two windows"**: an image more than twice as tall as `--height`. In a
+  pull request it is shrunk to the width of the text and is a lot of scrolling, so the before and the
+  after cannot be compared by eye. Lower `--max-height`, or shoot one part with `--selector`.
 - **"N change(s) outside --selector ignored"**: changes it found outside the element you named. That
   is expected; `--json` lists them under `ignored` if you want to check.
 - **"N change(s) are in a part of the page a scroll area cuts off"**: the change is on the page, but
