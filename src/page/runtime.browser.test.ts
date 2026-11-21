@@ -608,4 +608,21 @@ describe('snap', () => {
     // Edges between lines stay.
     expect(p.snap({ top: 30, bottom: 40 })).toEqual({ top: 30, bottom: 40 });
   });
+
+  test('moves an edge to the room after the line it cut, not on down a paragraph whose lines leave less room', () => {
+    // Lines 20px apart, whose letters leave a pixel or two between them: less than an edge keeps off a line.
+    const p = page(
+      `<p style="width:120px;line-height:20px">${'aa bb cc dd ee ff gg hh ii jj kk ll mm nn oo pp qq rr ss tt'}</p>`,
+    );
+    const range = document.createRange();
+    range.selectNodeContents(document.querySelector('p')!);
+    const [first, second, third] = [...range.getClientRects()].filter(r => r.width);
+    expect(third.top - second.bottom).toBeLessThan(6);
+    const { bottom } = p.snap({ top: 0, bottom: (second.top + second.bottom) / 2 });
+    expect(bottom).toBeGreaterThanOrEqual(second.bottom);
+    expect(bottom).toBeLessThanOrEqual(third.top);
+    const { top } = p.snap({ top: (second.top + second.bottom) / 2, bottom: 200 });
+    expect(top).toBeLessThanOrEqual(second.top);
+    expect(top).toBeGreaterThanOrEqual(first.bottom);
+  });
 });

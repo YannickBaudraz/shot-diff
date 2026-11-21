@@ -879,7 +879,10 @@ export function runtime(properties: string[], ignore: string[] = [], showIgnored
     },
 
     /** The region with its edges moved out of any line of text they would cut: the top up, the
-     * bottom down. Moving an edge can land it inside another line, so it repeats until neither moves. */
+     * bottom down, SNAP_CLEARANCE off the line, or halfway to the next line when that is nearer:
+     * lines of text often leave less room than that between them, and an edge moved into the next
+     * line would go on down the whole paragraph. Moving an edge can land it inside another line, of
+     * another column, so it repeats until neither moves. */
     snap(region: Region): Region {
       const lines = textLines(allTokens);
       let { top, bottom } = region;
@@ -888,11 +891,16 @@ export function runtime(properties: string[], ignore: string[] = [], showIgnored
         moved = false;
         for (const line of lines) {
           if (cuts(line, top)) {
-            top = line.top - SNAP_CLEARANCE;
+            // The nearest line above, within SNAP_CLEARANCE.
+            let above = line.top - 2 * SNAP_CLEARANCE;
+            for (const l of lines) if (l.bottom <= line.top && l.bottom > above) above = l.bottom;
+            top = (above + line.top) / 2;
             moved = true;
           }
           if (cuts(line, bottom)) {
-            bottom = line.bottom + SNAP_CLEARANCE;
+            let below = line.bottom + 2 * SNAP_CLEARANCE;
+            for (const l of lines) if (l.top >= line.bottom && l.top < below) below = l.top;
+            bottom = (line.bottom + below) / 2;
             moved = true;
           }
         }

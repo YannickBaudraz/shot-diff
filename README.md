@@ -261,7 +261,8 @@ opens. To get the Linux one anyway, name it: `--chrome /usr/bin/google-chrome`.
    shots show the same place even when one side of a change is empty. With `--selector`, it first
    drops the changes outside the element's tree, and takes their marks off. A box goes around what
    a scroll area shows of a change; a change it shows none of gets no box and is listed instead.
-   Changes far apart are shot apart, and an edge of a shot never cuts a line of text in half.
+   Changes far apart are shot apart, and an edge of a shot never cuts a line of text in half: it
+   goes to the room before or after that line.
 6. It draws the band on each shot with [sharp](https://sharp.pixelplumbing.com).
 
 ## Limits
