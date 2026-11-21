@@ -198,7 +198,8 @@ describe('the order', () => {
 });
 
 describe('mark', () => {
-  test('boxes a wrapped change line by line, and paints nothing over the words', () => {
+  test('boxes a wrapped change line by line where its lines are not side by side, and paints nothing over the words', () => {
+    // "cc dd ee" ends the first line, "ff gg" starts the second: no width is under both.
     const p = page('<p style="width:120px">aa bb cc dd ee ff gg hh</p>');
     const marked = p.mark(marks({ words: [{ changed: [2, 3, 4, 5, 6], anchors: [1, 7] }] }));
     expect(CSS.highlights.size).toBe(0);
@@ -207,6 +208,30 @@ describe('mark', () => {
     for (const box of boxes) expect(box.getBoundingClientRect().height).toBeLessThan(36); // one 24px line each
     const { changed } = marked.words[0]!;
     expect(changed!.top).toBeLessThan(changed!.bottom);
+  });
+
+  test('marks a change over several lines, starting and ending inside them, with one outline around its words alone', () => {
+    const p = page('<p style="width:150px">aa bb cc dd ee ff gg hh ii jj kk ll mm nn oo pp qq rr</p>');
+    const changed = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+    p.mark(marks({ words: [{ changed, anchors: [0, 1, 2, 13, 14, 15] }] }));
+    const [mark, ...more] = drawn();
+    expect(more).toHaveLength(0);
+    const outline = [...mark.querySelectorAll('path')].at(-1)!;
+    const origin = mark.getBoundingClientRect();
+    const words = document.querySelector('p')!.firstChild as Text;
+    expect(
+      words.data.split(' ').map((_, i) => {
+        const range = document.createRange();
+        range.setStart(words, i * 3);
+        range.setEnd(words, i * 3 + 2);
+        const word = range.getBoundingClientRect();
+        const center = new DOMPoint(
+          word.left + word.width / 2 - origin.left,
+          word.top + word.height / 2 - origin.top,
+        );
+        return outline.isPointInFill(center);
+      }),
+    ).toEqual(words.data.split(' ').map((_, i) => changed.includes(i)));
   });
 
   test('a change is placed by the unchanged words near it, not by those past a gap', () => {

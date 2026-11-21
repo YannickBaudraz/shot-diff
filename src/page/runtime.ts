@@ -411,18 +411,17 @@ export function runtime(properties: string[], ignore: string[] = [], showIgnored
     return blockSizes.get(block) ?? 0;
   };
 
-  /** The rectangles to box for a change, a group of them per box: all the words of a block that the
-   * change takes entirely make one group, as there is no unchanged word for a box to run through;
-   * other words are grouped by the line of text they are on. */
-  const groupsOf = (changed: number[], tokens: Token[]): DOMRect[][] => {
+  /** The words of a change, block by block: the rectangles of its words in that block, line by line
+   * top to bottom, and whether the change takes all of the block's words. */
+  const blocksOf = (changed: number[], tokens: Token[]): { lines: DOMRect[][]; whole: boolean }[] => {
     const byBlock = new Map<Element | null, number[]>();
     for (const i of changed) {
       const block = blockOf(tokens[i]);
       byBlock.set(block, [...(byBlock.get(block) ?? []), i]);
     }
     return [...byBlock].flatMap(([block, indexes]) => {
-      const rects = indexes.flatMap(i => shownRectsOf(tokens[i]));
-      return block && indexes.length === sizeOfBlock(block) && rects.length ? [rects] : linesOf(rects);
+      const lines = linesOf(indexes.flatMap(i => shownRectsOf(tokens[i])));
+      return lines.length ? [{ lines, whole: !!block && indexes.length === sizeOfBlock(block) }] : [];
     });
   };
 
@@ -451,6 +450,122 @@ export function runtime(properties: string[], ignore: string[] = [], showIgnored
     return onPage(pageBox({ left, top, width: end - left, height: words.height + 2 * WORD_BOX_MARGIN.y }));
   };
 
+  /** Boxes around the lines of a change in one block, top to bottom, joined in runs that one outline
+   * goes around, as a text selection is drawn: each line under the one before it, and side by side
+   * with it, wide enough for an outline round both. In a run, a line the change goes on from takes
+   * in the room left at its end, and a line it goes on to the room at its start, so the outline runs
+   * straight down both sides; not over a word of `others`, which is not the change's. */
+  const runsOf = (boxes: Box[], others: DOMRect[]): Box[][] => {
+    const below = (box: Box, next: Box) => next.y - (box.y + box.height) < box.height / 2;
+    const stacked: Box[][] = [];
+    for (const box of boxes) {
+      const run = stacked.at(-1);
+      if (run && below(run.at(-1)!, box)) run.push(box);
+      else stacked.push([box]);
+    }
+    const taken = others.map(pageBox);
+    const clear = (box: Box) => !taken.some(other => covers(box, other));
+    const widened = stacked.map(run => {
+      const left = Math.min(...run.map(box => box.x));
+      const right = Math.max(...run.map(box => box.x + box.width));
+      return run.map((box, i) => {
+        let wide = box;
+        const end = i < run.length - 1 ? { ...wide, width: right - wide.x } : wide;
+        if (clear(end)) wide = end;
+        const start = i > 0 ? { ...wide, x: left, width: wide.x + wide.width - left } : wide;
+        return clear(start) ? start : wide;
+      });
+    });
+    const meet = (box: Box, next: Box) =>
+      Math.min(box.x + box.width, next.x + next.width) - Math.max(box.x, next.x) >= 2 * BOX.radius;
+    return widened.flatMap(run => {
+      const runs: Box[][] = [];
+      for (const box of run) {
+        const last = runs.at(-1);
+        if (last && meet(last.at(-1)!, box)) last.push(box);
+        else runs.push([box]);
+      }
+      return runs;
+    });
+  };
+
+  /** The corners of the outline around `boxes`, one under the other, each side by side with the
+   * next, its sides, top and bottom moved out by `d` (in by a negative one): down its right side,
+   * then up its left. Where two lines meet, the outline steps halfway between them. */
+  const outlineCorners = (boxes: Box[], d: number): [number, number][] => {
+    const lefts = boxes.map(box => box.x - d);
+    const rights = boxes.map(box => box.x + box.width + d);
+    const joins = boxes.slice(1).map((box, i) => (boxes[i].y + boxes[i].height + box.y) / 2);
+    const top = boxes[0].y - d;
+    const last = boxes.length - 1;
+    const bottom = boxes[last].y + boxes[last].height + d;
+    const corners: [number, number][] = [
+      [lefts[0], top],
+      [rights[0], top],
+    ];
+    // A step stays halfway between the two lines, whatever `d`: lines of text have little room
+    // between them, and a step moved off the middle would run along the letters of one.
+    joins.forEach((y, i) => corners.push([rights[i], y], [rights[i + 1], y]));
+    corners.push([rights[last], bottom], [lefts[last], bottom]);
+    for (let i = joins.length - 1; i >= 0; i--) corners.push([lefts[i + 1], joins[i]], [lefts[i], joins[i]]);
+    // Two lines that end level make no step: their corners are on a straight edge.
+    return corners.filter((corner, i) => {
+      const prev = corners.at(i - 1)!;
+      const next = corners[(i + 1) % corners.length];
+      return !(
+        (Math.abs(prev[0] - corner[0]) < 0.5 && Math.abs(next[0] - corner[0]) < 0.5) ||
+        (Math.abs(prev[1] - corner[1]) < 0.5 && Math.abs(next[1] - corner[1]) < 0.5)
+      );
+    });
+  };
+
+  /** An SVG path through `corners`, each rounded by up to `radius`. */
+  const roundedPath = (corners: [number, number][], radius: number): string => {
+    const toward = (from: [number, number], to: [number, number]) => {
+      const length = Math.hypot(to[0] - from[0], to[1] - from[1]);
+      const r = Math.min(radius, length / 2) / (length || 1);
+      return [from[0] + (to[0] - from[0]) * r, from[1] + (to[1] - from[1]) * r];
+    };
+    return (
+      corners
+        .map((corner, i) => {
+          const [ax, ay] = toward(corner, corners.at(i - 1)!);
+          const [bx, by] = toward(corner, corners[(i + 1) % corners.length]);
+          return `${i ? 'L' : 'M'}${ax},${ay} Q${corner[0]},${corner[1]} ${bx},${by}`;
+        })
+        .join(' ') + ' Z'
+    );
+  };
+
+  /** One outline around `boxes`, in page pixels, one under the other, each side by side with the
+   * next: an SVG on `layer`, its line inside their edge and its ring outside it, as a word box has. */
+  const drawOutline = (layer: HTMLElement, color: string, boxes: Box[]) => {
+    const left = Math.min(...boxes.map(box => box.x));
+    const right = Math.max(...boxes.map(box => box.x + box.width));
+    const top = boxes[0].y;
+    const bottom = boxes.at(-1)!.y + boxes.at(-1)!.height;
+    const ns = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(ns, 'svg');
+    svg.style.cssText =
+      `position:absolute;overflow:visible;left:${left}px;top:${top}px;` +
+      `width:${right - left}px;height:${bottom - top}px`;
+    const local = boxes.map(box => ({ ...box, x: box.x - left, y: box.y - top }));
+    const strokes = [
+      { color: ON_COLOR, width: WORD_BOX.ring, at: WORD_BOX.ring / 2 },
+      { color, width: WORD_BOX.border, at: -WORD_BOX.border / 2 },
+    ];
+    for (const stroke of strokes.filter(stroke => stroke.width)) {
+      const path = document.createElementNS(ns, 'path');
+      path.setAttribute('d', roundedPath(outlineCorners(local, stroke.at), BOX.radius + stroke.at));
+      path.setAttribute('fill', 'none');
+      path.setAttribute('stroke', stroke.color);
+      path.setAttribute('stroke-width', `${stroke.width}`);
+      svg.appendChild(path);
+    }
+    layer.appendChild(svg);
+    return svg;
+  };
+
   /** Box a word change, one box per line, so a change that wraps gets no box through the words
    * between, or one box for the block it takes entirely; and say where it is, with the unchanged
    * words around it. Each box drawn goes in `drawn`. A changed word that a scroll area cuts off gets
@@ -461,13 +576,20 @@ export function runtime(properties: string[], ignore: string[] = [], showIgnored
     tokenRects: DOMRect[][],
     layer: HTMLElement,
     color: string,
-    drawn: HTMLElement[],
+    drawn: Element[],
   ): Span | null => {
     const changed = new Set(change.changed);
     const others = tokenRects.flatMap((rects, i) => (changed.has(i) ? [] : rects));
-    const elements = groupsOf(change.changed, tokens).map(rects =>
-      drawBox(layer, color, wordBox(rects, others), WORD_BOX),
-    );
+    const elements = blocksOf(change.changed, tokens).flatMap(({ lines, whole }) => {
+      // All the words of a block: one box around them, as there is no unchanged word for it to run through.
+      if (whole) return [drawBox(layer, color, wordBox(lines.flat(), others), WORD_BOX)];
+      return runsOf(
+        lines.map(line => wordBox(line, others)),
+        others,
+      ).map(run =>
+        run.length === 1 ? drawBox(layer, color, run[0], WORD_BOX) : drawOutline(layer, color, run),
+      );
+    });
     drawn.push(...elements);
     const boxes = elements.map(element => element.getBoundingClientRect());
     const shown = [
@@ -700,15 +822,15 @@ export function runtime(properties: string[], ignore: string[] = [], showIgnored
       const outlines = outlineImages(marks, tokens);
       const under = overlay(); // the areas left out, under the changes' marks
       const layer = overlay();
-      const removing = (drawn: HTMLElement[]) => drawn.map(element => () => element.remove());
+      const removing = (drawn: Element[]) => drawn.map(element => () => element.remove());
       // In the element's tree, the shadow trees inside it included, wherever layout puts it: an
       // ancestor around it, or a column beside it, is outside.
       const scope = marks.within ? document.querySelector(marks.within) : null;
       const inside = (nodes: Node[]) => !marks.within || nodes.some(node => !!scope && inTreeOf(scope, node));
       const tokenRects = tokens.map(rectsOf);
-      const wordBoxes: HTMLElement[] = [];
+      const wordBoxes: Element[] = [];
       const words = marks.words.map((change, i) => {
-        const drawn: HTMLElement[] = [];
+        const drawn: Element[] = [];
         const span = boxWords(change, tokens, tokenRects, layer, marks.color, drawn);
         wordBoxes.push(...drawn);
         undo.words.push([...outlines[i], ...removing(drawn)]);

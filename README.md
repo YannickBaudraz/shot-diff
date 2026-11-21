@@ -228,10 +228,11 @@ opens. To get the Linux one anyway, name it: `--chrome /usr/bin/google-chrome`.
 2. It diffs the two word lists (Myers' algorithm, as `git diff` uses for lines, from the
    [`diff`](https://github.com/kpdecker/jsdiff) package).
 3. On the before page it boxes the removed words in red; on the after page it boxes the added words
-   in green, one box per line of text, or one box around a block whose words all changed. The side
-   of a box stays off an unchanged word written against the changed one. The boxes are drawn over
-   the page in an overlay, with a white ring outside them, so nothing on it moves and a box shows
-   on a background close to its colour.
+   in green: one outline around a run of words over several lines, shaped as a text selection is,
+   or one box around a block whose words all changed. Lines with no width under both, as the end of
+   one line and the start of the next, get a box each. The side of a box stays off an unchanged word
+   written against the changed one. The boxes are drawn over the page in an overlay, with a white
+   ring outside them, so nothing on it moves and a box shows on a background close to its colour.
 4. It pairs the elements of the two pages the same way, by tag, id, role, own words and image file,
    and an element with no words of its own (a list item, a row, a card) by its first words, so an
    item inserted in a list does not take the place of the one it pushed down; then, between two elements it paired, the ones left over on both pages by their tag alone, so an
