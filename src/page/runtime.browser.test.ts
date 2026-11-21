@@ -420,6 +420,56 @@ describe('mark, a change of look this page has not', () => {
   });
 });
 
+describe('mark, the heading of what a change is in', () => {
+  const cards =
+    '<p>intro</p><div style="display:flex;gap:20px">' +
+    '<article><h3 style="margin:0">Refinement</h3><p>aa</p></article>' +
+    '<article><h3 style="margin:0">Tickets</h3><p>bb</p><div style="height:300px"></div>' +
+    '<div><p>Tickets with edges. cc dd</p><hr></div></article></div>';
+  const headingTop = (text: string) =>
+    [...document.querySelectorAll('h3')].find(h => h.textContent === text)!.getBoundingClientRect().top;
+
+  test("is said for a word change: the card's title, however far above it", () => {
+    const p = page(cards);
+    const { words } = p.mark(marks({ words: [{ changed: [8, 9], anchors: [5, 6, 7] }] }));
+    expect(words[0]!.heading).toBe(headingTop('Tickets'));
+  });
+
+  test('is said for a change of look, and for the place of an element the page has not', () => {
+    const p = page(cards);
+    const hr = p.reading.elements.findIndex(e => e.tag === 'hr');
+    const { looks } = p.mark(
+      marks({
+        looks: [
+          { index: hr, badge: { plain: true } },
+          { index: hr, badge: null, edge: 'top' },
+        ],
+      }),
+    );
+    expect(looks.map(look => look.heading)).toEqual([headingTop('Tickets'), headingTop('Tickets')]);
+  });
+
+  test('is none for a change with no heading before it in what it is in, nor the page banner', () => {
+    const p = page('<header><nav>menu</nav><h1>Acme</h1></header><main><p>aa bb</p></main>');
+    const { words } = p.mark(marks({ words: [{ changed: [3], anchors: [2] }] }));
+    expect(words[0]!.heading).toBeUndefined();
+  });
+
+  test('is the heading itself for a change in one, or with none on this page, for an unchanged word in one', () => {
+    const p = page('<p>intro</p><h3>Tickets</h3><p>aa bb</p>');
+    const { words } = p.mark(
+      marks({
+        words: [
+          { changed: [1], anchors: [0] },
+          { changed: [], anchors: [1, 2] },
+        ],
+      }),
+    );
+    const top = document.querySelector('h3')!.getBoundingClientRect().top;
+    expect(words.map(word => word!.heading)).toEqual([top, top]);
+  });
+});
+
 describe('mark, at the page edges', () => {
   test('keeps the box of an element as wide as the page inside it, its ring too', () => {
     const p = page('<p>aa</p><div style="height:40px;margin:0">x</div>');

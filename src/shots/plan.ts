@@ -61,9 +61,22 @@ export async function plan(
       after: { top: regions.after.top, bottom: regions.after.bottom },
     });
   for (const group of groups) {
+    const pad = (region: Region | null) => region && padded(region, options.padding);
+    const grown = { before: pad(group.before), after: pad(group.after) };
+    let edges = await bothSides(side => snapped(grown[side], pages[side]));
+    // Headings grow a shot up to the maximum height; snap can still push it past, and the cut would
+    // fall on the changes. The shot is then the one around the changes alone.
+    if (SIDES.some(side => edges[side] && height(edges[side]!) > options.maxHeight)) {
+      const bare = (side: Side) =>
+        group.changes.length
+          ? group.changes.reduce<Region | null>((region, i) => extend(region, kept[i][side]), null)
+          : group[side];
+      edges = await bothSides(side => snapped(pad(bare(side)), pages[side]));
+    }
     const shot = {
       changes: group.changes,
-      ...(await bothSides(side => clip(group[side], pages[side], options))),
+      before: boxOf(edges.before, pages.before, options),
+      after: boxOf(edges.after, pages.after, options),
     };
     for (const side of SIDES)
       leftOut[side].push(...group.changes.filter(i => isOutside(kept[i][side], shot[side])));
@@ -106,7 +119,9 @@ function cut(span: Span | null, region: Region): Span | null {
   if (!span || (has(span) && !span.inside)) return null;
   const top = Math.max(span.top, region.top);
   const bottom = Math.min(span.bottom, region.bottom);
-  return top < bottom ? { ...span, top, bottom } : null;
+  // A heading above the element is not in it: it says nothing of where in the element the change is.
+  const heading = span.heading !== undefined && span.heading >= region.top ? span.heading : undefined;
+  return top < bottom ? { ...span, top, bottom, heading } : null;
 }
 
 /** Whether a page has the change itself, shown or cut off, not only the unchanged words around it. */
@@ -120,12 +135,13 @@ type Group = { changes: number[] } & Record<Side, Region | null>;
 function byDistance(order: number[], places: Place[], options: PlanOptions): Group[] {
   const fits = (region: Region | null) =>
     !region || height(padded(region, options.padding)) <= options.maxHeight;
+  const place = (i: number, side: Side) => headed(places[i][side], options);
   const groups: Group[] = [];
   for (const i of order) {
     const last = groups.at(-1);
     if (last) {
-      const before = extend(last.before, places[i].before);
-      const after = extend(last.after, places[i].after);
+      const before = extend(last.before, place(i, 'before'));
+      const after = extend(last.after, place(i, 'after'));
       if (fits(before) && fits(after)) {
         Object.assign(last, { before, after, changes: [...last.changes, i] });
         continue;
@@ -133,18 +149,32 @@ function byDistance(order: number[], places: Place[], options: PlanOptions): Gro
     }
     groups.push({
       changes: [i],
-      before: extend(null, places[i].before),
-      after: extend(null, places[i].after),
+      before: extend(null, place(i, 'before')),
+      after: extend(null, place(i, 'after')),
     });
   }
   return groups.length ? groups : [{ changes: [], before: null, after: null }];
 }
 
-/** The part of a page a shot shows around `region`: padded, its edges off any line of text, cut to
- * the maximum height. With no region, the top of the page, the viewport high. */
-async function clip(region: Region | null, page: PlanPage, options: PlanOptions): Promise<Box> {
-  if (!region) return { x: 0, y: 0, width: page.width, height: options.height };
-  const { top, bottom } = await page.snap(padded(region, options.padding));
+/** A change's place, taking in the heading of what it is in when that is less than a window high
+ * above it, and the shot still fits under the maximum height: a card's title, a section's heading,
+ * say where the change is. */
+function headed(span: Span | null, options: PlanOptions): Span | null {
+  if (span?.heading === undefined || span.heading >= span.top) return span;
+  const near = span.top - span.heading <= options.height;
+  const fits =
+    height(padded({ top: span.heading, bottom: span.bottom }, options.padding)) <= options.maxHeight;
+  return near && fits ? { ...span, top: span.heading } : span;
+}
+
+/** `region`, already padded, with its edges off any line of text; none with none. */
+const snapped = async (region: Region | null, page: PlanPage) => region && page.snap(region);
+
+/** The part of a page a shot shows: `edges`, cut to the maximum height. With none, the top of the
+ * page, the viewport high. */
+function boxOf(edges: Region | null, page: PlanPage, options: PlanOptions): Box {
+  if (!edges) return { x: 0, y: 0, width: page.width, height: options.height };
+  const { top, bottom } = edges;
   return { x: 0, y: top, width: page.width, height: Math.max(1, Math.min(bottom - top, options.maxHeight)) };
 }
 

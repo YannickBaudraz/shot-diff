@@ -258,7 +258,8 @@ opens. To get the Linux one anyway, name it: `--chrome /usr/bin/google-chrome`.
    colour says it, red on the before shot, green on the after. On the page without it, the shot
    takes in whole the element next to where it would be.
 5. It shoots the area around the changes, unchanged words next to each change included, so both
-   shots show the same place even when one side of a change is empty. With `--selector`, it first
+   shots show the same place even when one side of a change is empty, and the heading of what a
+   change is in (a card's title, a section's heading) when it is less than a window high above it. With `--selector`, it first
    drops the changes outside the element's tree, and takes their marks off. A box goes around what
    a scroll area shows of a change; a change it shows none of gets no box and is listed instead.
    Changes far apart are shot apart, and an edge of a shot never cuts a line of text in half: it

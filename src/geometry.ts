@@ -10,5 +10,13 @@ export type Region = { top: number; bottom: number };
  * null when this page has nothing of a word change, or when the change is `clipped`: on the page,
  * but where a scroll area or another clipping element shows none of it, so no box is drawn. `inside`
  * says whether the change is inside the marks' `within` element: always, with none. A component
- * (`byTop`) is shown by its top, so a shot that cuts off its bottom still shows it. */
-export type Span = Region & { changed: Region | null; inside: boolean; clipped: boolean; byTop?: boolean };
+ * (`byTop`) is shown by its top, so a shot that cuts off its bottom still shows it. `heading` is the
+ * top of the heading of what the change is in, a card's title, a section's heading, when there is
+ * one before it: what a shot takes in, where it can, to say where the change is. */
+export type Span = Region & {
+  changed: Region | null;
+  inside: boolean;
+  clipped: boolean;
+  byTop?: boolean;
+  heading?: number;
+};

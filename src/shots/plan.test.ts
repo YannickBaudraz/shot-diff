@@ -90,6 +90,37 @@ describe('plan', () => {
   });
 });
 
+describe('the heading of what a change is in', () => {
+  test('is taken in when it is less than a window high above the change', async () => {
+    const p = await plan([both({ ...at(1000), heading: 600 })], OPTIONS, pages());
+    expect(p.shots[0].before).toEqual({ x: 0, y: 520, width: 1000, height: 580 });
+  });
+
+  test('is left out when taking it in would cut the change from its shot, once snap has moved the edges', async () => {
+    // Padded, heading to change is 590px, under the maximum; snap raises the top by 100px.
+    const p = await plan(
+      [both({ ...at(1000, 1040), heading: 610 })],
+      { ...OPTIONS, maxHeight: 600 },
+      pages(fakePage(r => ({ top: r.top - 100, bottom: r.bottom + 6 }))),
+    );
+    expect(p.leftOut).toEqual({ before: [], after: [] });
+  });
+
+  test('--selector: one above the element is none, not a heading at its top', async () => {
+    const options = { ...OPTIONS, selector: '#main' };
+    const page = fakePage(undefined, { '#main': el(600, 3000) });
+    const p = await plan([both({ ...at(1100), heading: 100 })], options, pages(page));
+    expect(p.shots[0].before.y).toBe(1020);
+  });
+
+  test('is left out when it is further above, or would make the shot taller than the maximum', async () => {
+    const far = await plan([both({ ...at(1000), heading: 50 })], OPTIONS, pages());
+    expect(far.shots[0].before.y).toBe(920);
+    const tall = await plan([both({ ...at(1000), heading: 700 })], { ...OPTIONS, maxHeight: 400 }, pages());
+    expect(tall.shots[0].before.y).toBe(920);
+  });
+});
+
 describe('what is left out', () => {
   test('a change taller than the maximum is cut, and said to be left out', async () => {
     const p = await plan([both(at(100, 3000))], OPTIONS, pages());

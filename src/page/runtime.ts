@@ -783,6 +783,45 @@ export function runtime(properties: string[], ignore: string[] = [], showIgnored
     return { top: y, bottom: y, changed: null, inside: true, clipped: false };
   };
 
+  /** What a heading is: a heading element, or one that says it is. */
+  const HEADINGS = 'h1, h2, h3, h4, h5, h6, [role="heading"]';
+
+  /** The heading an element before a change's own gives it: a heading itself, a header or a group
+   * of headings with one in it, or an element around a heading and nothing more, as a title's box.
+   * The page's banner, a header right in the body, names the site, not what a change is in. */
+  const headingIn = (element: Element): Element | null => {
+    if (element.matches(HEADINGS)) return element;
+    const inner = element.querySelector(HEADINGS);
+    if (!inner) return null;
+    if (element.matches('header, hgroup') && element.parentElement !== document.body) return inner;
+    return element.textContent?.trim() === inner.textContent?.trim() ? inner : null;
+  };
+
+  /** The top of the heading of what `node` is in, in page pixels: from its element up to the body,
+   * the nearest heading that shows among the elements before it, a card's title, a section's
+   * heading; or the heading `node` is in, which says itself where it is. None with no heading before
+   * it. The elements before it are its own, not inside one beside it: a card's neighbour has a title
+   * of its own, which does not name this one. */
+  const headingAbove = (node: Node): number | undefined => {
+    const topOf = (element: Element) => {
+      const rect = element.getBoundingClientRect();
+      return rect.height ? rect.top + window.scrollY : undefined;
+    };
+    for (
+      let element = node instanceof Element ? node : shownIn(node);
+      element && element !== document.body;
+      element = shownIn(element)
+    ) {
+      if (element.matches(HEADINGS)) return topOf(element);
+      for (let before = element.previousElementSibling; before; before = before.previousElementSibling) {
+        const heading = headingIn(before);
+        const top = heading && topOf(heading);
+        if (top !== undefined && top !== null) return top;
+      }
+    }
+    return undefined;
+  };
+
   /** Where each line of each token is on the page. */
   const textLines = (tokens: Token[]): Region[] =>
     tokens.flatMap(token =>
@@ -837,7 +876,11 @@ export function runtime(properties: string[], ignore: string[] = [], showIgnored
         const nodes = change.changed
           .map(t => tokens[t])
           .map(token => ('image' in token ? token.image : token.node));
-        return span && { ...span, inside: inside(nodes) };
+        // Where the change is, or with none of it on this page, the nearest unchanged word before it.
+        const at = change.changed[0] ?? change.anchors[0];
+        const token: Token | undefined = tokens[at];
+        const node = token && ('image' in token ? token.image : token.node);
+        return span && { ...span, inside: inside(nodes), heading: node && headingAbove(node) };
       });
       // What a label should not hide: the page's words and images, and the labels placed before it;
       // and, less, the lines of every box: the words', the looks', and the areas left out.
@@ -859,7 +902,11 @@ export function runtime(properties: string[], ignore: string[] = [], showIgnored
             ? boxLook(look.badge, element, layer, marks.color, drawn, avoid)
             : placeAt(element, look.edge ?? 'top', look.beside);
         undo.looks.push(removing(drawn));
-        return { ...span, inside: inside(element ? [element] : []) };
+        return {
+          ...span,
+          inside: inside(element ? [element] : []),
+          heading: element && headingAbove(element),
+        };
       });
       if (showIgnored) drawIgnored(under, avoid);
       return { words, looks };
