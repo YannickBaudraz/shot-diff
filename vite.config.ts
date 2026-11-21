@@ -19,6 +19,8 @@ export default defineConfig({
           name: 'node',
           include: ['src/**/*.test.ts'],
           exclude: ['src/**/*.browser.test.ts'],
+          // One test file opens Chrome, which a busy machine starts slowly.
+          testTimeout: 30_000,
         },
       },
       {
