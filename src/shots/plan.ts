@@ -72,7 +72,9 @@ export async function plan(
   for (const group of groups) {
     const pad = (region: Region | null) => region && padded(region, options.padding);
     const grown = lineUp({ before: pad(group.before), after: pad(group.after) }, unchanged, options, regions);
-    let edges = await bothSides(side => snapped(grown[side], pages[side], group[side]?.top, options));
+    let edges = await bothSides(side =>
+      snapped(grown[side], pages[side], group[side]?.top, options, regions?.[side]),
+    );
     // Headings and lining up grow a shot up to the maximum height; snap can still push it past, and
     // the cut would fall on the changes. The shot is then the one around the changes alone.
     if (SIDES.some(side => edges[side] && height(edges[side]!) > options.maxHeight)) {
@@ -80,7 +82,9 @@ export async function plan(
         group.changes.length
           ? group.changes.reduce<Region | null>((region, i) => extend(region, kept[i][side]), null)
           : group[side];
-      edges = await bothSides(side => snapped(pad(bare(side)), pages[side], bare(side)?.top, options));
+      edges = await bothSides(side =>
+        snapped(pad(bare(side)), pages[side], bare(side)?.top, options, regions?.[side]),
+      );
     }
     const shot = {
       changes: group.changes,
@@ -240,15 +244,20 @@ function across(y: number, edge: 'top' | 'bottom', side: Side, unchanged: Unchan
 
 /** `region`, already padded, with its edges off any line of text, and its top out of any item, as far
  * up as the shot has room for under the maximum height and no lower than `keep`, the top of what it
- * is of (its own with none); none with none. */
+ * is of (its own with none); none with none. With --selector, the top goes no further up than
+ * `within`, the element, and its padding: the text before the element is not what the shot is of. */
 const snapped = async (
   region: Region | null,
   page: PlanPage,
   keep: number | undefined,
   options: PlanOptions,
-) =>
-  region &&
-  page.snap(region, { room: Math.max(0, options.maxHeight - height(region)), keep: keep ?? region.top });
+  within?: Region,
+) => {
+  if (!region) return region;
+  const under = options.maxHeight - height(region);
+  const upTo = within ? region.top - (within.top - options.padding) : under;
+  return page.snap(region, { room: Math.max(0, Math.min(under, upTo)), keep: keep ?? region.top });
+};
 
 /** The narrowest a shot cut to an element gets: its band holds a title and what the colour means. */
 const MIN_WIDTH = 400;

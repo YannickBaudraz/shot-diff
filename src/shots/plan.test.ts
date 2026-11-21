@@ -209,6 +209,14 @@ describe('the top of a shot, which snap moves out of an item', () => {
     ]);
   });
 
+  test('--selector: has no more room than up to the element and its padding, not the text before it', async () => {
+    const { asked, page } = asking();
+    const card = { ...page, region: async () => ({ top: 900, bottom: 3000, left: 0, right: 1000 }) };
+    await plan([both(at(1500))], { ...OPTIONS, selector: '#card' }, pages(card));
+    // Padded, the shot starts at 1420; the element, padded, at 820.
+    expect(asked[0].limits).toEqual({ room: 600, keep: 1500 });
+  });
+
   test('has no room when the shot is already as tall as it may be', async () => {
     const { asked, page } = asking();
     await plan([both(at(1000, 1040))], { ...OPTIONS, maxHeight: 200 }, pages(page));
