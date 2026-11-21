@@ -36,10 +36,14 @@ export type Plan = {
   outside: number[];
 };
 
+/** An unchanged word, where it is on each page: what lines up the two shots of a pair. */
+export type Unchanged = Record<Side, Region>;
+
 export async function plan(
   places: Place[],
   options: PlanOptions,
   pages: Record<Side, PlanPage>,
+  unchanged: Unchanged[] = [],
 ): Promise<Plan> {
   const { kept, outside, regions } = options.selector
     ? await within(places, options.selector, pages)
@@ -62,10 +66,10 @@ export async function plan(
     });
   for (const group of groups) {
     const pad = (region: Region | null) => region && padded(region, options.padding);
-    const grown = { before: pad(group.before), after: pad(group.after) };
+    const grown = lineUp({ before: pad(group.before), after: pad(group.after) }, unchanged, options, regions);
     let edges = await bothSides(side => snapped(grown[side], pages[side]));
-    // Headings grow a shot up to the maximum height; snap can still push it past, and the cut would
-    // fall on the changes. The shot is then the one around the changes alone.
+    // Headings and lining up grow a shot up to the maximum height; snap can still push it past, and
+    // the cut would fall on the changes. The shot is then the one around the changes alone.
     if (SIDES.some(side => edges[side] && height(edges[side]!) > options.maxHeight)) {
       const bare = (side: Side) =>
         group.changes.length
@@ -165,6 +169,68 @@ function headed(span: Span | null, options: PlanOptions): Span | null {
   const fits =
     height(padded({ top: span.heading, bottom: span.bottom }, options.padding)) <= options.maxHeight;
   return near && fits ? { ...span, top: span.heading } : span;
+}
+
+/** How far from a shot's edge an unchanged word still says where that edge is on the other page. */
+const NEAR_EDGE = 80;
+
+/** Both regions of a shot grown to show the same place: each edge of one page, put on the other by
+ * the unchanged word nearest it, takes in what it shows there. Above the changes, the same words
+ * may sit higher or lower on one page than on the other, as in a row of cards one of which grew: a
+ * shot cut at the same distance from the change on both would start in another place on each. An
+ * edge with no unchanged word near it stays; so does one that would make the shot taller than the
+ * maximum. Done until neither moves, as an edge moved on one page can move one on the other. */
+function lineUp(
+  regions: Record<Side, Region | null>,
+  unchanged: Unchanged[],
+  options: PlanOptions,
+  bounds: Record<Side, Region> | null,
+): Record<Side, Region | null> {
+  const lined = { ...regions };
+  for (let round = 0; round < 3; round++) {
+    let moved = false;
+    for (const side of SIDES) {
+      const other = side === 'before' ? 'after' : 'before';
+      const region = lined[side];
+      if (!region) continue;
+      const top = across(region.top, 'top', side, unchanged);
+      const bottom = across(region.bottom, 'bottom', side, unchanged);
+      const was = lined[other];
+      const grown = was
+        ? { top: Math.min(was.top, top ?? was.top), bottom: Math.max(was.bottom, bottom ?? was.bottom) }
+        : top !== undefined && bottom !== undefined
+          ? { top, bottom }
+          : null;
+      if (!grown || height(grown) > options.maxHeight) continue;
+      grown.top = Math.max(0, grown.top);
+      // With --selector, an edge grows up to the element's, not past it to what is around it.
+      const bound = bounds?.[other];
+      if (bound) {
+        grown.top = Math.max(grown.top, Math.min(was?.top ?? bound.top, bound.top));
+        grown.bottom = Math.min(grown.bottom, Math.max(was?.bottom ?? bound.bottom, bound.bottom));
+      }
+      if (!was || grown.top !== was.top || grown.bottom !== was.bottom) {
+        lined[other] = grown;
+        moved = true;
+      }
+    }
+    if (!moved) break;
+  }
+  return lined;
+}
+
+/** Where an edge at `y` on `side`'s page is on the other page, by the unchanged word whose same
+ * edge is nearest it, within NEAR_EDGE; undefined with none. */
+function across(y: number, edge: 'top' | 'bottom', side: Side, unchanged: Unchanged[]): number | undefined {
+  const other = side === 'before' ? 'after' : 'before';
+  let nearest: Unchanged | undefined;
+  for (const word of unchanged)
+    if (
+      Math.abs(word[side][edge] - y) <= NEAR_EDGE &&
+      (!nearest || Math.abs(word[side][edge] - y) < Math.abs(nearest[side][edge] - y))
+    )
+      nearest = word;
+  return nearest && nearest[other][edge] + (y - nearest[side][edge]);
 }
 
 /** `region`, already padded, with its edges off any line of text; none with none. */

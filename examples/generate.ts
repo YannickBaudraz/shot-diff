@@ -57,6 +57,14 @@ const EXAMPLES: Example[] = [
     pages: ['components/before.html', 'components/after.html'],
   },
   {
+    id: 'workflow',
+    name: 'Changes in cards and in a list',
+    title: 'Workflow: step 10 confirmed in its session',
+    shows:
+      'Both shots of a pair show the same place, from the title of the card or the heading of the list the change is in, though the card grew on one page. A sentence added over several lines gets one outline around it, and an item inserted in a list one box: the item it pushed down is not marked.',
+    pages: ['workflow/before.html', 'workflow/after.html'],
+  },
+  {
     id: 'layout',
     name: 'A layout redesigned',
     title: 'Landing: two-column hero, feature grid',

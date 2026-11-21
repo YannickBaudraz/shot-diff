@@ -840,9 +840,15 @@ export function runtime(properties: string[], ignore: string[] = [], showIgnored
   const { elements, domElements } = readElements(properties, tokenRanges(tokens));
 
   return {
-    /** The page's words and elements, read before anything was drawn over it, and its width. */
+    /** The page's words, where each shows, and its elements, read before anything was drawn over
+     * it, and its width. */
     reading: {
       words,
+      // Where each word shows, its first line: what lines up the shots of the two pages.
+      places: tokens.map(token => {
+        const [shown] = shownRectsOf(token);
+        return shown ? pageRegion([shown]) : null;
+      }),
       elements,
       width: document.documentElement.clientWidth,
       ignored: ignoredBy.map(found => found.length), // how many elements each --ignore selector matched

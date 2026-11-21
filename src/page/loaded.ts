@@ -44,6 +44,7 @@ export type OpenedPage = {
 export type LoadedPage = {
   side: Side;
   words: string[];
+  places: (Region | null)[]; // where each word shows on the page; null for one a scroll area cuts off
   ignored: number[]; // how many elements each of LoadOptions' ignore selectors matched
   elements: ElementInfo[];
   width: number;
@@ -269,10 +270,11 @@ async function read(
   await page.evaluate(
     `window.__shotDiff = (${runtime.toString()})(${JSON.stringify(Object.keys(PROPERTIES))}, ${JSON.stringify(ignore)}, ${showIgnored})`,
   );
-  const { words, elements, width, ignored } = await page.evaluate(() => window.__shotDiff.reading);
+  const { words, places, elements, width, ignored } = await page.evaluate(() => window.__shotDiff.reading);
   return {
     side,
     words,
+    places,
     ignored,
     elements,
     width,

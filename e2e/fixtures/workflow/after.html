@@ -1,0 +1,33 @@
+<!doctype html><meta charset="utf-8"><title>Workflow</title>
+<link rel="stylesheet" href="style.css">
+<header><h1>Workflow</h1></header>
+<div class="row">
+  <article class="card"><div class="card-head">8 · Interface designer</div><h3>Interface design</h3>
+    <p class="summary">Three directions for the screens are sketched in the real app, then their best parts are merged with you, one screen after the other, until the epic's interface holds together. When the product has no visual direction yet, the directions set one too, before the first screen is drawn.</p>
+    <div class="result"><p class="out">The epic's interface design.</p><p class="gate-mark"><span class="dia"></span>You approve</p></div></article>
+  <article class="card"><div class="card-head">9 · Architect</div><h3>Refinement</h3>
+    <p class="summary">Each story is questioned one point at a time, split when it is too big, then checked for gaps.</p>
+    <div class="result"><p class="out">Story ready: rules, examples and acceptance criteria agreed.</p></div></article>
+  <article class="card"><div class="card-head">10 · Architect</div><h3>Tickets</h3>
+    <p class="summary">The work is cut into thin tickets, each one built and merged on its own.</p>
+    <div class="result"><p class="out">Tickets with <a href="#edges">blocking edges</a>. The breakdown, by confirmation: you confirm it in the session that made it, with any change asked for there, then the tickets publish with no separate gate, and nothing is left waiting on an approval in another session or on another day.</p></div></article>
+</div>
+<p class="joint">Then, for each ticket: steps 11 to 13</p>
+<div class="row">
+  <article class="card"><div class="card-head">11 · Developer</div><h3>Build</h3><p class="summary">One ticket is built test-first on its own branch.</p></article>
+  <article class="card"><div class="card-head">12 · Reviewer</div><h3>Review chain</h3><p class="summary">Once CI passes, a fresh session checks the PR against its ticket.</p></article>
+  <article class="card"><div class="card-head">13 · You</div><h3>Merge</h3><p class="summary">You merge the PR once its ticket is met and the review approves.</p></article>
+</div>
+<div class="gap"></div>
+<section class="rules-panel"><h2>Rules</h2><h3>Gates</h3>
+  <ul class="rules">
+    <li><span class="dia"></span><span>A ticket gets at most two rounds: each verdict on the PR that sent it back is one.</span></li>
+    <li><span class="dia"></span><span>Approval gates are yours: a step is approved when you approve it, not when its output exists.</span></li>
+    <li><span class="dia"></span><span>A document is approved when it ends with the line <code>Approved by &lt;name&gt;</code>, which the step's skill writes when you approve it in the session; <a href="#step-13">step 13</a> is approved by the merge.</span></li>
+    <li><span class="dia"></span><span>A document without that line is waiting for approval, however finished it looks.</span></li>
+    <li><span class="dia"></span><span><a href="#step-4">Steps 4 to 8</a> and 13 have one, <a href="#step-8">step 8</a> only when it runs: later steps build on what they produce.</span></li>
+    <li><span class="dia"></span><span><a href="#step-10">Step 10</a> has a confirmation instead: <code>/to-tickets</code> shows the breakdown in the session that made it, you confirm it there, and the tickets publish with nothing waiting on an approval.</span></li>
+    <li><span class="dia"></span><span>A later step that finds an approved document wrong proposes the change.</span></li>
+    <li><span class="dia"></span><span><a href="#step-8">Step 8</a> runs when the project map gives interface designs a home.</span></li>
+  </ul>
+</section>

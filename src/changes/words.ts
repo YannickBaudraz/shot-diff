@@ -71,24 +71,29 @@ function hunkOf(ops: readonly Op[], start: number, end: number, context: number)
   };
 }
 
-/** The word changes between two pages' words, leaving out the `skipped` stretches of each page (from
- * the first word, up to after the last): the words of a component only one page has are no word
- * changes, and could pair with a word elsewhere. Indexes are into the words as given. */
-export function wordHunks(
+/** The word changes between two pages' words, and the words unchanged, each by its index on both
+ * pages: what lines up the shots of the two pages. The `skipped` stretches of each page (from the
+ * first word, up to after the last) are left out: the words of a component only one page has are no
+ * word changes, and could pair with a word elsewhere. Indexes are into the words as given. */
+export function wordDiff(
   words: Record<Side, readonly string[]>,
   skipped: Record<Side, [number, number][]>,
-): Hunk[] {
+): { hunks: Hunk[]; unchanged: Record<Side, number>[] } {
   const kept = (side: Side) =>
     words[side].map((_, i) => i).filter(i => !skipped[side].some(([from, to]) => from <= i && i < to));
   const keep = { before: kept('before'), after: kept('after') };
   const at = (side: Side) => (i: number) => keep[side][i];
-  return hunks(
-    diff(
-      keep.before.map(i => words.before[i]),
-      keep.after.map(i => words.after[i]),
-    ),
-  ).map(({ changed, anchors }) => ({
-    changed: { before: changed.before.map(at('before')), after: changed.after.map(at('after')) },
-    anchors: { before: anchors.before.map(at('before')), after: anchors.after.map(at('after')) },
-  }));
+  const ops = diff(
+    keep.before.map(i => words.before[i]),
+    keep.after.map(i => words.after[i]),
+  );
+  return {
+    hunks: hunks(ops).map(({ changed, anchors }) => ({
+      changed: { before: changed.before.map(at('before')), after: changed.after.map(at('after')) },
+      anchors: { before: anchors.before.map(at('before')), after: anchors.after.map(at('after')) },
+    })),
+    unchanged: ops
+      .filter(isEqual)
+      .map(op => ({ before: at('before')(op.before), after: at('after')(op.after) })),
+  };
 }

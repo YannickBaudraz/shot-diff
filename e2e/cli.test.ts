@@ -358,3 +358,26 @@ test('--max-height cuts a change too tall for it, and says so', () => {
   expect(result.leftOut.removed).toContain('[section: spacing]');
   expect(done.stderr).toMatch(/cut from every image/);
 });
+
+test('a workflow page: each pair shows the same place, from the heading of the card it changed in, and an item inserted in a list leaves the items below it unmarked', () => {
+  const { done, result } = shotDiff(
+    page('workflow/before.html'),
+    page('workflow/after.html'),
+    '--title',
+    't',
+  );
+  expect(done.status, done.stderr).toBe(0);
+  expect(result.shots).toHaveLength(2);
+  const [cards, rules] = result.shots;
+  // Above the row of cards both pages are laid out alike: the same place starts at the same height.
+  expect(cards.before.box.y).toBe(cards.after.box.y);
+  // The card's heading, "Tickets", starts 209px down (style.css): both shots take it in.
+  expect(cards.before.box.y).toBeLessThanOrEqual(209);
+  expect(cards.before.removed).toEqual(['[p: removed] You approve before publishing']);
+  expect(rules.before.removed).toEqual(['tickets are approved by being published, and', ', 10']);
+  // The item inserted is one change; the diamond of the item it pushed down is none.
+  expect(rules.after.added).toEqual([
+    'is approved',
+    expect.stringMatching(/^\[li: added\] Step 10 has a confirmation/),
+  ]);
+});

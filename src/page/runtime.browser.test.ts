@@ -83,6 +83,16 @@ describe('read', () => {
     expect(p.reading.words).toEqual(['One', 'two', '[image logo.png]', 'three']);
   });
 
+  test('says where each word shows on the page, and nothing of one a scroll area cuts off', () => {
+    const p = page(
+      '<p>One two</p><div style="height:24px;overflow:hidden"><p style="margin:0">in</p><p>out</p></div>',
+    );
+    const [one, two, inside, out] = p.reading.places;
+    expect(one!.top).toBe(two!.top);
+    expect(one!.bottom).toBeLessThanOrEqual(inside!.top);
+    expect(out).toBeNull();
+  });
+
   test('reads the CSS value, so a margin set to auto stays auto', () => {
     const p = page(
       '<div style="display:flex;flex-direction:column;height:300px"><p>a</p><p style="margin-top:auto">b</p></div>',

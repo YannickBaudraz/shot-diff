@@ -2,12 +2,12 @@
 
 import type { Browser } from 'playwright-core';
 import { compareLooks, labelOf, type Look } from './changes/looks.ts';
-import { wordHunks, type Hunk } from './changes/words.ts';
+import { wordDiff, type Hunk } from './changes/words.ts';
 import type { Box, Span } from './geometry.ts';
 import { open, openTabs, type LoadedPage, type LoadOptions, type OpenedPage } from './page/loaded.ts';
 import { band, type Content, type Key } from './shots/band.ts';
 import { markersFor, type Marker, type Mode } from './shots/markers.ts';
-import { plan, type Place, type Plan, type PlanOptions } from './shots/plan.ts';
+import { plan, type Place, type Plan, type PlanOptions, type Unchanged } from './shots/plan.ts';
 import { bothSides, SIDES, type Side } from './side.ts';
 
 export type Options = LoadOptions &
@@ -55,18 +55,20 @@ export async function run(browser: Browser, options: Options): Promise<Result> {
     const missed = ignoredAreas.find(area => !area.before && !area.after);
     if (missed) throw new Error(`--ignore ${missed.selector} matches nothing on either page`);
     const looks = await compareLooks(pages.before, pages.after, options); // before anything is drawn over the pages
-    const wordChanges = !options.words
-      ? []
-      : wordHunks(
+    const words = !options.words
+      ? { hunks: [], unchanged: [] }
+      : wordDiff(
           { before: pages.before.words, after: pages.after.words },
           { before: componentWords(looks, pages, 'before'), after: componentWords(looks, pages, 'after') },
         );
+    const wordChanges = words.hunks;
     const markers = await markersFor(looks, options.markers, options.scale);
     const changes = await markPages(pages, wordChanges, markers, options.selector);
     const planned = await plan(
       changes.map(change => change.place),
       options,
       pages,
+      placed(words.unchanged, pages),
     );
     await unmarkIgnored(pages, planned.outside, wordChanges.length);
     return {
@@ -90,6 +92,15 @@ export async function run(browser: Browser, options: Options): Promise<Result> {
   } finally {
     await bothSides(side => pages[side].close());
   }
+}
+
+/** The unchanged words that show on both pages, where each is on each. */
+function placed(unchanged: Record<Side, number>[], pages: Record<Side, LoadedPage>): Unchanged[] {
+  return unchanged.flatMap(word => {
+    const before = pages.before.places[word.before];
+    const after = pages.after.places[word.after];
+    return before && after ? [{ before, after }] : [];
+  });
 }
 
 /** The words of the components only `side` has, as stretches of its words: they are said by the

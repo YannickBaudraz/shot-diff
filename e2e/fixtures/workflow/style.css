@@ -1,0 +1,20 @@
+/* A workflow page: a row of step cards with their titles, then rules with a diamond before each. */
+body { font: 16px/1.5 system-ui, sans-serif; margin: 0; color: #1f2328; background: #f6f8fa }
+header { height: 160px; padding: 0 24px; box-sizing: border-box }
+.row { display: flex; gap: 32px; margin: 0 24px }
+.card { flex: 1 1 0; min-width: 0; background: #fff; border: 1px solid #d0d7de; border-radius: 10px;
+  padding: 16px; display: flex; flex-direction: column }
+.card-head { height: 24px; margin-bottom: 8px; font: 600 13px/24px system-ui, sans-serif; color: #0969da;
+  text-transform: uppercase }
+.card h3 { margin: 0; font-size: 20px; line-height: 32px }
+.card .summary { margin: 8px 0 16px }
+.result { margin-top: auto; padding-top: 8px; border-top: 1px solid #d0d7de; display: grid; gap: 8px }
+.out { margin: 0; font-weight: 600 }
+.gate-mark { margin: 0; display: flex; align-items: center; gap: 8px; color: #cf222e; font-weight: 700 }
+.dia { width: 9px; height: 9px; background: #cf222e; transform: rotate(45deg); flex: none; display: inline-block }
+.joint { margin: 24px 48px; color: #57606a; font-weight: 600 }
+.gap { height: 2600px }
+.rules-panel { margin: 0 24px; width: 320px }
+.rules { list-style: none; padding: 0 }
+.rules li { display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 6px; align-items: start; margin-bottom: 16px }
+.rules .dia { margin-top: 8px }

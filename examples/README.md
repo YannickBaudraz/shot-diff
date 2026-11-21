@@ -78,6 +78,27 @@ examples/component/shot-after.png: 1 part(s) added
 |---|---|
 | ![before](component/shot-before.png) | ![after](component/shot-after.png) |
 
+## Changes in cards and in a list
+
+Both shots of a pair show the same place, from the title of the card or the heading of the list the change is in, though the card grew on one page. A sentence added over several lines gets one outline around it, and an item inserted in a list one box: the item it pushed down is not marked.
+
+```sh
+shot-diff "file://$PWD/e2e/fixtures/workflow/before.html" "file://$PWD/e2e/fixtures/workflow/after.html" \
+  --title "Workflow: step 10 confirmed in its session"
+```
+
+```
+examples/workflow/shot-1-before.png: 1 part(s) removed
+examples/workflow/shot-1-after.png: 1 part(s) added
+examples/workflow/shot-2-before.png: 2 part(s) removed
+examples/workflow/shot-2-after.png: 2 part(s) added
+```
+
+| Before | After |
+|---|---|
+| ![before](workflow/shot-1-before.png) | ![after](workflow/shot-1-after.png) |
+| ![before](workflow/shot-2-before.png) | ![after](workflow/shot-2-after.png) |
+
 ## A layout redesigned
 
 The same words, laid out anew: the hero goes from centred to two columns with an illustration, and the features from a stack to a row. No word changed, so each element whose layout changed gets a box saying what of it changed, and the illustration, hidden before, is added.

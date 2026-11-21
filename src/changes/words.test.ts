@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { diff, hunks, wordHunks, type Op } from './words.ts';
+import { diff, hunks, wordDiff, type Op } from './words.ts';
 
 const words = (s: string) => s.split(' ').filter(Boolean);
 const apply = (a: string[], b: string[], ops: Op[]) => {
@@ -73,13 +73,21 @@ test('random lists replay exactly', () => {
   }
 });
 
-test('wordHunks leaves a skipped stretch out, and gives indexes into the words as given', () => {
+test('wordDiff leaves a skipped stretch out, and gives indexes into the words as given', () => {
   // The after page has a component, "the Buy", between "Pay" and "now": no change, and no pairing
   // with the other page's "Buy".
   const before = words('Buy now');
   const after = words('Pay the Buy now');
-  expect(wordHunks({ before, after }, { before: [], after: [[1, 3]] })).toEqual([
+  expect(wordDiff({ before, after }, { before: [], after: [[1, 3]] }).hunks).toEqual([
     { changed: { before: [0], after: [0] }, anchors: { before: [1], after: [3] } },
   ]);
-  expect(wordHunks({ before, after: words('Buy now') }, { before: [], after: [] })).toEqual([]);
+  expect(wordDiff({ before, after: words('Buy now') }, { before: [], after: [] }).hunks).toEqual([]);
+});
+
+test('wordDiff gives the unchanged words, each by its index on both pages', () => {
+  const before = words('Buy now');
+  const after = words('Pay the Buy now');
+  expect(wordDiff({ before, after }, { before: [], after: [[1, 3]] }).unchanged).toEqual([
+    { before: 1, after: 3 },
+  ]);
 });

@@ -121,6 +121,34 @@ describe('the heading of what a change is in', () => {
   });
 });
 
+describe('both shots of a pair', () => {
+  test('show the same place: an edge on one page takes in what the other shows, by the unchanged words near it', async () => {
+    // On the after page, what is above the change sits 200px higher, what is below it 280px lower.
+    const unchanged = [
+      { before: el(900, 920), after: el(700, 720) },
+      { before: el(1110, 1130), after: el(1390, 1410) },
+    ];
+    const p = await plan([{ before: at(1000), after: at(1000, 1300) }], OPTIONS, pages(), unchanged);
+    expect(p.shots[0].before).toEqual({ x: 0, y: 920, width: 1000, height: 180 });
+    expect(p.shots[0].after).toEqual({ x: 0, y: 720, width: 1000, height: 660 });
+  });
+
+  test('--selector: do not grow past the element on either page', async () => {
+    const options = { ...OPTIONS, selector: '#card' };
+    const page = fakePage(undefined, { '#card': el(900, 1400) });
+    // Above the element, the after page has the same words 200px higher.
+    const unchanged = [{ before: el(900, 920), after: el(700, 720) }];
+    const p = await plan([both(at(1000))], options, pages(page), unchanged);
+    expect(p.shots[0].after.y).toBe(900); // up to the element's top, not to the words above it
+  });
+
+  test('keep their edges where no unchanged word is near them', async () => {
+    const unchanged = [{ before: el(400, 420), after: el(100, 120) }]; // 500px above the shot
+    const p = await plan([both(at(1000))], OPTIONS, pages(), unchanged);
+    expect(p.shots[0].after.y).toBe(920);
+  });
+});
+
 describe('what is left out', () => {
   test('a change taller than the maximum is cut, and said to be left out', async () => {
     const p = await plan([both(at(100, 3000))], OPTIONS, pages());

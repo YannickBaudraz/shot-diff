@@ -17,6 +17,7 @@ const CASES: { name: string; before: string; after: string; args?: string[] }[] 
   { name: 'pictures-and-looks', before: 'visual/before/index.html', after: 'visual/after/index.html' },
   { name: 'wordless', before: 'wordless/before.html', after: 'wordless/after.html' },
   { name: 'components', before: 'components/before.html', after: 'components/after.html' },
+  { name: 'workflow', before: 'workflow/before.html', after: 'workflow/after.html' },
   {
     name: 'ignored',
     before: 'activity/before.html',
