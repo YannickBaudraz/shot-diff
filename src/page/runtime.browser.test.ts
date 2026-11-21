@@ -830,6 +830,18 @@ describe('snap, the top of a shot inside an item', () => {
     expect(top).toBeLessThanOrEqual(li2[0].top);
   });
 
+  test('is not in an item for text a scroll area hides: what does not show is no item', () => {
+    // Ten lines in a panel that shows three: the other seven would run on down the page, unseen.
+    const p = page(
+      '<div style="height:72px;overflow:auto"><p>l1<br>l2<br>l3<br>l4<br>l5<br>l6<br>l7<br>l8<br>l9<br>l10</p></div>' +
+        '<div style="height:400px"></div><p>end</p>',
+    );
+    const [, , , , , , l7, l8] = lines(0);
+    const between = (l7.bottom + l8.top) / 2; // under the panel, between two lines that do not show
+    expect(between).toBeGreaterThan(72);
+    expect(p.snap({ top: between, bottom: 600, room: 500, keep: 600 }).top).toBe(between);
+  });
+
   test('is as before with no room given', () => {
     const p = items();
     const [b1, b2] = lines(1);

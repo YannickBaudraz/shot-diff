@@ -866,7 +866,11 @@ export function runtime(properties: string[], ignore: string[] = [], showIgnored
     const byBlock = new Map<Element, Region[]>();
     for (const token of allTokens) {
       const block = blockOf(token);
-      if (block) byBlock.set(block, [...(byBlock.get(block) ?? []), ...textLines([token])]);
+      if (!block) continue;
+      // Only what shows: text a scroll area hides runs on down the page, where nothing of it is.
+      const lines = byBlock.get(block) ?? [];
+      lines.push(...shownRectsOf(token).map(rect => pageRegion([rect])));
+      byBlock.set(block, lines);
     }
     return [...byBlock.values()].flatMap(lines => {
       const items: Region[] = [];
