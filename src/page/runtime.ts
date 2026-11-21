@@ -887,15 +887,21 @@ export function runtime(properties: string[], ignore: string[] = [], showIgnored
 
   /** A shot's top `y` moved off the inside of an item: up to the item's start when the shot has `room`
    * for that, the clearance above it included, or else down to the start of the next item, when that
-   * is no lower than `keep`, the top of what the shot is of. Where neither goes, the item is the
-   * change's own: `y` stays. */
+   * is no lower than `keep`, the top of what the shot is of, or to the room between the item's end and
+   * `keep`. Where none goes, the item is the change's own: `y` stays. */
   const outOfItem = (y: number, room: number, keep: number, lines: Region[]): number => {
     const items = itemsOfText();
     const inside = items.filter(item => item.top < y && y < item.bottom);
     const reach = inside.filter(item => y - clearAbove(item.top, lines) <= room);
     if (reach.length) return clearAbove(Math.min(...reach.map(item => item.top)), lines);
+    if (!inside.length) return y;
     const next = items.filter(item => item.top > y && item.top <= keep).map(item => item.top);
-    return inside.length && next.length ? clearAbove(Math.min(...next), lines) : y;
+    if (next.length) return clearAbove(Math.min(...next), lines);
+    // No item starts by `keep`, but the ones `y` is in end before it: what is kept starts above its
+    // own first line, as the box around an item does. The top goes right above it, its ring in: a
+    // box around the item before can end a few pixels higher, and would show as a sliver.
+    const end = Math.max(...inside.map(item => item.bottom));
+    return end <= keep ? Math.max(end, keep - BOX.ring) : y;
   };
 
   // The elements --ignore names, each selector's: they, and all inside them, are not read, so
@@ -1008,26 +1014,36 @@ export function runtime(properties: string[], ignore: string[] = [], showIgnored
      * the inside of an item, so a shot does not open on the tail of one: see outOfItem(). */
     snap(shot: Region & { room?: number; keep?: number }): Region {
       const lines = textLines(allTokens);
-      let { top, bottom } = shot;
-      if (shot.room !== undefined && shot.keep !== undefined)
-        top = outOfItem(top, shot.room, shot.keep, lines);
-      let moved: boolean;
-      do {
-        moved = false;
-        for (const line of lines) {
-          if (cuts(line, top)) {
-            top = clearAbove(line.top, lines);
-            moved = true;
+      const offLines = (from: Region): Region => {
+        let { top, bottom } = from;
+        let moved: boolean;
+        do {
+          moved = false;
+          for (const line of lines) {
+            if (cuts(line, top)) {
+              top = clearAbove(line.top, lines);
+              moved = true;
+            }
+            if (cuts(line, bottom)) {
+              let below = line.bottom + 2 * SNAP_CLEARANCE;
+              for (const l of lines) if (l.top >= line.bottom && l.top < below) below = l.top;
+              bottom = (line.bottom + below) / 2;
+              moved = true;
+            }
           }
-          if (cuts(line, bottom)) {
-            let below = line.bottom + 2 * SNAP_CLEARANCE;
-            for (const l of lines) if (l.top >= line.bottom && l.top < below) below = l.top;
-            bottom = (line.bottom + below) / 2;
-            moved = true;
-          }
-        }
-      } while (moved);
-      return { top: Math.max(0, top), bottom };
+        } while (moved);
+        return { top: Math.max(0, top), bottom };
+      };
+      const plain = offLines(shot);
+      if (shot.room === undefined || shot.keep === undefined) return plain;
+      const { room, keep } = shot;
+      // The room is for the whole shot: where the bottom's own move off a line takes it past that,
+      // the top goes as with no room at all, down to the next item or not out of its item.
+      const fits = (edges: Region) => edges.bottom - edges.top <= shot.bottom - shot.top + room;
+      const outWith = (given: number) =>
+        offLines({ top: outOfItem(shot.top, given, keep, lines), bottom: shot.bottom });
+      const whole = outWith(room);
+      return fits(whole) ? whole : outWith(0);
     },
   };
 }

@@ -842,6 +842,40 @@ describe('snap, the top of a shot inside an item', () => {
     expect(p.snap({ top: between, bottom: 600, room: 500, keep: 600 }).top).toBe(between);
   });
 
+  test('stays when going up and moving the bottom off its line would make the shot taller than its room', () => {
+    const p = items();
+    const [b1, b2] = lines(1);
+    const [, c2] = lines(2);
+    const between = (b1.bottom + b2.top) / 2;
+    const cut = (c2.top + c2.bottom) / 2; // the bottom is in a line, and moves down off it
+    const up = between - p.snap({ top: between, bottom: 400, room: 500, keep: between }).top;
+    // Room for the top alone: with the bottom's move the shot would be over it.
+    expect(p.snap({ top: between, bottom: cut, room: up, keep: between }).top).toBe(between);
+    // Room for both: the top goes up.
+    expect(p.snap({ top: between, bottom: cut, room: up + 30, keep: between }).top).toBe(between - up);
+  });
+
+  test('goes down to the next item when going up and moving the bottom would be over its room, if the change stays in', () => {
+    const p = items();
+    const [b1, b2, b3] = lines(1);
+    const [c1, c2] = lines(2);
+    const between = (b1.bottom + b2.top) / 2;
+    const up = between - p.snap({ top: between, bottom: 400, room: 500, keep: between }).top;
+    const { top } = p.snap({ top: between, bottom: (c2.top + c2.bottom) / 2, room: up, keep: c1.top });
+    expect(top).toBeGreaterThanOrEqual(b3.bottom);
+    expect(top).toBeLessThanOrEqual(c1.top);
+  });
+
+  test('goes down past the item to just above the change, when the change starts above the next line of text, as a box around an item does', () => {
+    const p = items();
+    const [b1, b2, b3] = lines(1);
+    const [c1] = lines(2);
+    const boxTop = c1.top - 6; // the top of a box drawn around the third item
+    const { top } = p.snap({ top: (b1.bottom + b2.top) / 2, bottom: 400, room: 10, keep: boxTop });
+    expect(top).toBeGreaterThanOrEqual(b3.bottom);
+    expect(top).toBeLessThanOrEqual(boxTop);
+  });
+
   test('is as before with no room given', () => {
     const p = items();
     const [b1, b2] = lines(1);
