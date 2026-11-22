@@ -6,10 +6,27 @@ on:
 permissions:
   contents: read
 jobs:
+  # The tests re-run here can pass by luck on a flaky run: the release must be a commit that CI,
+  # on main or on its branch, already found green.
+  ci-passed:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+    steps:
+      - name: Check that CI has passed on the tagged commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          runs=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$GITHUB_SHA&status=success" --jq .total_count)
+          if ! [ "$runs" -gt 0 ]; then
+            echo "::error::CI has not passed on $GITHUB_SHA: wait for it to be green, then re-run this workflow"
+            exit 1
+          fi
   test:
+    needs: ci-passed
     uses: ./.github/workflows/ci.yml
   publish:
-    needs: test
+    needs: [ci-passed, test]
     runs-on: ubuntu-latest
     permissions:
       contents: read
