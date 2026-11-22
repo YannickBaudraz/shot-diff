@@ -20,6 +20,7 @@ const OPTIONS: Options = {
   prepare: null,
   tabs: false,
   dryRun: false,
+  unified: false,
   width: 800,
   height: 600,
   scale: 1,
@@ -59,8 +60,8 @@ test('pages set up by hand are compared as they were left, after one wait for bo
     },
   });
   expect(waits).toBe(1);
-  expect(result.shots[0].before.changed).toEqual(['Hello']);
-  expect(result.shots[0].after.changed).toEqual(['Welcome']);
+  expect(result.shots[0].before?.changed).toEqual(['Hello']);
+  expect(result.shots[0].after?.changed).toEqual(['Welcome']);
 });
 
 test('a window left with several tabs is asked about again, until it has the one to shoot', async () => {
@@ -78,7 +79,7 @@ test('a window left with several tabs is asked about again, until it has the one
     },
   });
   expect(asked).toEqual([[], ['before']]);
-  expect(result.shots[0].before.changed).toEqual(['Second tab']); // the tab that was left
+  expect(result.shots[0].before?.changed).toEqual(['Second tab']); // the tab that was left
 });
 
 test('a person who stops instead leaves no page open', async () => {
@@ -91,7 +92,7 @@ test('a person who stops instead leaves no page open', async () => {
 
 test('a shop whose versions differ only in a filled cart: nothing until it is filled, by hand', async () => {
   const shop = { ...OPTIONS, before: fixture('shop/before.html'), after: fixture('shop/after.html') };
-  expect((await run(browser, shop)).shots[0].after.changed).toEqual([]);
+  expect((await run(browser, shop)).shots[0].after?.changed).toEqual([]);
 
   const result = await run(browser, {
     ...shop,
@@ -111,8 +112,8 @@ test('a shop whose versions differ only in a filled cart: nothing until it is fi
   const [shot] = result.shots;
   // The button has no outline on either page: its text colour changed, not an outline's.
   const button = '[button: text colour, background, border colour, corners]';
-  expect(shot.before.changed).toEqual(['applied. Total:', button]);
-  expect(shot.after.changed).toEqual(['item', 'item', 'SAVE10 applied: 10% off. Total incl. VAT:', button]);
+  expect(shot.before?.changed).toEqual(['applied. Total:', button]);
+  expect(shot.after?.changed).toEqual(['item', 'item', 'SAVE10 applied: 10% off. Total incl. VAT:', button]);
 });
 
 test('with tabs, the pages set up by hand are compared the same, from one window', async () => {
@@ -126,7 +127,7 @@ test('with tabs, the pages set up by hand are compared the same, from one window
     },
   });
   expect(contexts).toBe(1);
-  expect(result.shots[0].before.changed).toEqual(['Hello']);
-  expect(result.shots[0].after.changed).toEqual(['Welcome']);
+  expect(result.shots[0].before?.changed).toEqual(['Hello']);
+  expect(result.shots[0].after?.changed).toEqual(['Welcome']);
   expect(browser.contexts()).toHaveLength(0);
 });

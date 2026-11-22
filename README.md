@@ -134,6 +134,10 @@ needs no `--title`, as it writes no image; `--json` gives the same list under `a
 - **One pair of images** when all the changes fit in one image.
 - **Several numbered pairs** (`shot-1-before.png`, `shot-1-after.png`, `shot-2-…`) when changes are
   far apart. The band says "1 of 3", and so on.
+- **One image for a pair**, with `--unified`, when all its changes are removals or all are additions:
+  `shot-before.png` alone, with its red boxes, or `shot-after.png` alone, with its green ones. The
+  other image would only show the same place with nothing marked. Each pair is decided by itself:
+  of several, the others keep both images, and the numbers in the file names stay the same.
 - **"N change(s) are cut from every image"** on the terminal: a change is taller than one image may
   be, which is 1.5 windows by default. Raise `--max-height`, or narrow the shot with `--selector`.
 - **"N image(s) are taller than two windows"**: an image more than twice as tall as `--height`. In a
@@ -148,9 +152,9 @@ needs no `--title`, as it writes no image; `--json` gives the same list under `a
 - **"no difference"**: both pages look the same to it. Check the two addresses are really the two
   versions.
 
-`--json` prints all of this as JSON: for each image, its file, what it marks and where; then
-`leftOut` (cut from every image), `hidden` (cut off by a scroll area) and `ignored` (outside
-`--selector`).
+`--json` prints all of this as JSON: for each image, its file, what it marks and where (`null` for
+the image `--unified` leaves out); then `leftOut` (cut from every image), `hidden` (cut off by a
+scroll area) and `ignored` (outside `--selector`).
 
 ## Get the page in the right state
 
@@ -219,6 +223,7 @@ The same every time, with nobody there:
 | `--name <name>` | `shot` | the start of the file names: `<name>-before.png`, `<name>-after.png` |
 | `--selector <css>` | | only count the changes inside this element, and cut the images to its width |
 | `--dry-run` | | do all of a run but the screenshots: list the images it would write, and the parts of the page that changed with a `--selector` for each |
+| `--unified` | | a pair whose changes are all removals is its before image alone, and one whose changes are all additions its after image alone |
 | `--width`, `--height` | 1280, 900 | the browser window, in pixels |
 | `--scale` | 2 | pixel density: 2 makes sharp images, 1 smaller files |
 | `--dark` | | dark colour scheme |
@@ -306,7 +311,9 @@ opens. To get the Linux one anyway, name it: `--chrome /usr/bin/google-chrome`.
    goes to the room before or after that line. A shot never opens inside an item (a list item, a
    paragraph) either: its top goes up to the top of the item, or down to the top of the next one when
    going up would make the shot taller than `--max-height` and the change stays in. The bottom is cut
-   on a line only.
+   on a line only. With `--unified`, a pair whose changes are all removals is shot on the before page
+   alone, and one whose changes are all additions on the after page alone. A change of look, which
+   both pages have, keeps both.
 6. It draws the band on each shot with [sharp](https://sharp.pixelplumbing.com).
 
 ## Limits

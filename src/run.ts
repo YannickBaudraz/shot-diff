@@ -26,13 +26,17 @@ export type Options = LoadOptions &
     tabs: boolean;
     /** Do all of a run but the screenshots (--dry-run): the shots are planned, and none is taken. */
     dryRun: boolean;
+    /** A pair whose changes are all removals is its before image alone, and one whose changes are
+     * all additions its after image alone (--unified): the other side is not shot. */
+    unified: boolean;
   };
 
 export type Prepare = (crowded: Side[]) => Promise<void>;
 
 /** One image of a shot: its PNG (none on a dry run), what it shows changed, and the part of its page it is of. */
 export type ShotSide = { png: Buffer | null; changed: string[]; box: Box };
-export type Shot = { before: ShotSide; after: ShotSide };
+/** A shot's two images; with --unified, null for the side a one-sided pair leaves out (never both). */
+export type Shot = Record<Side, ShotSide | null>;
 /** How many word changes and changes of look were found, the shots, the changes found but cut from
  * every image, the changes a scroll area cuts off on the page itself, and the changes outside
  * --selector's element, which no shot looks for. */
@@ -209,7 +213,8 @@ async function unmarkIgnored(pages: Record<Side, LoadedPage>, outside: number[],
 }
 
 /** Each planned shot's two sides, numbered in the band when there are several. A side lists, and
- * keys, only the changes it shows: one cut from it, or cut off on the page, is not shown. */
+ * keys, only the changes it shows: one cut from it, or cut off on the page, is not shown. With
+ * --unified, the side a one-sided shot does not keep is not shot, and is null. */
 async function draw(
   planned: Plan,
   changes: Change[],
@@ -223,9 +228,24 @@ async function draw(
       shot.changes
         .filter(i => !planned.leftOut[side].includes(i) && !planned.hidden[side].includes(i))
         .map(i => changes[i]);
-    shots.push(await bothSides(side => picture(pages[side], shot[side], shown(side), heading, options)));
+    const kept = options.unified ? keptSide(shot.changes.map(i => changes[i])) : null;
+    shots.push(
+      await bothSides(async side =>
+        kept && kept !== side ? null : picture(pages[side], shot[side], shown(side), heading, options),
+      ),
+    );
   }
   return shots;
+}
+
+/** The one side a shot of `changes` needs, from what the changes are, not from what a side shows (a
+ * change cut from a side still has its words): the before side when every change is a removal, the
+ * after side when every change is an addition; null for both, as a shot of no change gets. */
+function keptSide(changes: Change[]): Side | null {
+  if (!changes.length) return null;
+  if (changes.every(change => change.text.after === '')) return 'before';
+  if (changes.every(change => change.text.before === '')) return 'after';
+  return null;
 }
 
 /** One side of a shot: the part `box` of its page with the band on top, and what it shows changed. */
