@@ -192,9 +192,9 @@ examples/far-apart/shot-2-after.png: 1 part(s) added, 1280x183 px
 | ![before](far-apart/shot-1-before.png) | ![after](far-apart/shot-1-after.png) |
 | ![before](far-apart/shot-2-before.png) | ![after](far-apart/shot-2-after.png) |
 
-## One image for a pair
+## One image for a pair: a removal
 
-With `--unified`, a pair whose changes are all removals is its before image alone: the card removed is boxed red there, and an after image would only show the page without it, with nothing marked. A pair whose changes are all additions is its after image alone, and a pair with both keeps both images.
+With `--unified`, a pair whose changes are all removals is its before image alone: the card removed is boxed red there. Without `--unified`, the after image would only show the page without it, with nothing marked. A pair with both removals and additions keeps both images.
 
 ```sh
 shot-diff "file://$PWD/e2e/fixtures/components/after.html" "file://$PWD/e2e/fixtures/components/before.html" \
@@ -208,6 +208,23 @@ examples/unified/shot-before.png: 1 part(s) removed, 1280x300 px
 | Before |
 |---|
 | ![before](unified/shot-before.png) |
+
+## One image for a pair: an addition
+
+With `--unified`, a pair whose changes are all additions is its after image alone: the paragraph added is boxed green there. Without `--unified`, the before image would only show the page without it, with nothing marked.
+
+```sh
+shot-diff "file://$PWD/e2e/fixtures/words/before.html" "file://$PWD/e2e/fixtures/words/after-added.html" \
+  --title "Tickets: add the merge step" --unified
+```
+
+```
+examples/unified-added/shot-after.png: 1 part(s) added, 1280x339 px
+```
+
+| After |
+|---|
+| ![after](unified-added/shot-after.png) |
 
 ## One change among several
 

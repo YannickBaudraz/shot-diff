@@ -107,11 +107,20 @@ const EXAMPLES: Example[] = [
   },
   {
     id: 'unified',
-    name: 'One image for a pair',
+    name: 'One image for a pair: a removal',
     title: 'Plans: Team plan removed',
     shows:
-      'With `--unified`, a pair whose changes are all removals is its before image alone: the card removed is boxed red there, and an after image would only show the page without it, with nothing marked. A pair whose changes are all additions is its after image alone, and a pair with both keeps both images.',
+      'With `--unified`, a pair whose changes are all removals is its before image alone: the card removed is boxed red there. Without `--unified`, the after image would only show the page without it, with nothing marked. A pair with both removals and additions keeps both images.',
     pages: ['components/after.html', 'components/before.html'],
+    options: ['--unified'],
+  },
+  {
+    id: 'unified-added',
+    name: 'One image for a pair: an addition',
+    title: 'Tickets: add the merge step',
+    shows:
+      'With `--unified`, a pair whose changes are all additions is its after image alone: the paragraph added is boxed green there. Without `--unified`, the before image would only show the page without it, with nothing marked.',
+    pages: ['words/before.html', 'words/after-added.html'],
     options: ['--unified'],
   },
   {
