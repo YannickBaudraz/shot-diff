@@ -192,6 +192,23 @@ examples/far-apart/shot-2-after.png: 1 part(s) added, 1280x183 px
 | ![before](far-apart/shot-1-before.png) | ![after](far-apart/shot-1-after.png) |
 | ![before](far-apart/shot-2-before.png) | ![after](far-apart/shot-2-after.png) |
 
+## One image for a pair
+
+With `--unified`, a pair whose changes are all removals is its before image alone: the card removed is boxed red there, and an after image would only show the page without it, with nothing marked. A pair whose changes are all additions is its after image alone, and a pair with both keeps both images.
+
+```sh
+shot-diff "file://$PWD/e2e/fixtures/components/after.html" "file://$PWD/e2e/fixtures/components/before.html" \
+  --title "Plans: Team plan removed" --unified
+```
+
+```
+examples/unified/shot-before.png: 1 part(s) removed, 1280x300 px
+```
+
+| Before |
+|---|
+| ![before](unified/shot-before.png) |
+
 ## One change among several
 
 A branch that refreshes several parts of a page at once: the search field, the notifications, the avatar, the tabs, and the main button. With `--selector`, only the changes inside the element named count, here the "New project" button: it alone is boxed. The other parts changed too, as the two shots show, and are left unmarked. The terminal says how many changes were left out.

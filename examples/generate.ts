@@ -106,6 +106,15 @@ const EXAMPLES: Example[] = [
     pages: ['tall/before.html', 'tall/after.html'],
   },
   {
+    id: 'unified',
+    name: 'One image for a pair',
+    title: 'Plans: Team plan removed',
+    shows:
+      'With `--unified`, a pair whose changes are all removals is its before image alone: the card removed is boxed red there, and an after image would only show the page without it, with nothing marked. A pair whose changes are all additions is its after image alone, and a pair with both keeps both images.',
+    pages: ['components/after.html', 'components/before.html'],
+    options: ['--unified'],
+  },
+  {
     id: 'selector',
     name: 'One change among several',
     title: 'Projects: primary button in green',
@@ -280,18 +289,23 @@ function section(example: Example, folder: string, printed: string | null): stri
   const quoted = (arg: string) => (/^[\w./-]+$/.test(arg) ? arg : `"${arg}"`);
   const pages = example.pages.map(path => `"file://$PWD/e2e/fixtures/${path}"`);
   const options = ['--title', example.title, ...(example.options ?? [])].map(quoted).join(' ');
-  const images = readdirSync(folder).filter(file => file.endsWith('-before.png'));
-  const rows = images.map(before => {
-    const after = before.replace('-before.png', '-after.png');
-    return `| ![before](${example.id}/${before}) | ![after](${example.id}/${after}) |`;
-  });
+  // A row per shot, a column per side some shot has: with --unified, a shot can be one image.
+  const images = readdirSync(folder).filter(file => file.endsWith('.png'));
+  const shots = [...new Set(images.map(file => file.replace(/-(before|after)\.png$/, '')))];
+  const sides = (['before', 'after'] as const).filter(side =>
+    images.some(file => file.endsWith(`-${side}.png`)),
+  );
+  const cell = (shot: string, side: string) =>
+    images.includes(`${shot}-${side}.png`) ? `![${side}](${example.id}/${shot}-${side}.png)` : '';
+  const header = sides.map(side => side[0].toUpperCase() + side.slice(1));
+  const rows = shots.map(shot => `| ${sides.map(side => cell(shot, side)).join(' | ')} |`);
   return [
     `## ${example.name}`,
     example.shows,
     ['```sh', `shot-diff ${pages.join(' ')} \\`, `  ${options}`, '```'].join('\n'),
     ...(example.hands ? [example.hands.steps.map((step, i) => `${i + 1}. ${step}`).join('\n')] : []),
     ...(printed ? [['```', printed, '```'].join('\n')] : []),
-    ['| Before | After |', '|---|---|', ...rows].join('\n'),
+    [`| ${header.join(' | ')} |`, `|${sides.map(() => '---|').join('')}`, ...rows].join('\n'),
   ].join('\n\n');
 }
 
