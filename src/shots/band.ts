@@ -8,9 +8,17 @@ import { escapePango, inkOf, renderText, STRUT } from './text.ts';
 /** What a numbered box on a shot means: its disc, the same image as on the page, and what changed. */
 export type Key = { disc: Buffer; what: string };
 
-/** What the band says: which side the shot is, the title, which shot of how many, and the key of its
- * numbered boxes (none with labels). */
-export type Content = { side: Side; title: string; number: number; total: number; key: Key[] };
+/** What the band says: which side the shot is, whether it is a lone image (with --unified, the
+ * other side is not shot), the title, which shot of how many, and the key of its numbered boxes
+ * (none with labels). */
+export type Content = {
+  side: Side;
+  alone: boolean;
+  title: string;
+  number: number;
+  total: number;
+  key: Key[];
+};
 
 /** An image to compose onto the band, and where. */
 type Piece = { input: Buffer; left: number; top: number };
@@ -36,14 +44,18 @@ const SHOT_COUNT_TEXT = '#59636e';
 
 /** The shot, a PNG at `scale`, with a band on top: its side, the title, which shot of how many, and
  * what its colour means; under them, when the shot has numbered boxes, what each number means. Text
- * too long for the shot's width wraps, and the band grows to hold it. */
+ * too long for the shot's width wraps, and the band grows to hold it. A lone image's pill says what
+ * its colour marks instead of its side, and the colour key is left out: the pill already says
+ * it. */
 export async function band(shot: Buffer, content: Content, scale: number): Promise<Buffer> {
   const { width: shotWidth = 0, height: shotHeight = 0 } = await sharp(shot).metadata();
   const frame = Math.max(1, Math.round(scale)); // the width of the frame line
   const padding = Math.round(PADDING * scale);
-  const colors = await colorKey(content.side, scale);
-  const colorsWidth = -Math.min(...colors.map(piece => piece.left));
-  const titleRoom = shotWidth - 2 * padding - colorsWidth - Math.round(TITLE.gapToColorKey * scale);
+  const colors = content.alone ? [] : await colorKey(content.side, scale);
+  const colorsRoom = colors.length
+    ? -Math.min(...colors.map(piece => piece.left)) + Math.round(TITLE.gapToColorKey * scale)
+    : 0;
+  const titleRoom = shotWidth - 2 * padding - colorsRoom;
   const head = await heading(content, titleRoom, scale);
   const rowHeight = head.height;
   const key = content.key.length ? await keyPieces(content.key, shotWidth - 2 * padding, scale) : null;
@@ -74,16 +86,17 @@ const offset = (pieces: Piece[], dx: number, dy: number) =>
 const middleOfRow = (height: number, scale: number) =>
   Math.round((Math.round(FIRST_ROW_HEIGHT * scale) - height) / 2);
 
-/** The band's left: the side's pill, then the title and which shot of how many, wrapped to what is
- * left of `room` after the pill. Returns the pieces, placed from the band's top left corner, and the
- * height of the first row: the usual one, or taller to hold a title that wraps. */
+/** The band's left: the side's pill (what it marks, on a lone image), then the title and which shot
+ * of how many, wrapped to what is left of `room` after the pill. Returns the pieces, placed from
+ * the band's top left corner, and the height of the first row: the usual one, or taller to hold a
+ * title that wraps. */
 async function heading(
-  { side, title, number, total }: Content,
+  { side, alone, title, number, total }: Content,
   room: number,
   scale: number,
 ): Promise<{ pieces: Piece[]; height: number }> {
   const sideName = await renderText(
-    `<span foreground="${ON_SIDE_COLOR}">${WORDS[side].name}</span>`,
+    `<span foreground="${ON_SIDE_COLOR}">${alone ? WORDS[side].alone : WORDS[side].name}</span>`,
     FONT_SIZE.sideName,
     'Semi-Bold',
     scale,

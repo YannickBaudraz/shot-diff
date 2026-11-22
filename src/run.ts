@@ -164,8 +164,8 @@ async function setUp(opened: OpenedPage[], prepare: Prepare): Promise<void> {
  * (empty when that page has nothing of it), and its marker when it is a change of look. */
 type Change = { place: Place; text: Record<Side, string>; marker: Marker | null };
 
-/** The band's title, and which shot of how many. */
-type Heading = Pick<Content, 'title' | 'number' | 'total'>;
+/** The band's title, which shot of how many, and whether the image is a lone one. */
+type Heading = Pick<Content, 'alone' | 'title' | 'number' | 'total'>;
 
 /** Mark both pages, and list every change: the word changes, then the changes of look. A page's
  * mark() gives their spans in the order it was given them, so index i is the same change in every
@@ -231,7 +231,9 @@ async function draw(
     const kept = options.unified ? keptSide(shot.changes.map(i => changes[i])) : null;
     shots.push(
       await bothSides(async side =>
-        kept && kept !== side ? null : picture(pages[side], shot[side], shown(side), heading, options),
+        kept && kept !== side
+          ? null
+          : picture(pages[side], shot[side], shown(side), { ...heading, alone: kept === side }, options),
       ),
     );
   }

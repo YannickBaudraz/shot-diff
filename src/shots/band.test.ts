@@ -2,6 +2,8 @@ import sharp from 'sharp';
 import { describe, expect, test } from 'vitest';
 import { band, intoRows, type Content } from './band.ts';
 import { markersFor } from './markers.ts';
+import { renderText } from './text.ts';
+import { COLORS, type Side } from '../side.ts';
 
 const SCALE = 2;
 const shot = sharp({ create: { width: 800, height: 300, channels: 4, background: '#ffffff' } })
@@ -13,6 +15,7 @@ const size = async (png: Buffer) => {
 };
 const content = (more: Partial<Content> = {}): Content => ({
   side: 'before',
+  alone: false,
   title: 'Cart',
   number: 1,
   total: 1,
@@ -71,6 +74,72 @@ describe('band', () => {
     await expect(
       band(await shot, content({ title: 'a <b> & "c"', side: 'after', number: 2, total: 3 }), SCALE),
     ).resolves.toBeInstanceOf(Buffer);
+  });
+});
+
+/** The band's first row, as raw RGB pixels, from the frame line down. */
+const firstRow = async (png: Buffer) => {
+  const { width } = await size(png);
+  const height = 52 * SCALE;
+  const data = await sharp(png)
+    .extract({ left: 0, top: SCALE, width, height })
+    .removeAlpha()
+    .raw()
+    .toBuffer();
+  const at = (x: number, y: number) => {
+    const i = (y * width + x) * 3;
+    return `#${[...data.subarray(i, i + 3)].map(c => c.toString(16).padStart(2, '0')).join('')}`;
+  };
+  return { width, height, at };
+};
+
+/** How wide the pill is: from the first to the last pixel of `color` on the row through its middle,
+ * in the left half of the band, away from the colour key. */
+const pillWidth = async (png: Buffer, color: string) => {
+  const row = await firstRow(png);
+  const xs = Array.from({ length: row.width / 2 }, (_, x) => x).filter(
+    x => row.at(x, row.height / 2) === color,
+  );
+  return xs[xs.length - 1] - xs[0] + 1;
+};
+
+/** Whether the pill is as wide as one around `word`, as the band draws it: a pixel short at each
+ * end, where its round ends are smoothed. */
+const fits = async (width: number, word: string) => {
+  const around = (await renderText(word, 15, 'Semi-Bold', SCALE)).info.width + 2 * 10 * SCALE;
+  return Math.abs(width - around) <= 2;
+};
+
+/** The colours on the right of the first row, where the colour key goes. */
+const rightOfFirstRow = async (png: Buffer) => {
+  const row = await firstRow(png);
+  const colors = new Set<string>();
+  for (let x = row.width - 200 * SCALE; x < row.width - 2 * SCALE; x++)
+    for (let y = 0; y < row.height; y++) colors.add(row.at(x, y));
+  return colors;
+};
+
+describe('band of a lone image', () => {
+  const sides: [Side, string][] = [
+    ['before', 'Removed'],
+    ['after', 'Added'],
+  ];
+
+  test.each(sides)('on the %s side, its pill says %s, in the side’s colour', async (side, word) => {
+    const png = await band(await shot, content({ side, alone: true }), SCALE);
+    expect(await fits(await pillWidth(png, COLORS[side].color), word)).toBe(true);
+  });
+
+  test.each(sides)('on the %s side, it has no colour key on the right', async side => {
+    const png = await band(await shot, content({ side, alone: true }), SCALE);
+    expect(await rightOfFirstRow(png)).toEqual(new Set(['#f6f8fa']));
+  });
+
+  test.each(sides)('a band of a pair, on the %s side, keeps its side’s name and colour key', async side => {
+    const png = await band(await shot, content({ side }), SCALE);
+    const name = side === 'before' ? 'Before' : 'After';
+    expect(await fits(await pillWidth(png, COLORS[side].color), name)).toBe(true);
+    expect(await rightOfFirstRow(png)).toContain(COLORS[side].color);
   });
 });
 

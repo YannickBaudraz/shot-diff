@@ -24,7 +24,8 @@ type CliValues = Omit<Options, 'before' | 'after' | 'selector' | 'prepare' | 'ma
   json: boolean;
 };
 
-/** One shot's two files, and what each shows; null for a side --unified leaves out, not written. */
+/** One shot's two files, and what each shows; null for a side --unified leaves out, not written. A
+ * lone image's file has no side in its name. */
 type WrittenShot = {
   before: { file: string; removed: string[]; box: Box } | null;
   after: { file: string; added: string[]; box: Box } | null;
@@ -54,7 +55,8 @@ const program = new Command('shot-diff')
 <name>-after.png, with what it adds marked green. Each image has a band with its side and the
 title. Changes far apart get a pair each: <name>-1-before.png, <name>-1-after.png, and so on.
 With --unified, a pair whose changes are all removals is its before image alone, and one whose
-changes are all additions its after image alone. A local file is a file:// URL.`,
+changes are all additions its after image alone: <name>.png (or <name>-1.png, and so on), its
+band saying Removed or Added instead of its side. A local file is a file:// URL.`,
   )
   .argument('<before-url>')
   .argument('<after-url>')
@@ -66,7 +68,7 @@ changes are all additions its after image alone. A local file is a file:// URL.`
   )
   .option(
     '--unified',
-    'a pair whose changes are all removals, or all additions, is one image: the before shot, or the after shot',
+    'a pair whose changes are all removals, or all additions, is one image, <name>.png: the before shot, or the after shot, its band saying Removed or Added',
     false,
   )
   .option('--out <dir>', 'where to write the images', '.')
@@ -228,12 +230,15 @@ function options(before: string, after: string, values: CliValues): Options {
   };
 }
 
-/** Write each shot's images, two, or one with --unified; a page with several shots numbers them in
- * the file names. A dry run has no image to write: its shots are named as they would be. */
+/** Write each shot's images, two, or one with --unified, which has no side in its name; a page with
+ * several shots numbers them in the file names. A dry run has no image to write: its shots are
+ * named as they would be. */
 function write(result: Result, out: string, name: string): WrittenShot[] {
   return result.shots.map((shot, n) => {
     const prefix = result.shots.length > 1 ? `${name}-${n + 1}` : name;
-    const files = { before: join(out, `${prefix}-before.png`), after: join(out, `${prefix}-after.png`) };
+    const alone = !shot.before || !shot.after;
+    const fileOf = (side: Side) => join(out, alone ? `${prefix}.png` : `${prefix}-${side}.png`);
+    const files = { before: fileOf('before'), after: fileOf('after') };
     for (const side of ['before', 'after'] as const) {
       const png = shot[side]?.png;
       if (!png) continue;

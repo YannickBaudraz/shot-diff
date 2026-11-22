@@ -298,23 +298,28 @@ function section(example: Example, folder: string, printed: string | null): stri
   const quoted = (arg: string) => (/^[\w./-]+$/.test(arg) ? arg : `"${arg}"`);
   const pages = example.pages.map(path => `"file://$PWD/e2e/fixtures/${path}"`);
   const options = ['--title', example.title, ...(example.options ?? [])].map(quoted).join(' ');
-  // A row per shot, a column per side some shot has: with --unified, a shot can be one image.
+  // A row per pair, a column per side; with --unified, a shot can be one image, with no side in its
+  // name, shown by itself under the pairs.
   const images = readdirSync(folder).filter(file => file.endsWith('.png'));
-  const shots = [...new Set(images.map(file => file.replace(/-(before|after)\.png$/, '')))];
-  const sides = (['before', 'after'] as const).filter(side =>
-    images.some(file => file.endsWith(`-${side}.png`)),
-  );
-  const cell = (shot: string, side: string) =>
-    images.includes(`${shot}-${side}.png`) ? `![${side}](${example.id}/${shot}-${side}.png)` : '';
+  const paired = images.filter(file => /-(before|after)\.png$/.test(file));
+  const lone = images.filter(file => !paired.includes(file));
+  const shots = [...new Set(paired.map(file => file.replace(/-(before|after)\.png$/, '')))];
+  const sides = ['before', 'after'];
+  const cell = (shot: string, side: string) => `![${side}](${example.id}/${shot}-${side}.png)`;
   const header = sides.map(side => side[0].toUpperCase() + side.slice(1));
   const rows = shots.map(shot => `| ${sides.map(side => cell(shot, side)).join(' | ')} |`);
+  // What a lone image marks, as its line on the terminal says: removed or added.
+  const loneMarks = (file: string) =>
+    printed?.match(new RegExp(`/${file}: \\d+ part\\(s\\) (removed|added)`))?.[1] ?? file;
+  const table = [`| ${header.join(' | ')} |`, `|${sides.map(() => '---|').join('')}`, ...rows].join('\n');
   return [
     `## ${example.name}`,
     example.shows,
     ['```sh', `shot-diff ${pages.join(' ')} \\`, `  ${options}`, '```'].join('\n'),
     ...(example.hands ? [example.hands.steps.map((step, i) => `${i + 1}. ${step}`).join('\n')] : []),
     ...(printed ? [['```', printed, '```'].join('\n')] : []),
-    [`| ${header.join(' | ')} |`, `|${sides.map(() => '---|').join('')}`, ...rows].join('\n'),
+    ...(shots.length ? [table] : []),
+    ...lone.map(file => `![${loneMarks(file)}](${example.id}/${file})`),
   ].join('\n\n');
 }
 

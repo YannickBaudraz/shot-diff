@@ -1,5 +1,6 @@
 // --unified: a pair whose changes are all removals is its before image alone, and a pair whose
 // changes are all additions its after image alone. Decided per pair, from the changes themselves.
+// A lone image has no side in its file name: <name>.png, or <name>-<n>.png among several shots.
 
 import { readdirSync } from 'node:fs';
 import { dirname } from 'node:path';
@@ -26,7 +27,8 @@ test('a pair whose changes are all removals is its before image alone', () => {
   expect(result.shots).toHaveLength(1);
   expect(result.shots[0].before.removed).toEqual(['[section: removed] Team 9 euros per month']);
   expect(result.shots[0].after).toBeNull();
-  expect(written(result.shots)).toEqual(['shot-before.png']);
+  expect(result.shots[0].before.file).toMatch(/\/shot\.png$/);
+  expect(written(result.shots)).toEqual(['shot.png']);
 });
 
 test('a pair whose changes are all additions is its after image alone', () => {
@@ -35,7 +37,8 @@ test('a pair whose changes are all additions is its after image alone', () => {
   expect(result.shots).toHaveLength(1);
   expect(result.shots[0].before).toBeNull();
   expect(result.shots[0].after.added).toEqual(['[section: added] Team 9 euros per month']);
-  expect(written(result.shots)).toEqual(['shot-after.png']);
+  expect(result.shots[0].after.file).toMatch(/\/shot\.png$/);
+  expect(written(result.shots)).toEqual(['shot.png']);
 });
 
 test('the terminal says the one image written', () => {
@@ -43,19 +46,19 @@ test('the terminal says the one image written', () => {
   expect(done.status, done.stderr).toBe(0);
   const lines = done.stdout.trim().split('\n');
   expect(lines).toHaveLength(1);
-  expect(lines[0]).toMatch(/shot-before\.png: 1 part\(s\) removed, \d+x\d+ px$/);
-  expect(readdirSync(done.out)).toEqual(['shot-before.png']);
+  expect(lines[0]).toMatch(/\/shot\.png: 1 part\(s\) removed, \d+x\d+ px$/);
+  expect(readdirSync(done.out)).toEqual(['shot.png']);
 });
 
 test('with --dry-run, it lists the one image it would write', () => {
   const { done, result } = shotDiff(...added, '--dry-run', '--unified');
   expect(done.status, done.stderr).toBe(0);
   expect(result.shots[0].before).toBeNull();
-  expect(result.shots[0].after.file).toMatch(/shot-after\.png$/);
+  expect(result.shots[0].after.file).toMatch(/\/shot\.png$/);
   const text = shotDiffText(...added, '--dry-run', '--unified');
   const images = text.stdout.split('\n').filter(line => line.startsWith('would write'));
   expect(images).toHaveLength(1);
-  expect(images[0]).toMatch(/^would write .*shot-after\.png: 1 part\(s\) added/);
+  expect(images[0]).toMatch(/^would write .*\/shot\.png: 1 part\(s\) added/);
   expect(readdirSync(text.out)).toEqual([]);
 });
 
@@ -88,7 +91,7 @@ test('of pairs far apart, only the one whose changes are all additions is one im
   expect(result.shots[0].after.added).toEqual(['changed.']);
   expect(result.shots[1].before).toBeNull();
   expect(result.shots[1].after.added).toEqual(['[p: added] A line added under it.']);
-  expect(written(result.shots)).toEqual(['shot-1-after.png', 'shot-1-before.png', 'shot-2-after.png']);
+  expect(written(result.shots)).toEqual(['shot-1-after.png', 'shot-1-before.png', 'shot-2.png']);
 });
 
 test('a change cut from both sides of its pair still keeps both images', () => {
@@ -110,7 +113,7 @@ test('a change cut from both sides of its pair still keeps both images', () => {
   expect(result.shots[0].before.removed).toEqual([]);
   expect(result.shots[0].after.added).toEqual([]);
   expect(result.shots[1].before).toBeNull();
-  expect(written(result.shots)).toEqual(['shot-1-after.png', 'shot-1-before.png', 'shot-2-after.png']);
+  expect(written(result.shots)).toEqual(['shot-1-after.png', 'shot-1-before.png', 'shot-2.png']);
 });
 
 test('pages with no difference keep both images', () => {

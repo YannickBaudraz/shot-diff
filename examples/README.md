@@ -202,12 +202,10 @@ shot-diff "file://$PWD/e2e/fixtures/components/after.html" "file://$PWD/e2e/fixt
 ```
 
 ```
-examples/unified/shot-before.png: 1 part(s) removed, 1280x300 px
+examples/unified/shot.png: 1 part(s) removed, 1280x300 px
 ```
 
-| Before |
-|---|
-| ![before](unified/shot-before.png) |
+![removed](unified/shot.png)
 
 ## One image for a pair: an addition
 
@@ -219,12 +217,10 @@ shot-diff "file://$PWD/e2e/fixtures/words/before.html" "file://$PWD/e2e/fixtures
 ```
 
 ```
-examples/unified-added/shot-after.png: 1 part(s) added, 1280x339 px
+examples/unified-added/shot.png: 1 part(s) added, 1280x339 px
 ```
 
-| After |
-|---|
-| ![after](unified-added/shot-after.png) |
+![added](unified-added/shot.png)
 
 ## One change among several
 

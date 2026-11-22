@@ -10,7 +10,8 @@ Before and after screenshots of a web page, with the change marked, ready to pas
   changed (a colour, a border, a size), or on a picture redrawn under the same file name.
 - A component added or removed, a card, a row, a paragraph, gets one plain box, red or green, and nothing
   inside it is marked.
-- Each image has a band on top with its side, your title, and what its colour means.
+- Each image has a band on top with its side, your title, and what its colour means. A lone image,
+  with `--unified`, says Removed or Added instead of its side.
 
 A dashboard where numbers, a row, a chart and some styles changed:
 
@@ -134,10 +135,12 @@ needs no `--title`, as it writes no image; `--json` gives the same list under `a
 - **One pair of images** when all the changes fit in one image.
 - **Several numbered pairs** (`shot-1-before.png`, `shot-1-after.png`, `shot-2-…`) when changes are
   far apart. The band says "1 of 3", and so on.
-- **One image for a pair**, with `--unified`, when all its changes are removals or all are additions:
-  `shot-before.png` alone, with its red boxes, or `shot-after.png` alone, with its green ones. The
-  other image would only show the same place with nothing marked. Each pair is decided by itself:
-  of several, the others keep both images, and the numbers in the file names stay the same.
+- **One image for a pair**, with `--unified`, when all its changes are removals or all are
+  additions: `shot.png`, the before shot with its red boxes, or the after shot with its green ones.
+  The other image would only show the same place with nothing marked. With no other image to tell it
+  from, its band says Removed or Added instead of Before or After, and its file name has no side.
+  Each pair is decided by itself: of several, the others keep both images (`shot-1-before.png`,
+  `shot-1-after.png`, `shot-2.png`), and the numbers in the file names stay the same.
 - **"N change(s) are cut from every image"** on the terminal: a change is taller than one image may
   be, which is 1.5 windows by default. Raise `--max-height`, or narrow the shot with `--selector`.
 - **"N image(s) are taller than two windows"**: an image more than twice as tall as `--height`. In a
@@ -153,8 +156,8 @@ needs no `--title`, as it writes no image; `--json` gives the same list under `a
   versions.
 
 `--json` prints all of this as JSON: for each image, its file, what it marks and where (`null` for
-the image `--unified` leaves out); then `leftOut` (cut from every image), `hidden` (cut off by a
-scroll area) and `ignored` (outside `--selector`).
+the image `--unified` leaves out, the one kept being under its side); then `leftOut` (cut from every
+image), `hidden` (cut off by a scroll area) and `ignored` (outside `--selector`).
 
 ## Get the page in the right state
 
@@ -220,10 +223,10 @@ The same every time, with nobody there:
 |---|---|---|
 | `--title <text>` | required, unless `--dry-run` | the title in the band |
 | `--out <dir>` | `.` | the folder the images go in |
-| `--name <name>` | `shot` | the start of the file names: `<name>-before.png`, `<name>-after.png` |
+| `--name <name>` | `shot` | the start of the file names: `<name>-before.png`, `<name>-after.png`, or `<name>.png` for a lone image with `--unified` |
 | `--selector <css>` | | only count the changes inside this element, and cut the images to its width |
 | `--dry-run` | | do all of a run but the screenshots: list the images it would write, and the parts of the page that changed with a `--selector` for each |
-| `--unified` | | a pair whose changes are all removals is its before image alone, and one whose changes are all additions its after image alone |
+| `--unified` | | a pair whose changes are all removals is its before image alone, and one whose changes are all additions its after image alone: `<name>.png`, its band saying Removed or Added |
 | `--width`, `--height` | 1280, 900 | the browser window, in pixels |
 | `--scale` | 2 | pixel density: 2 makes sharp images, 1 smaller files |
 | `--dark` | | dark colour scheme |
@@ -312,9 +315,10 @@ opens. To get the Linux one anyway, name it: `--chrome /usr/bin/google-chrome`.
    paragraph) either: its top goes up to the top of the item, or down to the top of the next one when
    going up would make the shot taller than `--max-height` and the change stays in. The bottom is cut
    on a line only. With `--unified`, a pair whose changes are all removals is shot on the before page
-   alone, and one whose changes are all additions on the after page alone. A change of look, which
-   both pages have, keeps both.
-6. It draws the band on each shot with [sharp](https://sharp.pixelplumbing.com).
+   alone, and one whose changes are all additions on the after page alone, as `<name>.png`. A change
+   of look, which both pages have, keeps both.
+6. It draws the band on each shot with [sharp](https://sharp.pixelplumbing.com). A lone image's band
+   says Removed or Added instead of its side, and leaves out the colour key.
 
 ## Limits
 
