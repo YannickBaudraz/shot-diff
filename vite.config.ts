@@ -27,8 +27,10 @@ export default defineConfig({
           name: 'node',
           include: ['src/**/*.test.ts'],
           exclude: ['src/**/*.browser.test.ts'],
-          // One test file opens Chrome, which a busy machine starts slowly.
+          // One test file opens Chrome, which a busy machine starts slowly. It launches it in a
+          // beforeAll, which needs the time as much as a test does.
           testTimeout: 30_000,
+          hookTimeout: 30_000,
         },
       },
       {

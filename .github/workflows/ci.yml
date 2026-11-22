@@ -1,8 +1,9 @@
 name: CI
 
 on:
+  # A branch is checked before it is merged into main, with or without a pull request.
   push:
-    branches: [main]
+    branches: ['**']
   pull_request:
   # The publish workflow runs these same checks before it publishes.
   workflow_call:
