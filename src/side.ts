@@ -21,8 +21,9 @@ export const COLORS: Record<Side, { color: string }> = {
  * a label's words. */
 export const ON_SIDE_COLOR = '#ffffff';
 
-/** What each side is called on its band, and what its colour marks. */
-export const WORDS: Record<Side, { name: string; marks: string }> = {
-  before: { name: 'Before', marks: 'removed' },
-  after: { name: 'After', marks: 'added' },
+/** What each side is called on its band, what its colour marks, and what its pill says instead of
+ * its name on a lone image, one with no other side to be told apart from (--unified). */
+export const WORDS: Record<Side, { name: string; marks: string; alone: string }> = {
+  before: { name: 'Before', marks: 'removed', alone: 'Removed' },
+  after: { name: 'After', marks: 'added', alone: 'Added' },
 };

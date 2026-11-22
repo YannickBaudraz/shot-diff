@@ -106,6 +106,24 @@ const EXAMPLES: Example[] = [
     pages: ['tall/before.html', 'tall/after.html'],
   },
   {
+    id: 'unified',
+    name: 'One image for a pair: a removal',
+    title: 'Plans: Team plan removed',
+    shows:
+      'With `--unified`, a pair whose changes are all removals is its before image alone: the card removed is boxed red there. Without `--unified`, the after image would only show the page without it, with nothing marked. A pair with both removals and additions keeps both images.',
+    pages: ['components/after.html', 'components/before.html'],
+    options: ['--unified'],
+  },
+  {
+    id: 'unified-added',
+    name: 'One image for a pair: an addition',
+    title: 'Tickets: add the merge step',
+    shows:
+      'With `--unified`, a pair whose changes are all additions is its after image alone: the paragraph added is boxed green there. Without `--unified`, the before image would only show the page without it, with nothing marked.',
+    pages: ['words/before.html', 'words/after-added.html'],
+    options: ['--unified'],
+  },
+  {
     id: 'selector',
     name: 'One change among several',
     title: 'Projects: primary button in green',
@@ -261,14 +279,15 @@ async function shootByHand(example: Example, folder: string): Promise<void> {
       selector: null,
       tabs: false,
       dryRun: false,
+      unified: false,
       prepare: async () => {
         for (const page of browser.contexts().flatMap(context => context.pages()))
           await example.hands?.follow(page);
       },
     });
     const [shot] = result.shots;
-    writeFileSync(join(folder, 'shot-before.png'), shot.before.png!);
-    writeFileSync(join(folder, 'shot-after.png'), shot.after.png!);
+    writeFileSync(join(folder, 'shot-before.png'), shot.before!.png!);
+    writeFileSync(join(folder, 'shot-after.png'), shot.after!.png!);
   } finally {
     await browser.close();
   }
@@ -279,18 +298,28 @@ function section(example: Example, folder: string, printed: string | null): stri
   const quoted = (arg: string) => (/^[\w./-]+$/.test(arg) ? arg : `"${arg}"`);
   const pages = example.pages.map(path => `"file://$PWD/e2e/fixtures/${path}"`);
   const options = ['--title', example.title, ...(example.options ?? [])].map(quoted).join(' ');
-  const images = readdirSync(folder).filter(file => file.endsWith('-before.png'));
-  const rows = images.map(before => {
-    const after = before.replace('-before.png', '-after.png');
-    return `| ![before](${example.id}/${before}) | ![after](${example.id}/${after}) |`;
-  });
+  // A row per pair, a column per side; with --unified, a shot can be one image, with no side in its
+  // name, shown by itself under the pairs.
+  const images = readdirSync(folder).filter(file => file.endsWith('.png'));
+  const paired = images.filter(file => /-(before|after)\.png$/.test(file));
+  const lone = images.filter(file => !paired.includes(file));
+  const shots = [...new Set(paired.map(file => file.replace(/-(before|after)\.png$/, '')))];
+  const sides = ['before', 'after'];
+  const cell = (shot: string, side: string) => `![${side}](${example.id}/${shot}-${side}.png)`;
+  const header = sides.map(side => side[0].toUpperCase() + side.slice(1));
+  const rows = shots.map(shot => `| ${sides.map(side => cell(shot, side)).join(' | ')} |`);
+  // What a lone image marks, as its line on the terminal says: removed or added.
+  const loneMarks = (file: string) =>
+    printed?.match(new RegExp(`/${file}: \\d+ part\\(s\\) (removed|added)`))?.[1] ?? file;
+  const table = [`| ${header.join(' | ')} |`, `|${sides.map(() => '---|').join('')}`, ...rows].join('\n');
   return [
     `## ${example.name}`,
     example.shows,
     ['```sh', `shot-diff ${pages.join(' ')} \\`, `  ${options}`, '```'].join('\n'),
     ...(example.hands ? [example.hands.steps.map((step, i) => `${i + 1}. ${step}`).join('\n')] : []),
     ...(printed ? [['```', printed, '```'].join('\n')] : []),
-    ['| Before | After |', '|---|---|', ...rows].join('\n'),
+    ...(shots.length ? [table] : []),
+    ...lone.map(file => `![${loneMarks(file)}](${example.id}/${file})`),
   ].join('\n\n');
 }
 

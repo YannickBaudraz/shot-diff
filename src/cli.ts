@@ -24,10 +24,11 @@ type CliValues = Omit<Options, 'before' | 'after' | 'selector' | 'prepare' | 'ma
   json: boolean;
 };
 
-/** One shot's two files, and what each shows. */
+/** One shot's two files, and what each shows; null for a side --unified leaves out, not written. A
+ * lone image's file has no side in its name. */
 type WrittenShot = {
-  before: { file: string; removed: string[]; box: Box };
-  after: { file: string; added: string[]; box: Box };
+  before: { file: string; removed: string[]; box: Box } | null;
+  after: { file: string; added: string[]; box: Box } | null;
 };
 
 // Option parsers, as commander calls them: the value given, and what the option held so far.
@@ -53,7 +54,9 @@ const program = new Command('shot-diff')
     `Writes <name>-before.png, with what the after page no longer has marked red, and
 <name>-after.png, with what it adds marked green. Each image has a band with its side and the
 title. Changes far apart get a pair each: <name>-1-before.png, <name>-1-after.png, and so on.
-A local file is a file:// URL.`,
+With --unified, a pair whose changes are all removals is its before image alone, and one whose
+changes are all additions its after image alone: <name>.png (or <name>-1.png, and so on), its
+band saying Removed or Added instead of its side. A local file is a file:// URL.`,
   )
   .argument('<before-url>')
   .argument('<after-url>')
@@ -61,6 +64,11 @@ A local file is a file:// URL.`,
   .option(
     '--dry-run',
     'do all of a run but the screenshots: list the images it would write, and the parts of the page that changed, with a --selector for each',
+    false,
+  )
+  .option(
+    '--unified',
+    'a pair whose changes are all removals, or all additions, is one image, <name>.png: the before shot, or the after shot, its band saying Removed or Added',
     false,
   )
   .option('--out <dir>', 'where to write the images', '.')
@@ -222,21 +230,25 @@ function options(before: string, after: string, values: CliValues): Options {
   };
 }
 
-/** Write each shot's two images; a page with several shots numbers them in the file names. A dry
- * run has no image to write: its shots are named as they would be. */
+/** Write each shot's images, two, or one with --unified, which has no side in its name; a page with
+ * several shots numbers them in the file names. A dry run has no image to write: its shots are
+ * named as they would be. */
 function write(result: Result, out: string, name: string): WrittenShot[] {
   return result.shots.map((shot, n) => {
     const prefix = result.shots.length > 1 ? `${name}-${n + 1}` : name;
-    const files = { before: join(out, `${prefix}-before.png`), after: join(out, `${prefix}-after.png`) };
+    const alone = !shot.before || !shot.after;
+    const fileOf = (side: Side) => join(out, alone ? `${prefix}.png` : `${prefix}-${side}.png`);
+    const files = { before: fileOf('before'), after: fileOf('after') };
     for (const side of ['before', 'after'] as const) {
-      const { png } = shot[side];
+      const png = shot[side]?.png;
       if (!png) continue;
       mkdirSync(out, { recursive: true });
       writeFileSync(files[side], png);
     }
+    const { before, after } = shot;
     return {
-      before: { file: files.before, removed: shot.before.changed, box: shot.before.box },
-      after: { file: files.after, added: shot.after.changed, box: shot.after.box },
+      before: before && { file: files.before, removed: before.changed, box: before.box },
+      after: after && { file: files.after, added: after.changed, box: after.box },
     };
   });
 }
@@ -258,13 +270,11 @@ function printJson(result: Result, shots: WrittenShot[], dryRun: boolean) {
  * and --max-height count in: the file is that at --scale, with its band. */
 function printLines(shots: WrittenShot[], { areas }: Result, dryRun: boolean) {
   const wrote = dryRun ? 'would write ' : '';
-  for (const shot of shots) {
-    console.log(
-      `${wrote}${shot.before.file}: ${shot.before.removed.length} part(s) removed, ${sizeOf(shot.before.box)}`,
-    );
-    console.log(
-      `${wrote}${shot.after.file}: ${shot.after.added.length} part(s) added, ${sizeOf(shot.after.box)}`,
-    );
+  for (const { before, after } of shots) {
+    if (before)
+      console.log(`${wrote}${before.file}: ${before.removed.length} part(s) removed, ${sizeOf(before.box)}`);
+    if (after)
+      console.log(`${wrote}${after.file}: ${after.added.length} part(s) added, ${sizeOf(after.box)}`);
   }
   if (dryRun) printParts(areas);
 }
@@ -328,6 +338,7 @@ function warn(result: Result, shots: WrittenShot[], height: number) {
   }
   const tall = shots
     .flatMap(shot => [shot.before, shot.after])
+    .filter(image => image !== null)
     .filter(image => image.box.height > TALL_IN_WINDOWS * height);
   if (tall.length) {
     console.error(
