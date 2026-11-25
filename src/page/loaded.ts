@@ -8,7 +8,7 @@ import { PROPERTIES, type ElementInfo } from '../changes/looks.ts';
 import type { Hunk } from '../changes/words.ts';
 import type { Area, Box, Region } from '../geometry.ts';
 import { DISC, type Marker } from '../shots/markers.ts';
-import { runtime, type Marks, type Runtime, type Spans } from './runtime.ts';
+import { runtime, type Marks, type Nested, type Runtime, type Spans } from './runtime.ts';
 import { COLORS, SIDES, type Side } from '../side.ts';
 
 declare global {
@@ -54,7 +54,7 @@ export type LoadedPage = {
   name(index: number): Promise<string>;
   /** Mark this side's part of the word changes and the changes of look, saying of each whether it is
    * inside the element `within` matches; once. */
-  mark(hunks: Hunk[], markers: Marker[], within: string | null): Promise<Spans>;
+  mark(hunks: Hunk[], markers: Marker[], within: string | null, nested?: Nested): Promise<Spans>;
   /** Take back the marks of these word changes and changes of look, indexes into what mark() got. */
   unmark(changes: { words: number[]; looks: number[] }): Promise<void>;
   region(selector: string): Promise<Area | null>;
@@ -280,7 +280,8 @@ async function read(
     width,
     pixels: index => shooting(() => pixels(page, index)),
     name: index => accessibleName(page, index),
-    mark: (hunks, markers, within) => call(page, 'mark', marksFor(side, hunks, markers, within)),
+    mark: (hunks, markers, within, nested) =>
+      call(page, 'mark', marksFor(side, hunks, markers, within, nested)),
     region: selector => call(page, 'region', selector),
     snap: (region, limits) => call(page, 'snap', { ...region, ...limits }),
     unmark: changes => call(page, 'unmark', changes),
@@ -368,10 +369,17 @@ async function pixels(page: Page, index: number): Promise<Buffer | null> {
 
 /** What to draw on `side`'s page: its colour, its half of each word change, and each change of look's
  * element there with its label or this side's disc. A change only the other page has gets none. */
-function marksFor(side: Side, hunks: Hunk[], markers: Marker[], within: string | null): Marks {
+function marksFor(
+  side: Side,
+  hunks: Hunk[],
+  markers: Marker[],
+  within: string | null,
+  nested: Nested = 'both',
+): Marks {
   return {
     color: COLORS[side].color,
     within,
+    nested,
     words: hunks.map(hunk => ({ changed: hunk.changed[side], anchors: hunk.anchors[side] })),
     looks: markers.map(({ element, badge, only, edge, beside }) => ({
       index: element[side],

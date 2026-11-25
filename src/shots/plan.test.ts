@@ -93,6 +93,38 @@ describe('plan', () => {
   });
 });
 
+describe('--selector, the marks of a change', () => {
+  test('are kept whole where they are drawn past the element, with no padding', async () => {
+    const options = { ...OPTIONS, selector: '#card', padding: 0 };
+    const marked: Span = { ...at(860, 1420), changed: { top: 880, bottom: 1406 } };
+    const p = await plan([both(marked)], options, pages(fakePage(undefined, { '#card': el(900, 1400) })));
+    expect(p.shots[0].before).toMatchObject({ y: 880, height: 526 });
+    expect(p.leftOut).toEqual({ before: [], after: [] });
+  });
+});
+
+describe('--selector, an element fixed on the screen', () => {
+  test('is shot alone: the padding does not take in the page that scrolls under it', async () => {
+    const options = { ...OPTIONS, selector: '#dock' };
+    const dock: Area = { top: 1500, bottom: 1700, left: 0, right: 1000, pinned: true };
+    const p = await plan([both(at(1550, 1650))], options, pages(fakePage(undefined, { '#dock': dock })));
+    expect(p.shots[0].before).toMatchObject({ y: 1500, height: 200 });
+    expect(p.shots[0].after).toMatchObject({ y: 1500, height: 200 });
+  });
+
+  test('takes in the box of a change in it and its label, which are drawn past its edges', async () => {
+    const options = { ...OPTIONS, selector: '#dock', padding: 0 };
+    const dock: Area = { top: 1500, bottom: 1700, left: 0, right: 1000, pinned: true };
+    // A box round the whole dock, its margin outside it, and a label above the box.
+    const marked: Span = { ...at(1500, 1700), changed: { top: 1470, bottom: 1706 } };
+    const p = await plan([both(marked)], options, pages(fakePage(undefined, { '#dock': dock })));
+    // Its ring included, 2px outside the box's line.
+    expect(p.shots[0].before).toMatchObject({ y: 1468, height: 240 });
+    expect(p.shots[0].after).toMatchObject({ y: 1468, height: 240 });
+    expect(p.leftOut).toEqual({ before: [], after: [] });
+  });
+});
+
 describe('--selector, the width of a shot', () => {
   const options = { ...OPTIONS, selector: '#card' };
   /** The element, from `left` to `right` across, and from 900 to 1400 down. */

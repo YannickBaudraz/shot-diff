@@ -5,8 +5,9 @@ export type Box = { x: number; y: number; width: number; height: number };
 /** A stretch of the page, in page pixels. */
 export type Region = { top: number; bottom: number };
 
-/** A stretch of the page across as well as down, in page pixels: where an element is. */
-export type Area = Region & { left: number; right: number };
+/** A stretch of the page across as well as down, in page pixels: where an element is. `pinned` says
+ * it stays put on the screen, fixed or sticky, so the page past its edges is not what shows beside it. */
+export type Area = Region & { left: number; right: number; pinned?: boolean };
 
 /** Where one change sits on the page, in page pixels. `top` and `bottom` take in what is shown around
  * it: the unchanged words next to a word change, the label of a box. `changed` is the change alone,

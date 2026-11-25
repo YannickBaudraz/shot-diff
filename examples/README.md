@@ -17,7 +17,7 @@ shot-diff "file://$PWD/e2e/fixtures/words/before.html" "file://$PWD/e2e/fixtures
 
 ```
 examples/words/shot-before.png: 1 part(s) removed, 1280x293 px
-examples/words/shot-after.png: 2 part(s) added, 1280x339 px
+examples/words/shot-after.png: 2 part(s) added, 1280x335 px
 ```
 
 | Before | After |
@@ -217,7 +217,7 @@ shot-diff "file://$PWD/e2e/fixtures/words/before.html" "file://$PWD/e2e/fixtures
 ```
 
 ```
-examples/unified-added/shot.png: 1 part(s) added, 1280x339 px
+examples/unified-added/shot.png: 1 part(s) added, 1280x335 px
 ```
 
 ![added](unified-added/shot.png)
@@ -232,8 +232,8 @@ shot-diff "file://$PWD/e2e/fixtures/projects/before.html" "file://$PWD/e2e/fixtu
 ```
 
 ```
-examples/selector/shot-before.png: 1 part(s) removed, 400x199 px
-examples/selector/shot-after.png: 1 part(s) added, 400x199 px
+examples/selector/shot-before.png: 1 part(s) removed, 400x227 px
+examples/selector/shot-after.png: 1 part(s) added, 400x227 px
 shot-diff: 13 change(s) outside --selector ignored (listed under "ignored" in --json)
 ```
 

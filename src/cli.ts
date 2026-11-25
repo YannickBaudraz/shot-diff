@@ -121,6 +121,14 @@ band saying Removed or Added instead of its side. A local file is a file:// URL.
       .choices(['labels', 'numbers'])
       .default('labels'),
   )
+  .addOption(
+    new Option(
+      '--nested <which>',
+      'of two boxes one inside the other, what is drawn: both, the inner one (what changed in a component), or the outer one (the component)',
+    )
+      .choices(['both', 'inner', 'outer'])
+      .default('both'),
+  )
   .option(
     '--max-height <px>',
     'the tallest a shot gets; changes farther apart get a pair each (default: 1.5 times --height)',

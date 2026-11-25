@@ -388,6 +388,23 @@ describe('mark', () => {
     expect(label.bottom).toBeLessThanOrEqual(box.bottom);
   });
 
+  test('a label shows over every box, a box drawn after it included', () => {
+    const p = page(twoButtons);
+    p.mark(
+      marks({
+        looks: [
+          { index: 0, badge: { label: 'background' } },
+          { index: 1, badge: { plain: true } },
+        ],
+      }),
+    );
+    const [labelled, plain] = drawn();
+    // The boxes share one stacking order, the label above it: a later box cannot draw over it.
+    expect(getComputedStyle(labelled.firstElementChild!).zIndex).toBe('1');
+    expect(getComputedStyle(labelled).zIndex).toBe('auto');
+    expect(getComputedStyle(plain).zIndex).toBe('auto');
+  });
+
   test("a label stays on the page beside a box at the page's right edge", () => {
     const p = page('<button style="position:absolute;top:100px;right:10px">b</button>');
     const index = p.reading.elements.findIndex(e => e.tag === 'button');
@@ -627,6 +644,548 @@ describe('mark, an element added or removed', () => {
   });
 });
 
+describe('mark, boxes that meet', () => {
+  /** The boxes that show: a box that gave way to another is hidden, not removed. */
+  const shown = () => drawn().filter(box => box.style.display !== 'none');
+  const indexOf = (p: Runtime, id: string) =>
+    p.reading.elements.findIndex(e => e.signature.includes(`#${id}`));
+  const rect = (id: string) => document.getElementById(id)!.getBoundingClientRect();
+  // Round it: a box is kept inside the page, so one round an element as wide as the page has its
+  // sides a ring's width inside the page's.
+  const holds = (box: HTMLElement, id: string) => {
+    const outer = box.getBoundingClientRect();
+    const inner = rect(id);
+    const edge = 4;
+    return (
+      outer.left <= inner.left + edge &&
+      outer.top <= inner.top &&
+      outer.right >= inner.right - edge &&
+      outer.bottom >= inner.bottom
+    );
+  };
+
+  test('two that run into each other give way to one box round both, saying what both said', () => {
+    const p = page(
+      '<div id="a" style="height:40px;width:200px;margin:60px 20px 0"></div>' +
+        '<div id="b" style="height:40px;width:200px;margin:-20px 0 0 120px"></div>',
+    );
+    p.mark(
+      marks({
+        looks: [
+          { index: indexOf(p, 'a'), badge: { label: 'spacing' } },
+          { index: indexOf(p, 'b'), badge: { label: 'border, spacing' } },
+        ],
+      }),
+    );
+    const [box, ...more] = shown();
+    expect(more).toHaveLength(0);
+    expect(holds(box, 'a') && holds(box, 'b')).toBe(true);
+    expect(box.textContent).toBe('spacing, border');
+  });
+
+  test('each change says where the box that shows it is once tidied, its label included', () => {
+    const p = page(
+      '<div id="a" style="height:40px;width:200px;margin:60px 20px 0"></div>' +
+        '<div id="b" style="height:40px;width:200px;margin:-20px 0 0 120px"></div>' +
+        '<div id="outer" style="height:200px;width:400px;margin-top:40px"><div id="inner" style="height:200px"></div></div>' +
+        '<div id="card" style="width:200px;margin-top:40px"><p style="margin:0">aa bb cc</p></div>',
+    );
+    const spans = p.mark(
+      marks({
+        words: [{ changed: [0, 1, 2], anchors: [] }],
+        looks: [
+          { index: indexOf(p, 'a'), badge: { label: 'spacing' } }, // a and b become one box
+          { index: indexOf(p, 'b'), badge: { label: 'border' } },
+          { index: indexOf(p, 'outer'), badge: { label: 'layout' } }, // grown to keep off inner
+          { index: indexOf(p, 'inner'), badge: { label: 'border' } },
+          { index: indexOf(p, 'card'), badge: { label: 'background' } }, // shown by the word box
+        ],
+      }),
+    );
+    const rectOf = (element: Element) => {
+      const r = element.getBoundingClientRect();
+      return { top: r.top + scrollY, bottom: r.bottom + scrollY, left: r.left, right: r.right };
+    };
+    const takesIn = (
+      span: { top: number; bottom: number; changed: unknown; across?: unknown },
+      box: Element,
+    ) => {
+      const parts = [box, ...box.children].map(rectOf);
+      const changed = span.changed as { top: number; bottom: number };
+      const across = span.across as { left: number; right: number };
+      for (const part of parts) {
+        expect(span.top).toBeLessThanOrEqual(part.top + 0.5);
+        expect(span.bottom).toBeGreaterThanOrEqual(part.bottom - 0.5);
+        expect(changed.top).toBeLessThanOrEqual(part.top + 0.5);
+        expect(changed.bottom).toBeGreaterThanOrEqual(part.bottom - 0.5);
+        expect(across.left).toBeLessThanOrEqual(part.left + 0.5);
+        expect(across.right).toBeGreaterThanOrEqual(part.right - 0.5);
+      }
+    };
+    const boxOf = (label: string) => shown().find(box => box.firstElementChild?.textContent === label)!;
+    const round = boxOf('spacing, border');
+    takesIn(spans.looks[0], round);
+    takesIn(spans.looks[1], round);
+    takesIn(spans.looks[2], boxOf('layout'));
+    const words = shown().find(box => box.style.borderWidth === '2px')!;
+    takesIn(spans.looks[4], words);
+    takesIn(spans.words[0]!, words);
+  });
+
+  test('of one inside another, both are drawn, the outer one round the inner one', () => {
+    const p = page(
+      '<div id="outer" style="padding:30px;margin-top:60px"><div id="inner" style="height:40px"></div></div>',
+    );
+    p.mark(
+      marks({
+        looks: [
+          { index: indexOf(p, 'outer'), badge: { label: 'layout' } },
+          { index: indexOf(p, 'inner'), badge: { label: 'border' } },
+        ],
+      }),
+    );
+    expect(shown().map(box => box.textContent)).toEqual(['layout', 'border']);
+  });
+
+  test('with nested inner, of one inside a restyle, the inner one is drawn', () => {
+    const p = page(
+      '<div id="outer" style="padding:30px;margin-top:60px"><div id="inner" style="height:40px"></div></div>',
+    );
+    p.mark(
+      marks({
+        looks: [
+          { index: indexOf(p, 'outer'), badge: { label: 'layout' } },
+          { index: indexOf(p, 'inner'), badge: { label: 'border' } },
+        ],
+        nested: 'inner',
+      }),
+    );
+    const [box, ...more] = shown();
+    expect(more).toHaveLength(0);
+    expect(holds(box, 'inner') && !holds(box, 'outer')).toBe(true);
+    expect(box.textContent).toBe('border');
+  });
+
+  test('with nested outer, the outer one is drawn instead, and says what the inner one said too', () => {
+    const p = page(
+      '<div id="outer" style="padding:30px;margin-top:60px"><div id="inner" style="height:40px"></div></div>',
+    );
+    p.mark(
+      marks({
+        nested: 'outer',
+        looks: [
+          { index: indexOf(p, 'outer'), badge: { label: 'layout' } },
+          { index: indexOf(p, 'inner'), badge: { label: 'border' } },
+        ],
+      }),
+    );
+    const [box, ...more] = shown();
+    expect(more).toHaveLength(0);
+    expect(holds(box, 'outer')).toBe(true);
+    expect(box.textContent).toBe('layout, border');
+  });
+
+  test('with nested inner or outer, a restyle round changed words gives way to their box, which says its label', () => {
+    for (const nested of ['inner', 'outer'] as const) {
+      const p = page('<div id="card" style="padding:30px;margin-top:60px"><p>aa bb cc</p></div>');
+      p.mark(
+        marks({
+          nested,
+          words: [{ changed: [1], anchors: [0, 2] }],
+          looks: [{ index: indexOf(p, 'card'), badge: { label: 'layout' } }],
+        }),
+      );
+      const [box, ...more] = shown();
+      expect(more).toHaveLength(0);
+      // The word box, which says the restyle's label: the change of look is still named.
+      expect(box.style.borderWidth).toBe('2px');
+      expect(box.textContent).toBe('layout');
+      for (const layer of [...document.documentElement.children])
+        if (layer !== document.head && layer !== document.body) layer.remove();
+    }
+  });
+
+  test('a restyle round changed words it cannot be kept off gives way to their box, which says its label', () => {
+    // The card fits close round its words: no room for its line off theirs, and none to grow, at the
+    // page's top left.
+    const p = page('<div id="card" style="width:200px"><p style="margin:0">aa bb cc</p></div>');
+    p.mark(
+      marks({
+        words: [{ changed: [0, 1, 2], anchors: [] }],
+        looks: [{ index: indexOf(p, 'card'), badge: { label: 'layout' } }],
+      }),
+    );
+    const [box, ...more] = shown();
+    expect(more).toHaveLength(0);
+    expect(box.style.borderWidth).toBe('2px'); // the word box, tinted as it is
+    expect(box.style.background).toContain('color-mix');
+    expect(box.textContent).toBe('layout');
+  });
+
+  test("a word box that says a restyle's label drops it once the restyle is taken back", () => {
+    const p = page('<div id="card" style="padding:30px;margin-top:60px"><p>aa bb cc</p></div>');
+    p.mark(
+      marks({
+        nested: 'outer',
+        words: [{ changed: [1], anchors: [0, 2] }],
+        looks: [{ index: indexOf(p, 'card'), badge: { label: 'layout' } }],
+      }),
+    );
+    expect(shown().map(box => box.textContent)).toEqual(['layout']);
+    p.unmark({ words: [], looks: [0] });
+    expect(shown().map(box => box.textContent)).toEqual(['']);
+  });
+
+  test("an outline over several lines in a restyle says the restyle's label, on the layer", () => {
+    const p = page('<div id="card" style="padding:30px;margin-top:60px"><p>aa bb cc<br>dd ee ff</p></div>');
+    p.mark(
+      marks({
+        nested: 'inner',
+        words: [{ changed: [1, 2, 3, 4], anchors: [0, 5] }],
+        looks: [{ index: indexOf(p, 'card'), badge: { label: 'layout' } }],
+      }),
+    );
+    const visible = shown();
+    expect(visible.some(e => e instanceof SVGElement)).toBe(true);
+    expect(visible.map(e => e.textContent)).toContain('layout');
+  });
+
+  test('an outline over several lines that meets boxes below it is not drawn back: the two become one', () => {
+    const text = '<p style="margin:60px 0 0;width:400px">aaaaaa bbbbbb cccccc<br>dddddd eeeeee ffffff</p>';
+    const words = [{ changed: [1, 2, 3, 4], anchors: [0, 5] }];
+    // Where the outline is, alone.
+    page(text).mark(marks({ words }));
+    const outline = drawn()
+      .find(e => e instanceof SVGElement)!
+      .getBoundingClientRect();
+    for (const layer of [...document.documentElement.children])
+      if (layer !== document.head && layer !== document.body) layer.remove();
+    // Two elements under its last line: the first reaches 1px into it, the second 3px. Drawn back
+    // off the first, the outline's rectangle loses a pixel, not its lines, which the second meets.
+    const under = (id: string, left: number, into: number) =>
+      `<div id="${id}" style="position:absolute;left:${left}px;top:${outline.bottom - into}px;` +
+      'width:30px;height:20px;background:#eee"></div>';
+    const p = page(text + under('b', 10, 1) + under('c', 70, 3));
+    p.mark(
+      marks({
+        words,
+        looks: [
+          { index: indexOf(p, 'b'), badge: { label: 'layout' } },
+          { index: indexOf(p, 'c'), badge: { label: 'layout' } },
+        ],
+      }),
+    );
+    // Nothing crosses where the outline's lines are: no box left beside it goes into it.
+    for (const box of shown().filter(e => !(e instanceof SVGElement))) {
+      const r = box.getBoundingClientRect();
+      const across = Math.min(r.right, outline.right) - Math.max(r.left, outline.left);
+      const down = Math.min(r.bottom, outline.bottom) - Math.max(r.top, outline.top);
+      const round = r.left <= outline.left && r.top <= outline.top && r.right >= outline.right;
+      if (!round) expect(Math.min(across, down)).toBeLessThanOrEqual(2);
+    }
+    // The outline is gone into a box round it.
+    expect(drawn().find(e => e instanceof SVGElement)!.style.display).toBe('none');
+  });
+
+  test('a component added keeps its box, and a restyle inside it is not drawn', () => {
+    const p = page(
+      '<div id="card" style="padding:30px;margin-top:60px;border:1px solid #ccc"><div id="inner" style="height:40px"></div></div>',
+    );
+    p.mark(
+      marks({
+        looks: [
+          { index: indexOf(p, 'card'), badge: { plain: true } },
+          { index: indexOf(p, 'inner'), badge: { label: 'border' } },
+        ],
+      }),
+    );
+    const [box, ...more] = shown();
+    expect(more).toHaveLength(0);
+    expect(holds(box, 'card')).toBe(true);
+  });
+
+  test('a change cut by unchanged words that takes most of a block gets one box round the block', () => {
+    const p = page('<p style="width:120px">aa bb cc dd ee ff gg hh</p>');
+    p.mark(marks({ words: [{ changed: [0, 1, 3, 4, 6, 7], anchors: [2, 5] }] }));
+    const [box, ...more] = shown();
+    expect(more).toHaveLength(0);
+    const range = document.createRange();
+    range.selectNodeContents(document.querySelector('p')!);
+    const words = range.getBoundingClientRect();
+    const round = box.getBoundingClientRect();
+    expect(round.top).toBeLessThanOrEqual(words.top); // round every word, "cc" and "ff" too
+    expect(round.bottom).toBeGreaterThanOrEqual(words.bottom);
+    expect(round.width).toBeGreaterThanOrEqual(words.width);
+  });
+
+  test('two in blocks of their own that only meet by their margins are drawn apart, both kept', () => {
+    const p = page(
+      '<p style="margin:60px 0 0;font-size:26px;line-height:1">aa</p>' +
+        '<p id="b" style="margin:0;width:200px">bb cc</p>',
+    );
+    p.mark(
+      marks({
+        words: [{ changed: [0], anchors: [1] }],
+        looks: [{ index: indexOf(p, 'b'), badge: { label: 'text colour' } }],
+      }),
+    );
+    const boxes = shown();
+    expect(boxes).toHaveLength(2);
+    const [one, other] = boxes.map(box => box.getBoundingClientRect());
+    expect(Math.min(one.bottom, other.bottom) - Math.max(one.top, other.top)).toBeLessThanOrEqual(2);
+  });
+
+  test('two in one block that run into each other give way to one box round both', () => {
+    const p = page(
+      '<p style="margin-top:60px;width:300px"><span id="tag" style="display:block;border:1px solid #ccc">Tag</span>aa bb</p>',
+    );
+    p.mark(
+      marks({
+        words: [{ changed: [1, 2], anchors: [0] }],
+        looks: [{ index: indexOf(p, 'tag'), badge: { plain: true } }],
+      }),
+    );
+    expect(shown()).toHaveLength(1);
+  });
+
+  test('changes that together take most of a block, each cutting it, get one box round the block', () => {
+    const p = page('<p style="width:120px">aa bb cc dd ee ff gg hh</p>');
+    p.mark(
+      marks({
+        words: [
+          { changed: [0, 1], anchors: [2] },
+          { changed: [3, 4], anchors: [2, 5] },
+          { changed: [6, 7], anchors: [5] },
+        ],
+      }),
+    );
+    expect(shown()).toHaveLength(1);
+  });
+
+  test('a component added that draws nothing of its own is boxed round what is inside it', () => {
+    const p = page(
+      '<div id="row" style="margin-top:60px;display:flex;justify-content:flex-end"><button id="go">Go</button></div>',
+    );
+    p.mark(marks({ looks: [{ index: indexOf(p, 'row'), badge: { plain: true } }] }));
+    const [box] = shown();
+    expect(holds(box, 'go')).toBe(true);
+    expect(box.getBoundingClientRect().width).toBeLessThan(rect('row').width / 2);
+  });
+
+  test('a component added is boxed round what shows of it, not what a closed fold in it hides', () => {
+    const p = page(
+      '<div id="row" style="margin-top:60px"><details id="fold"><summary>More</summary>' +
+        '<p style="height:200px">hidden</p></details></div>',
+    );
+    p.mark(marks({ looks: [{ index: indexOf(p, 'row'), badge: { plain: true } }] }));
+    const [box] = shown();
+    expect(box.getBoundingClientRect().height).toBeLessThan(60);
+  });
+
+  test('a box in the empty corner of an outline over several lines is not inside it, and stays', () => {
+    const lines = [
+      'aa bb cc dd ee',
+      'ff gg hh ii jj',
+      'kk ll mm nn oo',
+      'pp qq rr ss tt',
+      'uu vv ww xx yy',
+      'zz ab ac ad ae',
+    ];
+    const p = page(`<p style="margin-top:60px">${lines.join('<br>')}</p>`);
+    const d = Array.from({ length: 10 }, (_, i) => 7 + i); // "hh" on line 2 to "qq" on line 4
+    p.mark(
+      marks({
+        words: [
+          { changed: [5], anchors: [4, 6] },
+          { changed: d, anchors: [6, 17] },
+        ],
+      }),
+    );
+    expect(shown()).toHaveLength(2); // "ff" keeps its own box, left of where the outline starts
+  });
+
+  test('two changes running into each other in a tall block get no box down the whole block', () => {
+    const rows = Array.from({ length: 60 }, (_, i) => `row${i} text`).join('\n');
+    const p = page(
+      `<pre style="margin-top:60px;background:#eee;line-height:1.2">top <span id="tok">token</span> here\nword next\n${rows}</pre>`,
+    );
+    const word = p.reading.words.indexOf('next');
+    p.mark(
+      marks({
+        words: [{ changed: [word], anchors: [word - 1] }],
+        looks: [{ index: indexOf(p, 'tok'), badge: { label: 'text colour' } }],
+      }),
+    );
+    for (const box of shown()) expect(box.getBoundingClientRect().height).toBeLessThan(120);
+  });
+
+  test('a restyle next to changed words in one block keeps its own box and label', () => {
+    const p = page('<p style="margin-top:60px;line-height:1.1">aa <span id="tok">bb</span> cc<br>dd ee</p>');
+    p.mark(
+      marks({
+        words: [{ changed: [3], anchors: [2, 4] }],
+        looks: [{ index: indexOf(p, 'tok'), badge: { label: 'text colour' } }],
+      }),
+    );
+    expect(shown().some(box => box.textContent === 'text colour')).toBe(true);
+  });
+
+  test('a restyle inside a word box keeps its box and label', () => {
+    // The restyled word is on the middle line, well inside the box round the whole block.
+    const p = page('<p style="margin-top:60px">aa xx<br>yy <span id="tok">bb</span> zz<br>cc ww</p>');
+    p.mark(
+      marks({
+        words: [{ changed: [0, 1, 2, 3, 4, 5, 6], anchors: [] }],
+        looks: [{ index: indexOf(p, 'tok'), badge: { label: 'text colour' } }],
+      }),
+    );
+    expect(
+      shown()
+        .map(box => box.textContent)
+        .sort(),
+    ).toEqual(['', 'text colour']);
+  });
+
+  test('of one inside another, a line is not moved onto words to make room: the two become one', () => {
+    // The outer box would have to grow up onto the title to keep clear of the inner one.
+    const p = page(
+      '<h1 id="title" style="margin:0;font-size:16px">A title running over the boxes below</h1>' +
+        '<div id="outer" style="margin:8px 40px 0"><div id="inner" style="height:40px"></div></div>',
+    );
+    p.mark(
+      marks({
+        looks: [
+          { index: indexOf(p, 'outer'), badge: { label: 'layout' } },
+          { index: indexOf(p, 'inner'), badge: { label: 'border' } },
+        ],
+      }),
+    );
+    const [box, ...more] = shown();
+    expect(more).toHaveLength(0);
+    expect(box.textContent).toBe('layout, border');
+    expect(box.getBoundingClientRect().top).toBeGreaterThanOrEqual(rect('title').bottom - 2);
+  });
+
+  test("a restyle's box takes in the words that show past its element's edges, as a title on its border", () => {
+    const p = page(
+      '<div id="frame" style="position:relative;margin-top:60px;height:80px;border:1px solid">' +
+        '<span id="title" style="position:absolute;top:-10px;left:10px">Per ticket</span></div>',
+    );
+    p.mark(marks({ looks: [{ index: indexOf(p, 'frame'), badge: { label: 'layout' } }] }));
+    const [box] = shown();
+    expect(box.getBoundingClientRect().top).toBeLessThanOrEqual(rect('title').top);
+  });
+
+  test("a restyle's box leaves out words moved off the page, or placed out of the flow away from it", () => {
+    const p = page(
+      '<div id="frame" style="position:relative;margin:60px 0 0 100px;width:300px;height:80px;border:1px solid">' +
+        '<a href="#main" style="position:absolute;left:-9999px">Skip to content</a>' +
+        '<span style="position:absolute;top:200px;left:10px">Far below</span>' +
+        '<span id="title" style="position:absolute;top:-10px;left:10px">Per ticket</span></div>',
+    );
+    p.mark(marks({ looks: [{ index: indexOf(p, 'frame'), badge: { label: 'layout' } }] }));
+    const box = shown()[0].getBoundingClientRect();
+    const frame = rect('frame');
+    expect(box.left).toBeGreaterThan(frame.left - 10);
+    expect(box.bottom).toBeLessThan(frame.bottom + 10);
+    expect(box.top).toBeLessThanOrEqual(rect('title').top); // the title on its border is still taken in
+  });
+
+  test('a component added is boxed round what a scroll area in it shows, not what it cuts off', () => {
+    const long = Array.from({ length: 40 }, (_, i) => `line ${i}`).join('<br>');
+    const p = page(
+      `<div id="row" style="margin-top:60px"><div style="height:48px;overflow:hidden">${long}</div></div>`,
+    );
+    p.mark(marks({ looks: [{ index: indexOf(p, 'row'), badge: { plain: true } }] }));
+    const [box] = shown();
+    expect(box.getBoundingClientRect().height).toBeLessThan(80);
+  });
+
+  test('of one inside another, the inner box and its label keep clear of the outer lines on every side', () => {
+    // The inner element fills the outer one, at the page's top left: no room inside, none outside.
+    const p = page(
+      '<div id="outer" style="height:200px;width:400px"><div id="inner" style="height:200px"></div></div>',
+    );
+    p.mark(
+      marks({
+        looks: [
+          { index: indexOf(p, 'outer'), badge: { label: 'layout' } },
+          { index: indexOf(p, 'inner'), badge: { label: 'border' } },
+        ],
+      }),
+    );
+    const [outer, inner] = shown();
+    const o = outer.getBoundingClientRect();
+    const i = inner.getBoundingClientRect();
+    const tag = inner.firstElementChild!.getBoundingClientRect();
+    const NEST = 8;
+    expect(i.left - o.left).toBeGreaterThanOrEqual(NEST);
+    expect(Math.min(i.top, tag.top) - o.top).toBeGreaterThanOrEqual(NEST);
+    expect(o.right - i.right).toBeGreaterThanOrEqual(NEST);
+    expect(o.bottom - i.bottom).toBeGreaterThanOrEqual(NEST);
+  });
+
+  test('a box round two changes goes once one is taken back, and the other shows its own box again', () => {
+    const p = page(
+      '<div id="a" style="height:40px;width:200px;margin:60px 20px 0"></div>' +
+        '<div id="b" style="height:40px;width:200px;margin:-20px 0 0 120px"></div>',
+    );
+    p.mark(
+      marks({
+        looks: [
+          { index: indexOf(p, 'a'), badge: { label: 'spacing' } },
+          { index: indexOf(p, 'b'), badge: { label: 'border' } },
+        ],
+      }),
+    );
+    expect(shown()).toHaveLength(1);
+    p.unmark({ words: [], looks: [0] });
+    const [box, ...more] = shown();
+    expect(more).toHaveLength(0);
+    expect(holds(box, 'b') && !holds(box, 'a')).toBe(true);
+    expect(box.textContent).toBe('border');
+    p.unmark({ words: [], looks: [1] });
+    expect(shown()).toHaveLength(0);
+  });
+
+  test('a box hidden inside a component added shows again once the component is taken back', () => {
+    const p = page(
+      '<div id="card" style="padding:30px;margin-top:60px;border:1px solid #ccc"><div id="inner" style="height:40px"></div></div>',
+    );
+    p.mark(
+      marks({
+        looks: [
+          { index: indexOf(p, 'card'), badge: { plain: true } },
+          { index: indexOf(p, 'inner'), badge: { label: 'border' } },
+        ],
+      }),
+    );
+    p.unmark({ words: [], looks: [0] });
+    expect(shown().map(box => box.textContent)).toEqual(['border']);
+  });
+
+  test('a box on an element fixed on the screen is not tidied with the boxes of the page under it', () => {
+    const p = page(
+      // The bar runs across the page's box: on one layer, the two would give way to one box.
+      '<div id="page" style="height:300px;width:200px;margin:20px 0 0 300px;border:1px solid #ccc"></div>' +
+        '<div id="bar" style="position:fixed;left:0;right:0;top:100px;height:60px;border:1px solid #ccc"></div>',
+    );
+    p.mark(
+      marks({
+        looks: [
+          { index: indexOf(p, 'page'), badge: { label: 'spacing' } },
+          { index: indexOf(p, 'bar'), badge: { label: 'background' } },
+        ],
+      }),
+    );
+    expect(
+      shown()
+        .map(box => box.textContent)
+        .sort(),
+    ).toEqual(['background', 'spacing']);
+  });
+});
+
 describe('mark, inside a shadow tree', () => {
   test('boxes its changed words, and adds no node and no style to the tree', () => {
     const p = page('<p>Before</p><x-card></x-card>');
@@ -680,7 +1239,12 @@ describe('mark, inside a shadow tree', () => {
 describe('region', () => {
   test("is where the element is, across as well as down, in the page's pixels", () => {
     const p = page('<div id="card" style="margin:30px 0 0 100px;width:300px;height:50px"></div>');
-    expect(p.region('#card')).toEqual({ top: 30, bottom: 80, left: 100, right: 400 });
+    expect(p.region('#card')).toEqual({ top: 30, bottom: 80, left: 100, right: 400, pinned: false });
+  });
+
+  test('says when the element stays put on the screen, fixed or sticky', () => {
+    const p = page('<div id="dock" style="position:fixed;bottom:0;left:0;right:0;height:40px"></div>');
+    expect(p.region('#dock')?.pinned).toBe(true);
   });
 
   test('is null for an element the page has not', () => {

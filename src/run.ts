@@ -5,6 +5,7 @@ import { compareLooks, labelOf, type Look } from './changes/looks.ts';
 import { wordDiff, type Hunk } from './changes/words.ts';
 import type { Box, Span } from './geometry.ts';
 import { open, openTabs, type LoadedPage, type LoadOptions, type OpenedPage } from './page/loaded.ts';
+import type { Nested } from './page/runtime.ts';
 import { band, type Content, type Key } from './shots/band.ts';
 import { markersFor, type Marker, type Mode } from './shots/markers.ts';
 import { plan, type Place, type Plan, type PlanOptions, type Unchanged } from './shots/plan.ts';
@@ -16,6 +17,8 @@ export type Options = LoadOptions &
     after: string;
     title: string;
     markers: Mode; // what a change of look's box says: what changed, or a number the band explains
+    /** Of two boxes one inside the other, what is drawn (--nested): both, the inner one, or the outer one. */
+    nested: Nested;
     /** Compare the words (the default); false (--no-words) for pages whose words differ anyway, as
      * random or other data do: only changes of look, and elements added or removed, are marked. */
     words: boolean;
@@ -73,7 +76,7 @@ export async function run(browser: Browser, options: Options): Promise<Result> {
         );
     const wordChanges = words.hunks;
     const markers = await markersFor(looks, options.markers, options.scale);
-    const changes = await markPages(pages, wordChanges, markers, options.selector);
+    const changes = await markPages(pages, wordChanges, markers, options.selector, options.nested);
     const planned = await plan(
       changes.map(change => change.place),
       options,
@@ -175,8 +178,9 @@ async function markPages(
   wordChanges: Hunk[],
   markers: Marker[],
   within: string | null,
+  nested: Nested,
 ): Promise<Change[]> {
-  const spans = await bothSides(side => pages[side].mark(wordChanges, markers, within));
+  const spans = await bothSides(side => pages[side].mark(wordChanges, markers, within, nested));
   const wordsOf = (side: Side, tokens: number[]) => tokens.map(token => pages[side].words[token]).join(' ');
   return [
     ...wordChanges.map((hunk, i) => ({

@@ -2,6 +2,22 @@
   "name": "@yannickbaudraz/shot-diff",
   "version": "0.7.0",
   "description": "Before and after screenshots of a web page, with what was removed marked red and what was added marked green",
+  "keywords": [
+    "screenshot",
+    "screenshots",
+    "visual-diff",
+    "visual-regression",
+    "screenshot-diff",
+    "before-after",
+    "pull-request",
+    "code-review",
+    "playwright",
+    "chrome",
+    "cli",
+    "diff",
+    "typescript",
+    "nodejs"
+  ],
   "license": "MIT",
   "author": "Yannick Baudraz",
   "repository": {
