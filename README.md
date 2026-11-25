@@ -247,6 +247,7 @@ The same every time, with nobody there:
 | `--chrome <path>` | Google Chrome, or `$CHROME` | another Chrome or Chromium to use |
 | `--download`, `--no-download` | ask | without Chrome: download one without asking, or stop |
 | `--json` | | print what was marked, where, and what was left out or ignored |
+| `--format text\|json` | `text` | what to print: a line per image, or what was marked as JSON. `--json` is short for `--format json` |
 
 ## Browser
 
