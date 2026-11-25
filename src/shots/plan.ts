@@ -6,6 +6,10 @@
 import type { Area, Box, Region, Span } from '../geometry.ts';
 import { bothSides, SIDES, type Side } from '../side.ts';
 
+/** The white ring outside a box's line, which the page does not count in where the box is: BOX.ring
+ * in runtime.ts, which runs in the page and shares no code. */
+const RING = 2;
+
 /** Where a change sits on each page; null on a page it has no place on. */
 export type Place = Record<Side, Span | null>;
 
@@ -86,6 +90,20 @@ export async function plan(
         snapped(pad(bare(side)), pages[side], bare(side)?.top, options, regions?.[side]),
       );
     }
+    // An element fixed on the screen, a bar or a panel, is shot alone: the page that a full-page shot
+    // shows past its edges is not beside it on the screen, where it stays over whatever scrolls under.
+    // Alone, with the marks of its changes: a box is drawn a margin outside its element, and a label
+    // can sit above or below the box.
+    for (const side of SIDES) {
+      const area = regions?.[side];
+      const edge = edges[side];
+      if (!area?.pinned || !edge) continue;
+      const marked = group.changes.flatMap(i => kept[i][side]?.changed ?? []);
+      edges[side] = {
+        top: Math.max(0, Math.min(Math.max(edge.top, area.top), ...marked.map(region => region.top - RING))),
+        bottom: Math.max(Math.min(edge.bottom, area.bottom), ...marked.map(region => region.bottom + RING)),
+      };
+    }
     const shot = {
       changes: group.changes,
       before: boxOf(edges.before, widths.before, options),
@@ -126,12 +144,14 @@ function bothFound(found: Record<Side, Area | null>, selector: string): Record<S
   return { before, after };
 }
 
-/** A change's place on one page, cut to the element's height: null when its changed part is outside
- * the element, or when nothing of it is in the element's height. */
+/** A change's place on one page, cut to the element's height, its changed part kept whole: its box
+ * and label can be drawn past the element's edges. Null when its changed part is outside the
+ * element, or when nothing of it is in the element's height. */
 function cut(span: Span | null, region: Region): Span | null {
   if (!span || (has(span) && !span.inside)) return null;
-  const top = Math.max(span.top, region.top);
-  const bottom = Math.min(span.bottom, region.bottom);
+  if (Math.max(span.top, region.top) >= Math.min(span.bottom, region.bottom)) return null;
+  const top = Math.max(span.top, Math.min(region.top, span.changed?.top ?? region.top));
+  const bottom = Math.min(span.bottom, Math.max(region.bottom, span.changed?.bottom ?? region.bottom));
   // A heading above the element is not in it: it says nothing of where in the element the change is.
   const heading = span.heading !== undefined && span.heading >= region.top ? span.heading : undefined;
   return top < bottom ? { ...span, top, bottom, heading } : null;

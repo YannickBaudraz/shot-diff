@@ -9,6 +9,11 @@ import type { Area, Box, Region, Span } from '../geometry.ts';
 export type Marks = {
   color: string; // the boxes and the labels
   within: string | null; // a selector: say of each change whether it is inside the element it matches
+  /** Of two boxes one inside the other, what is drawn: both (the default), the outer one round the
+   * inner one; the inner one, what changed in a component; or the outer one, the component. Nothing
+   * crosses either way. A word box always stays: a restyle round it that gives way puts its label
+   * on the word box. */
+  nested?: Nested;
   /** Word changes: the changed tokens and the unchanged ones around them, as indexes into the reading's words. */
   words: { changed: number[]; anchors: number[] }[];
   /** Changes of look: an element, as an index into the reading's elements, and what to put on its
@@ -22,6 +27,9 @@ export type Marks = {
     beside?: boolean;
   }[];
 };
+
+/** Which of two boxes, one inside the other, are drawn. */
+export type Nested = 'both' | 'inner' | 'outer';
 
 /** Where each word change and each change of look sits, in the order mark() was given them. */
 export type Spans = { words: (Span | null)[]; looks: Span[] };
@@ -64,6 +72,16 @@ export function runtime(properties: string[], ignore: string[] = [], showIgnored
   const IGNORED_MARGIN = 2; // close around it, so areas next to each other keep apart
   const HIDING = 10; // how much worse a label hiding a word or a label is than one crossing a box's line
   const ON_COLOR = '#ffffff'; // a label's words and a box's ring: ON_SIDE_COLOR in side.ts, which this code cannot import
+  // The share of a block's words a change cut by unchanged ones takes for one box round the whole
+  // block: past it, the few words left unchanged would only cut the change into slivers, each with
+  // its own box.
+  const MOSTLY = 0.5;
+  const APART = 3; // between the lines of two boxes side by side
+  const NEST = 8; // between an inner box, or its label, and the line of the box round it
+  const LARGE = 60; // an inner box this wide and tall can be drawn inside what it marks, for room
+  const SMALLEST = 16; // how narrow or short a large inner box drawn inside what it marks can get
+  // How far above the outer box's top a label inside it, at its top, can start: still inside it.
+  const TAG_ABOVE = 1;
 
   const rangeOf = (token: Token) => {
     const range = document.createRange();
@@ -463,7 +481,21 @@ export function runtime(properties: string[], ignore: string[] = [], showIgnored
     return element;
   };
 
+  /** The element itself when it is a block of its own, else the nearest block around it: an icon
+   * or a few words in a line are part of the line's block. */
+  const blockAround = (element: Element): Element | null => {
+    let block: Element | null = element;
+    while (block && /^(inline|contents)/.test(getComputedStyle(block).display)) block = shownIn(block);
+    return block;
+  };
+
   let blockSizes: Map<Element, number> | null = null;
+  /** The changed words of each block, of every word change on this page, in order: set by mark(). */
+  let changedIn = new Map<Element, number[]>();
+  /** The block each word box is in. */
+  const wordBlocks = new WeakMap<Element, Element | null>();
+  /** The line boxes of each outline over several lines: what it goes round, which its rectangle is not. */
+  const wordRuns = new WeakMap<Element, Box[]>();
 
   /** How many words and images each block has. */
   const sizeOfBlock = (block: Element): number => {
@@ -478,16 +510,29 @@ export function runtime(properties: string[], ignore: string[] = [], showIgnored
   };
 
   /** The words of a change, block by block: the rectangles of its words in that block, line by line
-   * top to bottom, and whether the change takes all of the block's words. */
-  const blocksOf = (changed: number[], tokens: Token[]): { lines: DOMRect[][]; whole: boolean }[] => {
+   * top to bottom, and whether the change takes all of the block's words. When the changes in a
+   * block, this one alone or with others, take most of its words, MOSTLY, cut in several stretches
+   * by unchanged ones, the change is given all of them, the unchanged ones too, and is whole: one
+   * box round the block says it changed, where a box round each stretch would cut it into slivers.
+   * One stretch keeps its outline round its words alone. */
+  const blocksOf = (
+    changed: number[],
+    tokens: Token[],
+  ): { lines: DOMRect[][]; whole: boolean; own: Set<number>; block: Element | null }[] => {
     const byBlock = new Map<Element | null, number[]>();
     for (const i of changed) {
       const block = blockOf(tokens[i]);
       byBlock.set(block, [...(byBlock.get(block) ?? []), i]);
     }
     return [...byBlock].flatMap(([block, indexes]) => {
-      const lines = linesOf(indexes.flatMap(i => shownRectsOf(tokens[i])));
-      return lines.length ? [{ lines, whole: !!block && indexes.length === sizeOfBlock(block) }] : [];
+      const size = block ? sizeOfBlock(block) : 0;
+      const all = (block && changedIn.get(block)) || indexes;
+      const cut = all.some((index, i) => i > 0 && index !== all[i - 1] + 1);
+      const mostly = !!block && cut && size > all.length && all.length >= MOSTLY * size;
+      const taken = mostly ? tokens.flatMap((token, i) => (blockOf(token) === block ? [i] : [])) : indexes;
+      const lines = linesOf(taken.flatMap(i => shownRectsOf(tokens[i])));
+      const whole = !!block && (mostly || indexes.length === size);
+      return lines.length ? [{ lines, whole, own: new Set(taken), block }] : [];
     });
   };
 
@@ -653,17 +698,26 @@ export function runtime(properties: string[], ignore: string[] = [], showIgnored
       .flatMap(i => shownRectsOf(tokens[i]).map(pageBox));
     const lineFor = (boxes: Box[]) =>
       boxes.some(box => pictures.some(picture => covers(box, picture))) ? { ...WORD_BOX, tint: 0 } : WORD_BOX;
-    const draw = (run: Box[]) =>
-      run.length === 1
-        ? drawBox(layer, color, run[0], lineFor(run))
-        : drawOutline(layer, color, run, lineFor(run).tint);
-    const elements = blocksOf(change.changed, tokens).flatMap(({ lines, whole }) => {
+    const draw = (run: Box[]) => {
+      if (run.length === 1) return drawBox(layer, color, run[0], lineFor(run));
+      const outline = drawOutline(layer, color, run, lineFor(run).tint);
+      wordRuns.set(outline, run);
+      return outline;
+    };
+    const elements = blocksOf(change.changed, tokens).flatMap(({ lines, whole, own, block }) => {
+      const drawnIn = (element: HTMLElement | SVGElement) => {
+        wordBlocks.set(element, block);
+        return element;
+      };
       // All the words of a block: one box around them, as there is no unchanged word for it to run through.
-      if (whole) return [draw([wordBox(lines.flat(), others)])];
+      if (whole) {
+        const outside = tokenRects.flatMap((rects, i) => (changed.has(i) || own.has(i) ? [] : rects));
+        return [drawnIn(draw([wordBox(lines.flat(), outside)]))];
+      }
       return runsOf(
         lines.map(line => wordBox(line, others)),
         others,
-      ).map(draw);
+      ).map(run => drawnIn(draw(run)));
     });
     drawn.push(...elements);
     const boxes = elements.map(element => element.getBoundingClientRect());
@@ -760,11 +814,89 @@ export function runtime(properties: string[], ignore: string[] = [], showIgnored
 
   /** The box around what shows of an element whose look changed, or null when a scroll area shows
    * none of it. */
-  const lookBox = (element: Element): Box | null => {
-    const rect = element.getBoundingClientRect();
+  const lookBox = (element: Element, plain = false): Box | null => {
+    const rect = contentRect(element, !plain);
     const clipper = getComputedStyle(element).position === 'fixed' ? null : shownIn(element);
     const shown = shownPart(rect, clipper);
     return shown && onPage(grow(pageBox(shown), BOX.margin));
+  };
+
+  /** What shows of an element that draws nothing of its own, no background, border or shadow: the
+   * rectangle round what is inside it. An element added round a button, wide as the page, is
+   * boxed round the button, not across the heading beside it. One that draws something, or holds
+   * nothing that shows, is its own rectangle. With `spill`, any element's own rectangle and the
+   * words inside it that show past its edges: a title set on a frame's border, half above it, is
+   * inside the frame's box, not under its line. */
+  const contentRect = (element: Element, spill = false): DOMRect => {
+    const own = element.getBoundingClientRect();
+    const style = getComputedStyle(element);
+    const paints =
+      !/rgba\(.*,\s*0\)$|transparent/.test(style.backgroundColor) ||
+      style.backgroundImage !== 'none' ||
+      style.boxShadow !== 'none' ||
+      ['Top', 'Right', 'Bottom', 'Left'].some(
+        side =>
+          parseFloat(style.getPropertyValue(`border-${side.toLowerCase()}-width`)) > 0 &&
+          style.getPropertyValue(`border-${side.toLowerCase()}-style`) !== 'none',
+      );
+    if (paints && !spill) return own;
+    // A word shown past the element's edges that its box takes in: one on the page, where the page
+    // can be scrolled to, and one in the flow, or set over the element's edge. A skip link moved off
+    // the page, or a word placed out of the flow away from the element, is not part of its look.
+    const spills = (rect: DOMRect, node: Node) => {
+      const page = document.documentElement;
+      const [left, top] = [-window.scrollX, -window.scrollY];
+      const [right, bottom] = [page.scrollWidth + left, page.scrollHeight + top];
+      if (rect.right <= left || rect.left >= right || rect.bottom <= top || rect.top >= bottom) return false;
+      const apart =
+        rect.right <= own.left || rect.left >= own.right || rect.bottom <= own.top || rect.top >= own.bottom;
+      if (!apart) return true;
+      for (let at = shownIn(node); at && at !== element; at = shownIn(at))
+        if (['absolute', 'fixed'].includes(getComputedStyle(at).position)) return false;
+      return true;
+    };
+    // What shows inside it: its words, and the elements that draw, each only where it is seen; a
+    // closed fold's content still has boxes, unseen.
+    const inside: DOMRect[] = [];
+    const seen = (node: Element) => node.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true });
+    walk(element, node => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        if (showsText(shownIn(node)) && node.textContent?.trim()) {
+          const range = document.createRange();
+          range.selectNodeContents(node);
+          const clipper = shownIn(node);
+          const rects = [...range.getClientRects()].flatMap(rect => shownPart(rect, clipper) ?? []);
+          inside.push(...(spill ? rects.filter(rect => spills(rect, node)) : rects));
+        }
+        return false;
+      }
+      if (!(node instanceof Element)) return false;
+      const look = getComputedStyle(node);
+      if (look.display === 'contents') return true; // no box of its own: what is in it is asked
+      if (!seen(node)) return false;
+      const draws =
+        ['IMG', 'SVG', 'CANVAS', 'VIDEO', 'IFRAME', 'INPUT', 'BUTTON', 'SELECT', 'TEXTAREA'].includes(
+          node.tagName.toUpperCase(),
+        ) ||
+        !/rgba\(.*,\s*0\)$|transparent/.test(look.backgroundColor) ||
+        look.borderTopStyle !== 'none' ||
+        look.display === 'table-cell'; // a row added is as wide as its cells, not its words
+      const shownRect =
+        draws && node !== element ? shownPart(node.getBoundingClientRect(), shownIn(node)) : null;
+      if (shownRect && !spill) inside.push(shownRect);
+      return true;
+    });
+    const shown = inside.filter(r => r.width && r.height);
+    if (!shown.length) return own;
+    inside.length = 0;
+    inside.push(...shown);
+    const left = Math.min(...inside.map(r => r.left));
+    const top = Math.min(...inside.map(r => r.top));
+    const right = Math.max(...inside.map(r => r.right));
+    const bottom = Math.max(...inside.map(r => r.bottom));
+    if (!spill) return new DOMRect(left, top, right - left, bottom - top);
+    const [x, y] = [Math.min(left, own.left), Math.min(top, own.top)];
+    return new DOMRect(x, y, Math.max(right, own.right) - x, Math.max(bottom, own.bottom) - y);
   };
 
   /** The areas --ignore leaves out that get a dashed box, each with its box: one inside another is
@@ -787,19 +919,28 @@ export function runtime(properties: string[], ignore: string[] = [], showIgnored
     return image;
   };
 
-  /** What changed, on a tag by the box, where it hides the least of `taken`: it is added to them. */
-  const drawLabel = (boxElement: HTMLElement, label: string, color: string, box: Box, avoid: Avoid) => {
+  /** What changed, on a tag by the box, where it hides the least of `taken`: it is added to them.
+   * `border` is how thick the line of `boxElement` is, which the tag is placed inside. */
+  const drawLabel = (
+    boxElement: HTMLElement,
+    label: string,
+    color: string,
+    box: Box,
+    avoid: Avoid,
+    border: number = BOX.border,
+  ) => {
     const tag = document.createElement('div');
     tag.textContent = label;
     tag.style.cssText =
-      `position:absolute;left:0;top:0;padding:${LABEL.padding};` +
+      // Over every box: a box drawn after this one, or a box round it, never crosses its words.
+      `position:absolute;z-index:1;left:0;top:0;padding:${LABEL.padding};` +
       `border-radius:${BOX.radius}px;white-space:nowrap;background:${color};color:${ON_COLOR};font:${LABEL.font}`;
     boxElement.appendChild(tag);
     const { width, height } = tag.getBoundingClientRect();
     const place = labelPlace(box, width, height, avoid);
     // From the inside of the box's border, which is what a tag inside the box is placed from.
-    tag.style.left = `${place.x - box.x - BOX.border}px`;
-    tag.style.top = `${place.y - box.y - BOX.border}px`;
+    tag.style.left = `${place.x - box.x - border}px`;
+    tag.style.top = `${place.y - box.y - border}px`;
     avoid.taken.push(place);
     return tag;
   };
@@ -816,7 +957,7 @@ export function runtime(properties: string[], ignore: string[] = [], showIgnored
     drawn: HTMLElement[],
     avoid: Avoid,
   ): Span => {
-    const box = lookBox(element);
+    const box = lookBox(element, 'plain' in badgeOf);
     if (!box)
       return {
         ...inPage(pageRegion([element.getBoundingClientRect()])),
@@ -847,6 +988,426 @@ export function runtime(properties: string[], ignore: string[] = [], showIgnored
       boxElement.style.borderStyle = 'dashed';
       drawLabel(boxElement, 'ignored', IGNORED_COLOR, box, avoid);
     }
+  };
+
+  /** A box mark() drew: its element, where it is, the changes it is of, its label, whether it is a
+   * word box, which a box round it and another keeps the look of when both are, and whether it is
+   * firm: a word box, or a component added or removed, or a box round one of those: hidden, its
+   * change would show nowhere, where a restyle's box hidden leaves the boxes inside it to show. */
+  type Drawn = {
+    element: HTMLElement | SVGElement;
+    box: Box;
+    of: { words: number[]; looks: number[] };
+    label: string | null;
+    word: boolean;
+    firm: boolean;
+    lines?: Box[]; // an outline's line boxes: it goes round them, not round all of its rectangle
+    target?: Element; // the element a change of look's box is round
+    block: Element | null; // the block its words are in, or its element
+    pinned: Element | null; // the element fixed or sticky on the page that it is in, if any
+  };
+
+  /** The nearest element around `element`, or itself, that stays put on the screen while the page
+   * scrolls under it, fixed or sticky; null for one that scrolls with the page. */
+  const pinnedIn = (element: Element | null): Element | null => {
+    for (let around = element; around; around = shownIn(around))
+      if (['fixed', 'sticky'].includes(getComputedStyle(around).position)) return around;
+    return null;
+  };
+
+  /** Whether `inner` is inside `outer`, up to touching. */
+  const within = (inner: Box, outer: Box) =>
+    inner.x >= outer.x - TOUCHING &&
+    inner.y >= outer.y - TOUCHING &&
+    inner.x + inner.width <= outer.x + outer.width + TOUCHING &&
+    inner.y + inner.height <= outer.y + outer.height + TOUCHING;
+
+  /** The boxes drawn, tidied so that no two cross. Of two one inside the other, a firm outer box
+   * stays and the inner one gives way; round a restyle, both stay with `nested` both, the outer
+   * one going round the inner one without crossing it, or one gives way: the outer one with
+   * inner, or when the inner one is firm, else the inner one, whose label the outer one then says
+   * as well. A word box always stays: a restyle round it that cannot be kept off it, or that
+   * `nested` does not keep with it, gives way, and the word box says the restyle's label. Two that
+   * run into each other, neither inside the other, give way to one box round both, which says what
+   * both said. A box that gives way is hidden, not removed, so unmark() still takes it back with
+   * its change; a box round others goes once every change it is of is taken back. Gives, for each
+   * box drawn, where the box that now shows its change is, its label included. */
+  const tidy = (
+    drawn: Drawn[],
+    layer: HTMLElement,
+    color: string,
+    avoid: Avoid,
+    nested: Nested,
+  ): ((drawn: Drawn) => Box[]) => {
+    let shown = [...drawn];
+    // The box that shows a hidden box's change in its place: the box round it and others, or the
+    // word box that says a restyle's label. A box hidden inside a component is not shown by it.
+    const shownBy = new Map<Drawn, Drawn>();
+    // The labels put on a box after it was drawn: a word box's that a restyle round it gave way to.
+    const tags = new Map<Drawn, HTMLElement>();
+    const pageRight = document.documentElement.clientWidth - BOX.ring;
+    const kinds = ['words', 'looks'] as const;
+    const said = (labels: (string | null)[]) =>
+      [...new Set(labels.flatMap(label => (label ? label.split(', ') : [])))].join(', ') || null;
+    // When a change is taken back, `then` runs: a box `drawn` hid shows again, a box round others goes.
+    const whenTaken = (drawn: Drawn, then: () => void) => {
+      for (const kind of kinds) for (const i of drawn.of[kind]) (undo[kind][i] ??= []).push(then);
+    };
+    // A box hidden for others shows again once one of them is taken back, unless its own change was
+    // taken back too, which removed it.
+    const hide = (gone: Drawn, by: Drawn[]) => {
+      gone.element.style.display = 'none';
+      shown = shown.filter(other => other !== gone);
+      for (const other of by)
+        whenTaken(other, () => {
+          if (gone.element.isConnected) gone.element.style.display = '';
+        });
+    };
+    const replace = (parts: Drawn[], box: Box, label: string | null) => {
+      const word = parts.every(part => part.word);
+      const element = drawBox(layer, color, box, word ? WORD_BOX : BOX);
+      if (label) drawLabel(element, label, color, box, avoid);
+      const changes = (kind: (typeof kinds)[number]) => [...new Set(parts.flatMap(part => part.of[kind]))];
+      const of = { words: changes('words'), looks: changes('looks') };
+      const firm = parts.some(part => part.firm);
+      const blocks = parts.map(part => part.block).filter(block => !!block) as Element[];
+      const block = blocks.find(one => blocks.every(other => inTreeOf(one, other))) ?? blocks[0] ?? null;
+      const round: Drawn = { element, box, of, label, word, firm, block, pinned: parts[0].pinned };
+      // The box round them goes as soon as one of their changes is taken back: the others show
+      // their own boxes again, which a shot without that change needs.
+      whenTaken(round, () => element.remove());
+      for (const part of parts) {
+        hide(part, [round]);
+        shownBy.set(part, round);
+      }
+      shown.push(round);
+    };
+    // Two boxes round one element are left as they are: each says one change of it. So are two
+    // one inside the other that `nested` keeps both of.
+    const apart: Set<Drawn>[] = [];
+    const pairOf = (test: (one: Drawn, other: Drawn) => boolean): [Drawn, Drawn] | null => {
+      for (const one of shown)
+        for (const other of shown)
+          if (
+            one !== other &&
+            one.pinned === other.pinned &&
+            (!one.target || one.target !== other.target) &&
+            !apart.some(pair => pair.has(one) && pair.has(other)) &&
+            test(one, other)
+          )
+            return [one, other];
+      return null;
+    };
+    // What shows of an element, read once: the page does not move while its boxes are tidied. An
+    // element round the overlay, the page's root, has the boxes in it, which do move: it is read
+    // each time.
+    const contentRects = { plain: new Map<Element, DOMRect>(), spill: new Map<Element, DOMRect>() };
+    const contentRectOf = (element: Element, spill = false): DOMRect => {
+      if (inTreeOf(element, layer)) return contentRect(element, spill);
+      const known = contentRects[spill ? 'spill' : 'plain'];
+      const rect = known.get(element) ?? contentRect(element, spill);
+      known.set(element, rect);
+      return rect;
+    };
+    // A box can be drawn closer round what it marks, by up to its margin: a change of look's box
+    // round its element, a word box of one line round its words. An outline over several lines,
+    // or a box round others, cannot.
+    const core = (drawn: Drawn): Box => {
+      if (drawn.target) return pageBox(contentRectOf(drawn.target, !drawn.firm));
+      if (!drawn.word || !(drawn.element instanceof HTMLElement) || drawn.of.words.length !== 1)
+        return drawn.box;
+      const closer = grow(drawn.box, -WORD_BOX_MARGIN.x, -WORD_BOX_MARGIN.y);
+      return { ...closer, width: Math.max(0, closer.width), height: Math.max(0, closer.height) };
+    };
+    const redraw = (drawn: Drawn, box: Box) => {
+      drawn.box = box;
+      Object.assign(drawn.element.style, {
+        left: `${box.x}px`,
+        top: `${box.y}px`,
+        width: `${box.width}px`,
+        height: `${box.height}px`,
+      });
+    };
+    // Where a box's label is, if it has one.
+    const labelBox = (drawn: Drawn): Box | null => {
+      const label = tags.get(drawn) ?? drawn.element.querySelector(':scope > div');
+      return label ? pageBox(label.getBoundingClientRect()) : null;
+    };
+    // A box drawn as one rectangle, not an outline over several lines: an outline's path goes round
+    // its lines, which moving its rectangle would not move.
+    const plain = (drawn: Drawn) => drawn.element instanceof HTMLElement && !drawn.lines;
+    // A word box that a restyle round it gave way to says the restyle's label as well, so the change
+    // of look is still named. Once the restyle's change is taken back, its label goes with it.
+    const sayAlso = (words: Drawn, restyle: Drawn) => {
+      hide(restyle, [words]);
+      shownBy.set(restyle, words);
+      const label = said([words.label, restyle.label]);
+      if (!label || label === words.label) return;
+      const before = { label: words.label, tag: tags.get(words) };
+      // An outline is an SVG, which holds no label: the label goes on the layer, at its corner.
+      let host = words.element;
+      if (!(host instanceof HTMLElement)) {
+        const corner = document.createElement('div');
+        corner.style.cssText = `position:absolute;left:${words.box.x}px;top:${words.box.y}px;width:0;height:0`;
+        layer.appendChild(corner);
+        whenTaken(words, () => corner.remove());
+        host = corner;
+      }
+      const old = before.tag ?? words.element.querySelector<HTMLElement>(':scope > div');
+      if (old) old.style.display = 'none';
+      const border = host === words.element ? WORD_BOX.border : 0;
+      const tag = drawLabel(host as HTMLElement, label, color, words.box, avoid, border);
+      words.label = label;
+      tags.set(words, tag);
+      whenTaken(restyle, () => {
+        tag.remove();
+        if (old) old.style.display = '';
+        words.label = before.label;
+        if (before.tag) tags.set(words, before.tag);
+        else tags.delete(words);
+      });
+    };
+    // The words the lines of `box` go on, the words under `mine` left out.
+    const wordsUnder = (box: Box, mine: Box[]) => {
+      const lines = edgesOf(box);
+      return avoid.taken.filter(
+        word => !mine.some(tag => covers(tag, word)) && lines.some(line => covers(line, word)),
+      );
+    };
+    // An inner box and its label kept NEST off the outer box's lines on every side: two lines close
+    // together read as one thick one, and a label over a line hides it. The room is made first by
+    // drawing the inner box closer round what it marks, then by drawing the outer box wider, kept
+    // on the page, and last by drawing a large inner box inside what it marks. No line is moved
+    // onto a word: it would hide it. False, with nothing moved, when there is not room enough so:
+    // and when a small inner box has no room, drawn inside what it marks, it would be a sliver.
+    const roomIn = (inner: Drawn, outer: Drawn): boolean => {
+      if (!plain(inner)) return true;
+      const small = Math.min(inner.box.width, inner.box.height) < LARGE;
+      const own = core(inner);
+      const [innerTag, outerTag] = [labelBox(inner), labelBox(outer)];
+      const above = innerTag ? Math.min(0, innerTag.y - inner.box.y) : 0;
+      const b = { ...inner.box };
+      const o = { ...outer.box };
+      const grows = plain(outer);
+      const edge = BOX.border + NEST;
+      // Their labels: the words under them are not under the lines.
+      const mine = [innerTag, outerTag].filter(tag => !!tag) as Box[];
+      // How far, up to `most`, a side of `box` moves, `move`, before one of its lines goes on a word
+      // they were not on.
+      const free = (box: Box, move: (by: number) => Box, most: number) => {
+        if (!(most > 0)) return 0;
+        const already = new Set(wordsUnder(box, mine));
+        let by = 0;
+        while (by < most) {
+          const next = Math.min(most, by + 1);
+          if (wordsUnder(move(next), mine).some(word => !already.has(word))) break;
+          by = next;
+        }
+        return by;
+      };
+      // A side of `box` moved by `move` as far as it is free to, up to `most`: how far.
+      const take = (box: Box, move: (box: Box, by: number) => Box, most: number) => {
+        const by = free(box, next => move(box, next), most);
+        if (by) Object.assign(box, move(box, by));
+        return by;
+      };
+      type Side = {
+        need: () => { short: number; outerMoves: boolean }; // how much room it lacks, read at its turn
+        inward: (box: Box, by: number) => Box; // the side moved into the box
+        outward: (box: Box, by: number) => Box; // the side moved out of the box
+        toCore: () => number; // how far the inner box's side is from what it marks
+        toPage: () => number; // how far the outer box's side can go, on the page
+        size: () => number; // the inner box's size across this side
+      };
+      const sides: Side[] = [
+        {
+          need: () => ({ short: edge - (b.x - o.x), outerMoves: true }),
+          inward: (box, by) => ({ ...box, x: box.x + by, width: box.width - by }),
+          outward: (box, by) => ({ ...box, x: box.x - by, width: box.width + by }),
+          toCore: () => own.x - b.x,
+          toPage: () => o.x - BOX.ring,
+          size: () => b.width,
+        },
+        {
+          // The top, the label above the box included. A label inside the outer box, at its top (at
+          // the top of the page), is part of its top: the inner box stays below it.
+          need: () => {
+            const tagInside =
+              outerTag &&
+              outerTag.y >= o.y - TAG_ABOVE &&
+              outerTag.y + outerTag.height <= o.y + o.height &&
+              outerTag.x < b.x + b.width &&
+              outerTag.x + outerTag.width > b.x;
+            return tagInside
+              ? { short: NEST - (b.y + above - (outerTag.y + outerTag.height)), outerMoves: false }
+              : { short: edge - (b.y + above - o.y), outerMoves: true };
+          },
+          inward: (box, by) => ({ ...box, y: box.y + by, height: box.height - by }),
+          outward: (box, by) => ({ ...box, y: box.y - by, height: box.height + by }),
+          toCore: () => own.y - b.y,
+          toPage: () => o.y - BOX.ring,
+          size: () => b.height,
+        },
+        {
+          need: () => ({ short: edge - (o.x + o.width - (b.x + b.width)), outerMoves: true }),
+          inward: (box, by) => ({ ...box, width: box.width - by }),
+          outward: (box, by) => ({ ...box, width: box.width + by }),
+          toCore: () => b.x + b.width - (own.x + own.width),
+          toPage: () => pageRight - (o.x + o.width),
+          size: () => b.width,
+        },
+        {
+          need: () => ({ short: edge - (o.y + o.height - (b.y + b.height)), outerMoves: true }),
+          inward: (box, by) => ({ ...box, height: box.height - by }),
+          outward: (box, by) => ({ ...box, height: box.height + by }),
+          toCore: () => b.y + b.height - (own.y + own.height),
+          toPage: () => Infinity, // the page grows down
+          size: () => b.height,
+        },
+      ];
+      // Left, top, right, bottom, each read once the sides before it have moved.
+      for (const side of sides) {
+        let { short, outerMoves } = side.need();
+        short -= take(b, side.inward, Math.min(short, side.toCore()));
+        if (grows && outerMoves) short -= take(o, side.outward, Math.min(short, side.toPage()));
+        if (short > 0 && small) return false;
+        short -= take(b, side.inward, Math.min(short, side.size() - SMALLEST));
+        if (short > 0) return false;
+      }
+      redraw(inner, b);
+      if (grows) redraw(outer, o);
+      return true;
+    };
+    // Two boxes that only run into each other by their margins, drawn back from each other along
+    // the way they meet least: the facing sides moved to a line between them, each no closer than
+    // what it marks, APART where there is room. False when what they mark overlaps, or when one is
+    // an outline: it is tested by its lines, which drawing back its rectangle does not move, so the
+    // two would go on meeting.
+    const drawBack = (one: Drawn, other: Drawn): boolean => {
+      if (!plain(one) || !plain(other)) return false;
+      const [a, b] = [one.box, other.box];
+      const across = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x);
+      const down = Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);
+      const vertical = down <= across;
+      const start = (box: Box) => (vertical ? box.y : box.x);
+      const size = (box: Box) => (vertical ? box.height : box.width);
+      const [first, second] = start(a) <= start(b) ? [one, other] : [other, one];
+      const [firstCore, secondCore] = [core(first), core(second)];
+      const firstEnd = start(first.box) + size(first.box);
+      const secondStart = start(second.box);
+      // The facing sides go no further than what each marks.
+      const lowest = start(firstCore) + size(firstCore);
+      const highest = start(secondCore);
+      // What they mark overlaps: one box round both says it. Too close for APART, they are drawn as
+      // close as they can be round what they mark, and their lines meet there.
+      if (highest - lowest < -TOUCHING) return false;
+      const gap = Math.max(0, Math.min(APART, highest - lowest));
+      const middle = Math.min(Math.max((firstEnd + secondStart) / 2, lowest + gap / 2), highest - gap / 2);
+      const end = Math.min(firstEnd, middle - gap / 2);
+      const begin = Math.max(secondStart, middle + gap / 2);
+      const moved = (box: Box, from: number, to: number) =>
+        vertical ? { ...box, y: from, height: to - from } : { ...box, x: from, width: to - from };
+      redraw(first, moved(first.box, start(first.box), end));
+      redraw(second, moved(second.box, begin, start(second.box) + size(second.box)));
+      return true;
+    };
+    // An outline over several lines is tested by its lines: a box in the empty corner of its
+    // rectangle is neither inside it nor running into it.
+    const pieces = (drawn: Drawn) => drawn.lines ?? [drawn.box];
+    const inside = (inner: Drawn, outer: Drawn) =>
+      pieces(inner).every(piece => pieces(outer).some(other => within(piece, other)));
+    const meet = (one: Drawn, other: Drawn) =>
+      pieces(one).some(piece => pieces(other).some(theirs => covers(piece, theirs)));
+    // A component added or removed: its plain box says the whole of it changed.
+    const component = (drawn: Drawn) => !!drawn.target && drawn.firm;
+    // Each turn keeps a pair apart, hides a box, or draws two back off each other: a pair kept apart
+    // stays so, boxes hidden are not shown again, and boxes drawn back no longer meet. However many
+    // boxes, the turns end; past this many, something is wrong, and the boxes stay as they are.
+    let turns = 16 * (drawn.length + 1) ** 2;
+    while (turns-- > 0) {
+      const nest = pairOf(inside);
+      if (nest) {
+        // Two boxes of the same size are each inside the other: the inner one is the element inside.
+        if (
+          inside(nest[1], nest[0]) &&
+          nest[0].target &&
+          nest[1].target &&
+          inTreeOf(nest[0].target, nest[1].target)
+        )
+          nest.reverse();
+        const [inner, outer] = nest;
+        // A word box in a restyle: the word box stays, and says the restyle's label too when the
+        // restyle's box cannot be kept off it, or `nested` keeps only one.
+        if (inner.word && inner.firm && !outer.firm) {
+          if (nested === 'both' && roomIn(inner, outer)) apart.push(new Set(nest));
+          else sayAlso(inner, outer);
+          continue;
+        }
+        const merge = () => replace([outer, inner], outer.box, said([outer.label, inner.label]));
+        // A restyle's label inside a word box, or a box round others, says what nothing else
+        // says: both stay. Inside a component, nothing else is marked. Round a restyle, `nested`
+        // 'both' keeps both. Two boxes with no room between them become one, which says what both
+        // said.
+        const both = outer.firm ? !component(outer) && !!inner.label : nested === 'both';
+        if (both) {
+          if (roomIn(inner, outer)) apart.push(new Set(nest));
+          else merge();
+        } else if (outer.firm) hide(inner, [outer]);
+        else if (nested === 'inner' || inner.firm) hide(outer, [inner]);
+        else if (inner.label && said([outer.label, inner.label]) !== outer.label) merge();
+        else hide(inner, [outer]);
+        continue;
+      }
+      const crossing = pairOf(meet);
+      if (!crossing) break;
+      const [one, other] = crossing;
+      const together =
+        !!one.block &&
+        !!other.block &&
+        (inTreeOf(one.block, other.block) || inTreeOf(other.block, one.block));
+      // A component added in a block with changed words beside it says, with them, that the block
+      // changed: one box. Any other two are first drawn back off each other, so each keeps saying
+      // its own change, its label and its tint; they give way to one box only when what they mark
+      // overlaps.
+      if (!(together && (component(one) || component(other))) && drawBack(one, other)) continue;
+      // In one block, the box goes across the block, from side to side: ending between the two
+      // changes, it would cut a word in two. Down, it goes no further than the two boxes.
+      const outer = together && (inTreeOf(one.block!, other.block!) ? one.block! : other.block!);
+      const across = outer ? [grow(pageBox(contentRectOf(outer)), BOX.margin)] : [];
+      const all = [one.box, other.box];
+      const left = Math.min(...[...all, ...across].map(box => box.x));
+      const top = Math.min(...all.map(box => box.y));
+      const right = Math.max(...[...all, ...across].map(box => box.x + box.width));
+      const bottom = Math.max(...all.map(box => box.y + box.height));
+      replace(
+        [one, other],
+        { x: left, y: top, width: right - left, height: bottom - top },
+        said([one.label, other.label]),
+      );
+    }
+    return (drawn: Drawn) => {
+      let at = drawn;
+      while (!shown.includes(at) && shownBy.has(at)) at = shownBy.get(at)!;
+      if (!shown.includes(at)) return [];
+      const tag = labelBox(at);
+      return [pageBox(at.element.getBoundingClientRect()), ...(tag ? [tag] : [])];
+    };
+  };
+
+  /** `span` grown to take in `boxes`, in page pixels: what it says shows, and how far across. A
+   * span with nothing of its change shown has no box to grow by. */
+  const widen = (span: Span | null, boxes: Box[]) => {
+    if (!span?.changed || !boxes.length) return;
+    const top = Math.max(0, Math.min(...boxes.map(box => box.y)));
+    const bottom = Math.max(...boxes.map(box => box.y + box.height));
+    const left = Math.min(...boxes.map(box => box.x));
+    const right = Math.max(...boxes.map(box => box.x + box.width));
+    span.top = Math.min(span.top, top);
+    span.bottom = Math.max(span.bottom, bottom);
+    span.changed = { top: Math.min(span.changed.top, top), bottom: Math.max(span.changed.bottom, bottom) };
+    span.across = span.across
+      ? { left: Math.min(span.across.left, left), right: Math.max(span.across.right, right) }
+      : { left, right };
   };
 
   /** Where a change of look is on a page that has not its element: at that `edge` of `element`,
@@ -994,6 +1555,11 @@ export function runtime(properties: string[], ignore: string[] = [], showIgnored
     /** Box the changed words, box the elements whose look changed, and say where each is. */
     mark(marks: Marks): Spans {
       marked = true;
+      changedIn = new Map();
+      for (const index of marks.words.flatMap(change => change.changed).sort((x, y) => x - y)) {
+        const block = blockOf(tokens[index]);
+        if (block) changedIn.set(block, [...(changedIn.get(block) ?? []), index]);
+      }
       const outlines = outlineImages(marks, tokens);
       const under = overlay(); // the areas left out, under the changes' marks
       const layer = overlay();
@@ -1004,10 +1570,23 @@ export function runtime(properties: string[], ignore: string[] = [], showIgnored
       const inside = (nodes: Node[]) => !marks.within || nodes.some(node => !!scope && inTreeOf(scope, node));
       const tokenRects = tokens.map(rectsOf);
       const wordBoxes: Element[] = [];
+      const boxed: Drawn[] = [];
       const words = marks.words.map((change, i) => {
         const drawn: Element[] = [];
         const span = boxWords(change, tokens, tokenRects, layer, marks.color, drawn);
         wordBoxes.push(...drawn);
+        for (const element of drawn)
+          boxed.push({
+            element: element as HTMLElement | SVGElement,
+            box: pageBox(element.getBoundingClientRect()),
+            of: { words: [i], looks: [] },
+            label: null,
+            word: true,
+            firm: true,
+            block: wordBlocks.get(element) ?? null,
+            pinned: pinnedIn(wordBlocks.get(element) ?? null),
+            lines: wordRuns.get(element),
+          });
         undo.words.push([...outlines[i], ...removing(drawn)]);
         const nodes = change.changed
           .map(t => tokens[t])
@@ -1031,13 +1610,13 @@ export function runtime(properties: string[], ignore: string[] = [], showIgnored
         ...wordBoxes.map(element => pageBox(element.getBoundingClientRect())),
         ...marks.looks.flatMap(look => {
           const element = domElements[look.index];
-          const box = look.badge && element ? lookBox(element) : null;
+          const box = look.badge && element ? lookBox(element, 'plain' in look.badge) : null;
           return box ? [box] : [];
         }),
         ...(showIgnored ? ignoredBoxes().map(area => area.box) : []),
       ];
       const avoid: Avoid = { taken: tokenRects.flat().map(pageBox), lines: boxes.flatMap(edgesOf) };
-      const looks = marks.looks.map(look => {
+      const looks = marks.looks.map((look, i) => {
         const drawn: HTMLElement[] = [];
         const element: Element | undefined = domElements[look.index];
         const span =
@@ -1045,6 +1624,19 @@ export function runtime(properties: string[], ignore: string[] = [], showIgnored
             ? boxLook(look.badge, element, layer, marks.color, drawn, avoid)
             : placeAt(element, look.edge ?? 'top', look.beside);
         undo.looks.push(removing(drawn));
+        // A box with a disc on it is not tidied: its number must stay where the band's key says.
+        if (drawn.length && look.badge && !('disc' in look.badge))
+          boxed.push({
+            element: drawn[0],
+            box: pageBox(drawn[0].getBoundingClientRect()),
+            of: { words: [], looks: [i] },
+            label: 'label' in look.badge ? look.badge.label : null,
+            word: false,
+            firm: 'plain' in look.badge,
+            target: element,
+            block: blockAround(element),
+            pinned: pinnedIn(element),
+          });
         return {
           ...span,
           inside: inside(element ? [element] : []),
@@ -1052,6 +1644,14 @@ export function runtime(properties: string[], ignore: string[] = [], showIgnored
           area: element && areaOf(element),
         };
       });
+      const showing = tidy(boxed, layer, marks.color, avoid, marks.nested ?? 'both');
+      // Tidying can widen a box, put one round others, or add a label: each change's place takes in
+      // what now shows it, so a shot cut close to it cuts none of that. A place only grows.
+      for (const box of boxed) {
+        const now = showing(box);
+        for (const i of box.of.words) widen(words[i], now);
+        for (const i of box.of.looks) widen(looks[i], now);
+      }
       if (showIgnored) drawIgnored(under, avoid);
       return { words, looks };
     },
@@ -1065,9 +1665,15 @@ export function runtime(properties: string[], ignore: string[] = [], showIgnored
 
     /** Where `selector`'s element is, across and down, or null when it is not there. */
     region(selector: string): Area | null {
-      const rect = document.querySelector(selector)?.getBoundingClientRect();
-      return rect
-        ? { ...pageRegion([rect]), left: rect.left + window.scrollX, right: rect.right + window.scrollX }
+      const element = document.querySelector(selector);
+      const rect = element?.getBoundingClientRect();
+      return element && rect
+        ? {
+            ...pageRegion([rect]),
+            left: rect.left + window.scrollX,
+            right: rect.right + window.scrollX,
+            pinned: !!pinnedIn(element),
+          }
         : null;
     },
 

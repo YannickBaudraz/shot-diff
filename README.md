@@ -10,6 +10,8 @@ Before and after screenshots of a web page, with the change marked, ready to pas
   changed (a colour, a border, a size), or on a picture redrawn under the same file name.
 - A component added or removed, a card, a row, a paragraph, gets one plain box, red or green, and nothing
   inside it is marked.
+- No two boxes cross. Two that meet in one block become one box; in two blocks, they are drawn
+  back off each other. A paragraph whose words mostly changed gets one box, not one per stretch.
 - Each image has a band on top with its side, your title, and what its colour means. A lone image,
   with `--unified`, says Removed or Added instead of its side.
 
@@ -239,6 +241,7 @@ The same every time, with nobody there:
 | `--show-ignored` | | box what `--ignore` leaves out in dashed grey, saying "ignored", so a reader can tell it was left out on purpose, not missed |
 | `--no-words` | | compare no words, for pages whose text differs anyway (random text, other data): only changes of look, and elements added or removed, are marked; elements are paired by what they are, not by what they say |
 | `--markers labels\|numbers` | `labels` | on a box around a change of look: what changed written on it, or a number explained in the band |
+| `--nested both\|inner\|outer` | `both` | of two boxes one inside the other: both, the outer one kept off the inner one; only the inner one, what changed in a component; or only the outer one, the component, saying what the inner one said too. A word box and a component added or removed always stay. When a restyle's box round a word box is not kept, the word box gets the restyle's label |
 | `--padding <px>` | 80 | room kept around the changes |
 | `--max-height <px>` | 1.5 × `--height` | the tallest an image gets (1350 at the default `--height`); changes further apart get their own pair |
 | `--chrome <path>` | Google Chrome, or `$CHROME` | another Chrome or Chromium to use |
@@ -300,8 +303,17 @@ opens. To get the Linux one anyway, name it: `--chrome /usr/bin/google-chrome`.
    that is the page's body or taller than `--max-height`.
    A change of look gets a box with what changed written on it, or a number explained in the band
    with `--markers numbers`. A component added or removed gets a plain box, as changed words do: its
-   colour says it, red on the before shot, green on the after. On the page without it, the shot
-   takes in whole the element next to where it would be.
+   colour says it, red on the before shot, green on the after; one that draws nothing of its own,
+   no background, border or shadow, is boxed round what is inside it. On the page without it, the
+   shot takes in whole the element next to where it would be.
+   No two boxes cross. Two that run into each other in one block, a component added and the words
+   beside it, become one box round both, saying what both said; in two blocks, each is drawn
+   closer round what it marks, off the other. An outline round a change over several lines is
+   not drawn closer: it and the other box become one. Of two boxes one inside the other,
+   `--nested` says which are drawn; the outer one is kept off the inner one's lines. A word box
+   always stays. When a restyle's box round it has no room to stay off it, or `--nested` keeps
+   only one, the restyle's box goes and the word box gets its label. When the changes in a block
+   take most of its words, cut in stretches by the few left, the block gets one box.
 5. It shoots the area around the changes, unchanged words next to each change included, and the
    heading of what a change is in (a card's title, a section's heading) when it is less than a
    window high above it. Both shots of a pair show the same place: each edge of one is put on the
